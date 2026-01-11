@@ -21,7 +21,8 @@ const BookingPage = () => {
           ? pharmacistFromState.status === "online"
           : pharmacistFromState.online,
         specialty: pharmacistFromState.specialty ?? pharmacistFromState.tag,
-        verifiedText: pharmacistFromState.verifiedText ?? pharmacistFromState.badge,
+        verifiedText:
+          pharmacistFromState.verifiedText ?? pharmacistFromState.badge,
         workingHours: pharmacistFromState.workingHours,
         workingDays: pharmacistFromState.workingDays,
         languages: pharmacistFromState.languages,
@@ -45,7 +46,9 @@ const BookingPage = () => {
                 <PharmacistProfileCard pharmacist={pharmacist} />
               </div>
               <div className="lg:col-span-8">
-                <BookingForm onBackToPharmacists={() => navigate("/pharmacists")} />
+                <BookingForm
+                  onBackToPharmacists={() => navigate("/pharmacists")}
+                />
               </div>
             </div>
           </div>
