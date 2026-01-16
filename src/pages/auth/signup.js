@@ -1,9 +1,107 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AuthLayout from "../../components/auth/AuthLayout";
 import AuthHero from "../../components/auth/AuthHero";
 import SignupForm from "../../components/auth/SignupForm";
 
 const SignupPage = () => {
+  const navigate = useNavigate();
+  const API_BASE_URL = useMemo(
+    () => process.env.REACT_APP_API_BASE_URL || "http://localhost:8087",
+    []
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [modal, setModal] = useState({ open: false, type: "", message: "" });
+
+  const closeModal = () => setModal({ open: false, type: "", message: "" });
+
+  const handleSignup = async (form) => {
+    setError("");
+    setSuccess("");
+    setLoading(true);
+    try {
+      const payload = {
+        fullName: form.fullName,
+        email: form.email,
+        phone: form.phone,
+        password: form.password,
+      };
+
+      const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        // Try to parse JSON error body, fallback to text
+        let detail;
+        try {
+          const json = await res.json();
+          detail = json?.message || JSON.stringify(json);
+        } catch (e) {
+          detail = await res.text();
+        }
+
+        console.error("Signup failed", {
+          status: res.status,
+          statusText: res.statusText,
+          detail,
+        });
+
+        // Provide clearer message for conflict (409)
+        if (res.status === 409) {
+          // server usually returns 'Email already registered' or 'Phone already registered'
+          const lower = (detail || "").toLowerCase();
+          let userMessage = "Email hoặc số điện thoại đã được đăng ký.";
+          if (lower.includes("email")) userMessage = "Email đã được đăng ký.";
+          if (lower.includes("phone") || lower.includes("số")) {
+            userMessage = "Số điện thoại đã được đăng ký.";
+          }
+          setError(userMessage);
+          setModal({ open: true, type: "error", message: userMessage });
+          return;
+        }
+
+        throw new Error(detail || "Đăng ký thất bại. Kiểm tra lại thông tin.");
+      }
+
+      const data = await res.json();
+      setSuccess("Tạo tài khoản thành công. Vui lòng đăng nhập.");
+      setModal({
+        open: true,
+        type: "success",
+        message: "Đăng ký thành công. Bạn có thể đăng nhập ngay.",
+      });
+
+      // Auto-store token if returned
+      if (data?.token) {
+        localStorage.setItem("authToken", data.token);
+        localStorage.setItem(
+          "authUser",
+          JSON.stringify({
+            id: data.userId,
+            email: data.email,
+            phone: data.phone,
+            fullName: data.fullName,
+            expiresAt: data.expiresAt,
+          })
+        );
+      }
+
+      setTimeout(() => navigate("/login"), 600);
+    } catch (err) {
+      const msg = err.message || "Đăng ký thất bại. Kiểm tra lại thông tin.";
+      console.error("Signup error", err);
+      setError(msg);
+      setModal({ open: true, type: "error", message: msg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const hero = (
     <div className="relative w-full h-full flex items-center justify-center">
       <div className="absolute inset-0 z-0">
@@ -85,8 +183,47 @@ const SignupPage = () => {
         <p className="text-slate-500 dark:text-slate-400 text-base">
           Nhập thông tin để bắt đầu hành trình chăm sóc sức khỏe.
         </p>
+        {error && (
+          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {success}
+          </div>
+        )}
       </div>
-      <SignupForm />
+      <SignupForm onSubmit={handleSignup} loading={loading} />
+      {modal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <span
+                className={`material-symbols-outlined text-2xl ${
+                  modal.type === "success" ? "text-emerald-500" : "text-red-500"
+                }`}
+              >
+                {modal.type === "success" ? "check_circle" : "error"}
+              </span>
+              <h2 className="text-lg font-semibold text-slate-900">
+                {modal.type === "success"
+                  ? "Đăng ký thành công"
+                  : "Đăng ký không thành công"}
+              </h2>
+            </div>
+            <p className="text-sm text-slate-600">{modal.message}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-sm font-semibold"
+                onClick={closeModal}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AuthLayout>
   );
 };

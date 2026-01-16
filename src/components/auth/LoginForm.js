@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
-const LoginForm = ({ onSubmit }) => {
+const LoginForm = ({ onSubmit, loading }) => {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -14,7 +14,6 @@ const LoginForm = ({ onSubmit }) => {
       return;
     }
     onSubmit?.({ identifier, password, remember });
-    alert(`Đăng nhập với ${identifier}`);
   };
 
   return (
@@ -82,8 +81,9 @@ const LoginForm = ({ onSubmit }) => {
       <button
         className="group flex w-full items-center justify-center gap-2 rounded-lg bg-primary hover:bg-primary-hover active:bg-primary-hover text-white h-12 px-6 text-sm font-bold tracking-wide transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
         type="submit"
+        disabled={loading}
       >
-        <span>Đăng nhập</span>
+        <span>{loading ? "Đang đăng nhập..." : "Đăng nhập"}</span>
         <span className="material-symbols-outlined text-[18px] group-hover:translate-x-0.5 transition-transform">
           arrow_forward
         </span>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 const statusLabel = {
   active: { text: "Hoạt động", color: "bg-emerald-100 text-emerald-700" },
@@ -6,11 +6,48 @@ const statusLabel = {
   suspended: { text: "Tạm khóa", color: "bg-rose-100 text-rose-700" },
 };
 
-const UserDrawer = ({ user, onClose, onChangeStatus }) => {
+const UserDrawer = ({
+  user,
+  mode = "view", // view | create | edit
+  saving = false,
+  deleting = false,
+  error = "",
+  onClose,
+  onChangeStatus,
+  onSave,
+  onDelete,
+}) => {
+  // Hooks must run on every render — use optional chaining so they are safe
+  const initialForm = useMemo(
+    () => ({
+      email: user?.email || "",
+      phone: user?.phone || "",
+      fullName: user?.fullName || user?.name || "",
+    }),
+    [user?.email, user?.phone, user?.fullName, user?.name]
+  );
+
+  const [form, setForm] = useState(initialForm);
+
+  useEffect(() => {
+    setForm(initialForm);
+  }, [initialForm]);
+
+  const isCreate = mode === "create" || !user?.id;
+
   if (!user) return null;
 
   const handleStatus = (status) => {
     onChangeStatus(status);
+  };
+
+  const handleSubmit = () => {
+    if (!onSave) return;
+    onSave({
+      email: (form.email || "").trim(),
+      phone: (form.phone || "").trim(),
+      fullName: (form.fullName || "").trim(),
+    });
   };
 
   return (
@@ -24,7 +61,7 @@ const UserDrawer = ({ user, onClose, onChangeStatus }) => {
           <div>
             <p className="text-xs text-slate-500">Hồ sơ người dùng</p>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              {user.name}
+              {isCreate ? "Tạo người dùng" : user.name}
             </h3>
           </div>
           <button
@@ -45,9 +82,9 @@ const UserDrawer = ({ user, onClose, onChangeStatus }) => {
           />
           <div className="flex-1">
             <p className="text-sm font-semibold text-slate-900 dark:text-white">
-              {user.email}
+              {form.fullName || user.name}
             </p>
-            <p className="text-sm text-slate-500">{user.phone}</p>
+            <p className="text-sm text-slate-500">{form.email || user.email}</p>
             <div className="mt-2 flex items-center gap-2">
               <span
                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
@@ -75,6 +112,58 @@ const UserDrawer = ({ user, onClose, onChangeStatus }) => {
         </div>
 
         <div className="px-4 pb-4 space-y-4 overflow-y-auto h-[calc(100%-170px)]">
+          {error ? (
+            <div className="bg-rose-50 text-rose-700 border border-rose-200 rounded-lg px-3 py-2 text-sm">
+              {error}
+            </div>
+          ) : null}
+
+          <section className="space-y-2">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+              Thông tin
+            </h4>
+            <div className="bg-white/60 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                  Họ và tên
+                </label>
+                <input
+                  type="text"
+                  value={form.fullName}
+                  onChange={(e) =>
+                    setForm({ ...form, fullName: e.target.value })
+                  }
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Nguyễn Văn A"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="user@email.com"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                  Số điện thoại
+                </label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="090..."
+                />
+              </div>
+            </div>
+          </section>
+
           <section className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
             <div className="flex items-center justify-between">
               <div>
@@ -144,13 +233,35 @@ const UserDrawer = ({ user, onClose, onChangeStatus }) => {
               Khóa
             </button>
           </div>
-          <button
-            type="button"
-            className="text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-primary"
-            onClick={onClose}
-          >
-            Đóng
-          </button>
+          <div className="flex items-center gap-2">
+            {!isCreate && onDelete ? (
+              <button
+                type="button"
+                disabled={deleting || saving}
+                onClick={onDelete}
+                className="px-3 py-2 rounded-lg bg-rose-50 text-rose-700 text-sm font-semibold hover:bg-rose-100 disabled:opacity-60"
+              >
+                {deleting ? "Đang xóa..." : "Xóa"}
+              </button>
+            ) : null}
+            {onSave ? (
+              <button
+                type="button"
+                disabled={saving || deleting || !form.email.trim()}
+                onClick={handleSubmit}
+                className="px-3 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60"
+              >
+                {saving ? "Đang lưu..." : isCreate ? "Tạo" : "Lưu"}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-primary"
+              onClick={onClose}
+            >
+              Đóng
+            </button>
+          </div>
         </div>
       </aside>
     </div>

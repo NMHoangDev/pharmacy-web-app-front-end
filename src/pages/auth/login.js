@@ -1,9 +1,66 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AuthLayout from "../../components/auth/AuthLayout";
 import AuthHero from "../../components/auth/AuthHero";
 import LoginForm from "../../components/auth/LoginForm";
 
 const LoginPage = () => {
+  const navigate = useNavigate();
+  const API_BASE_URL = useMemo(
+    () => process.env.REACT_APP_API_BASE_URL || "http://localhost:8087",
+    []
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [modal, setModal] = useState({ open: false, message: "" });
+
+  const closeModal = () => setModal({ open: false, message: "" });
+
+  const handleLogin = async ({ identifier, password }) => {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier, password }),
+      });
+
+      if (!res.ok) {
+        const detail = await res.text();
+        console.error("Login failed", {
+          status: res.status,
+          statusText: res.statusText,
+          detail,
+        });
+        throw new Error(detail || "Sai mật khẩu hoặc tài khoản không tồn tại.");
+      }
+
+      const data = await res.json();
+
+      localStorage.setItem("authToken", data.token);
+      localStorage.setItem(
+        "authUser",
+        JSON.stringify({
+          id: data.userId,
+          email: data.email,
+          phone: data.phone,
+          fullName: data.fullName,
+          expiresAt: data.expiresAt,
+        })
+      );
+
+      navigate("/");
+    } catch (err) {
+      const msg = err.message || "Sai mật khẩu hoặc tài khoản không tồn tại.";
+      console.loading("Login error", err);
+      setError(msg);
+      setModal({ open: true, message: msg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const hero = (
     <AuthHero
       title="Chăm sóc sức khỏe toàn diện cho gia đình bạn"
@@ -38,8 +95,36 @@ const LoginPage = () => {
         <p className="text-slate-500 dark:text-slate-400 text-base">
           Chào mừng trở lại. Đăng nhập để tiếp tục chăm sóc sức khỏe của bạn.
         </p>
+        {error && (
+          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
       </div>
-      <LoginForm />
+      <LoginForm onSubmit={handleLogin} loading={loading} />
+      {modal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-red-500 text-2xl">
+                error
+              </span>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Đăng nhập không thành công
+              </h2>
+            </div>
+            <p className="text-sm text-slate-600">{modal.message}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-sm font-semibold"
+                onClick={closeModal}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AuthLayout>
   );
 };

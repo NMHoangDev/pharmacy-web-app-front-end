@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
-const SignupForm = ({ onSubmit }) => {
+const SignupForm = ({ onSubmit, loading }) => {
   const [form, setForm] = useState({
     fullName: "",
     phone: "",
@@ -36,7 +36,6 @@ const SignupForm = ({ onSubmit }) => {
       return;
     }
     onSubmit?.(form);
-    alert(`Tạo tài khoản cho ${form.fullName}`);
   };
 
   return (
@@ -278,8 +277,9 @@ const SignupForm = ({ onSubmit }) => {
         <button
           className="flex w-full justify-center rounded-lg bg-primary px-3 py-4 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors"
           type="submit"
+          disabled={loading}
         >
-          Đăng ký tài khoản
+          {loading ? "Đang tạo tài khoản..." : "Đăng ký tài khoản"}
         </button>
       </div>
 

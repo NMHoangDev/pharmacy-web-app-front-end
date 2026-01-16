@@ -19,8 +19,19 @@ const UserTable = ({
   onToggleSelectAll,
   onRowClick,
   onStatusChange,
+  loading = false,
 }) => {
   const allSelected = users.length > 0 && selectedIds.length === users.length;
+
+  if (loading) {
+    return (
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center shadow-sm">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Đang tải người dùng...
+        </p>
+      </div>
+    );
+  }
 
   if (!users.length) {
     return (
