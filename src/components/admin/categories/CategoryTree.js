@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 
-const statusBadge = (status) => {
-  if (status === "hidden")
+const statusBadge = (active) => {
+  if (!active)
     return (
       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
         Ẩn
@@ -75,11 +75,6 @@ const CategoryNode = ({
             }`}
           >
             {node.name}
-            {node.itemCount != null && (
-              <span className="text-xs text-slate-400">
-                {node.itemCount} sp
-              </span>
-            )}
           </p>
           {node.description && (
             <p className="text-xs text-text-secondary dark:text-slate-400 line-clamp-1">
@@ -87,7 +82,7 @@ const CategoryNode = ({
             </p>
           )}
         </div>
-        {statusBadge(node.status)}
+        {statusBadge(node.active)}
       </div>
       {hasChildren && isExpanded && (
         <ul className="ml-6 mt-1 space-y-1 border-l border-border-light pl-2 dark:border-border-dark">
@@ -124,7 +119,12 @@ const CategoryTree = ({
       map[parentId].push(cat);
     });
     Object.keys(map).forEach((key) => {
-      map[key].sort((a, b) => a.name.localeCompare(b.name));
+      map[key].sort((a, b) => {
+        const orderA = a.sortOrder ?? 0;
+        const orderB = b.sortOrder ?? 0;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.name.localeCompare(b.name);
+      });
     });
     return map;
   }, [categories]);

@@ -1,93 +1,337 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../../components/admin/AdminLayout";
 import DrugFilters from "../../../components/admin/drugs/DrugFilters";
 import DrugTable from "../../../components/admin/drugs/DrugTable";
 import DrugModal from "../../../components/admin/drugs/DrugModal";
+import ReviewModerationModal from "../../../components/admin/drugs/ReviewModerationModal";
 
 const defaultImage =
   "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=300&q=80";
 
-const initialDrugs = [
-  {
-    id: "d1",
-    name: "Panadol Extra",
-    sku: "PD-001",
-    category: "Giảm đau, hạ sốt",
-    price: 2500,
-    priceLabel: "2,500 ₫",
-    unit: "viên",
-    stockLabel: "450 hộp",
-    stockStatus: "in",
-    rx: false,
-    status: "active",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDrS_kigWy9BxLnGOHchLp2Gcm2JVjEYkeMRjMeIZwM0y-vxrrxAcPcOE55P1Xe3u3qcPJvMUQr5i-haWSz6BEe0d3438nl4he7hVQewf9yhE47Kb9ieJwyfbex_pTxiepvdpbfTxspSsEtnfhG0ofpwFsGulkRlMA727yFqxOD-yXT8hhFNYbytC-MnERl3WEvnZwak94yf3KHZfGPz2DQsmGjE-sMOH7u6cRfSZmV4q1G9a-hd4JdyYvx4_hnSgwrT-0kPHIPUExE",
-  },
-  {
-    id: "d2",
-    name: "Augmentin 625mg",
-    sku: "AG-625",
-    category: "Kháng sinh",
-    price: 18000,
-    priceLabel: "18,000 ₫",
-    unit: "gói",
-    stockLabel: "15 hộp",
-    stockStatus: "low",
-    rx: true,
-    status: "active",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCuXypiX9UEk19UuLlX62Ed81bf5iM0j_B7beOSNS9b0Po3631xasrB1R1N8KiU17XbqNhKcnLwLXvLlmMoerqcyDJ7lUjbAp8PHLGGUnEhhbtfmyLGN27bfoxK501zF9CLhoZsiQO1MTnXHpCcyDlEKKqq6sSQxlyKl_fYnUurTGpFkFY1MHWl599WO31N-A6DB7fxIyVOeED2FEz9-hGT5YzAAUJyYflAi5qzM0dl5JvS5CXbNKeExk6q8tR44rWsGtemLIoGdFLh",
-  },
-  {
-    id: "d3",
-    name: "Berocca Performance",
-    sku: "BR-010",
-    category: "Vitamin & Khoáng chất",
-    price: 85000,
-    priceLabel: "85,000 ₫",
-    unit: "tuýp",
-    stockLabel: "Hết hàng",
-    stockStatus: "out",
-    rx: false,
-    status: "inactive",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBIt8MB3u8OOCHANLF2CfTXKV36q0kIDmFtyRTToFpWedLMfMGNvAO_G5JlIPX_KOupdwB3n2pdSHFjen0prE_X3HOuIoPftCim5JtO6d8HomqrWU7JYGSaVjJUChCgvlNQUJyjFSf1gLkCHKvJa5EOp4pLHxiSGNT0_GqEyBb5qsiZel8GLwi0MracgKGTbeGkIrwffj58oPBD9Jz0gK_CI8D8BpyOwCsnM-aPV-4_XNhNnt2f70cGkecbre3Q9Fo1grgr2U90_n6s",
-  },
-  {
-    id: "d4",
-    name: "Efferalgan 500mg",
-    sku: "EF-500",
-    category: "Giảm đau, hạ sốt",
-    price: 15000,
-    priceLabel: "15,000 ₫",
-    unit: "vỉ",
-    stockLabel: "200 vỉ",
-    stockStatus: "in",
-    rx: false,
-    status: "active",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBiuBpO1XR2VUJGCjgmC6IEoxy7UTNwCHjR-JubYWGi7_dsVlLSGhUsXX8Ln0BF_8d0cpjnZaVroyfe4hbl9J3LKuvUPl6y2rAadlg_1EExP-uqVGcOb0IrZjAwfkTMJMzPZIxCBfigIH8g2WGnQ5VPsPaTySvx_y5hpPtw9j55ZLESeQdffCvMRmBAxjfiuN6p3eaybnhWGVqupSC_NnQUv9zg2pwQ2XHbOSw4Z-Yd_Qt4UkPoUuKOe0c47My3BQ6F8kLqgXVzIvPN",
-  },
-];
-
 const formatPrice = (value) =>
   `${Number(value || 0).toLocaleString("vi-VN")} ₫`;
 
+const slugify = (value) =>
+  value
+    ?.toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "") || `drug-${Date.now()}`;
+
+const parseAttributes = (value) => {
+  if (!value) return {};
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return {};
+  }
+};
+
+const readErrorMessage = async (response, fallback) => {
+  try {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const data = await response.json();
+      return data.message || data.error || fallback;
+    }
+    const text = await response.text();
+    return text || fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 const AdminDrugsPage = () => {
-  const [drugs, setDrugs] = useState(initialDrugs);
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [availabilityMap, setAvailabilityMap] = useState({});
+  const [reviewCounts, setReviewCounts] = useState({});
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [showModal, setShowModal] = useState(false);
+  const [categoryId, setCategoryId] = useState("");
+  const [status, setStatus] = useState("ALL");
+  const [sort, setSort] = useState("name,asc");
+  const [pageSize, setPageSize] = useState(10);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState("create");
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewProduct, setReviewProduct] = useState(null);
+  const [reviewStatus, setReviewStatus] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [reloadIndex, setReloadIndex] = useState(0);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+
+  const categoryMap = useMemo(() => {
+    const map = new Map();
+    categories.forEach((category) => map.set(category.id, category.name));
+    return map;
+  }, [categories]);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const response = await fetch("/api/catalog/public/categories");
+        if (!response.ok) {
+          const message = await readErrorMessage(
+            response,
+            "Không thể tải danh mục",
+          );
+          throw new Error(message);
+        }
+        const payload = await response.json();
+        setCategories(payload);
+      } catch (err) {
+        console.warn("Không thể tải danh mục", err);
+      }
+    };
+
+    loadCategories();
+  }, []);
+
+  const fetchAvailability = async (items) => {
+    if (!items.length) {
+      setAvailabilityMap({});
+      return;
+    }
+
+    const params = new URLSearchParams();
+    items.forEach((item) => params.append("productIds", item.id));
+
+    try {
+      const response = await fetch(
+        `/api/inventory/internal/inventory/availability?${params.toString()}`,
+      );
+      if (!response.ok) {
+        const message = await readErrorMessage(
+          response,
+          "Không thể tải tồn kho",
+        );
+        throw new Error(message);
+      }
+      const payload = await response.json();
+      const map = {};
+      (payload.items ?? []).forEach((entry) => {
+        map[entry.productId] = entry;
+      });
+      setAvailabilityMap(map);
+    } catch (err) {
+      console.warn("Lỗi khi tải tồn kho", err);
+      setAvailabilityMap({});
+    }
+  };
+
+  const fetchReviewCounts = async (items) => {
+    if (!items.length) {
+      setReviewCounts({});
+      return;
+    }
+
+    const tasks = items.map(async (item) => {
+      try {
+        const response = await fetch(
+          `/api/reviews/internal/product/${item.id}?page=0&size=1`,
+        );
+        if (!response.ok) {
+          return [item.id, 0];
+        }
+        const payload = await response.json();
+        return [item.id, payload.totalElements ?? 0];
+      } catch {
+        return [item.id, 0];
+      }
+    });
+
+    const settled = await Promise.all(tasks);
+    const map = {};
+    settled.forEach(([productId, total]) => {
+      map[productId] = total;
+    });
+    setReviewCounts(map);
+  };
+
+  const loadProducts = async (signal) => {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        size: String(pageSize),
+        sort,
+      });
+      if (search.trim()) {
+        params.set("q", search.trim());
+      }
+      if (status && status !== "ALL") {
+        params.set("status", status);
+      }
+      if (categoryId) {
+        params.set("categoryId", categoryId);
+      }
+
+      const response = await fetch(
+        `/api/catalog/internal/products?${params.toString()}`,
+        { signal },
+      );
+      if (!response.ok) {
+        const message = await readErrorMessage(
+          response,
+          "Không thể tải sản phẩm",
+        );
+        throw new Error(message);
+      }
+
+      const payload = await response.json();
+      if (signal.aborted) return;
+
+      const items = payload.content ?? [];
+      setTotalPages(payload.totalPages ?? 1);
+      setTotalElements(payload.totalElements ?? items.length);
+      setProducts(items);
+      fetchAvailability(items);
+      fetchReviewCounts(items);
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        setError(err.message);
+      }
+    } finally {
+      if (!signal.aborted) {
+        setLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    setPage(0);
+  }, [search, filter, categoryId, status, sort, pageSize]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => loadProducts(controller.signal), 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [search, filter, categoryId, status, sort, pageSize, page, reloadIndex]);
+
+  const syncInventory = async (productId, targetStock) => {
+    if (typeof targetStock !== "number" || Number.isNaN(targetStock)) {
+      return;
+    }
+
+    const current = availabilityMap[productId]?.available ?? 0;
+    const delta = targetStock - current;
+    if (delta === 0) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/inventory/internal/inventory/adjust", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId,
+          delta,
+          reason: "Admin sync",
+        }),
+      });
+      if (!response.ok) {
+        const message = await readErrorMessage(
+          response,
+          "Không thể đồng bộ tồn kho",
+        );
+        throw new Error(message);
+      }
+    } catch (err) {
+      console.warn("Đồng bộ tồn kho thất bại", err);
+    }
+  };
+
+  const buildCatalogRequest = (base = {}, overrides = {}) => {
+    const baseAttributes = parseAttributes(base.attributes);
+    const mergedAttributes = {
+      ...baseAttributes,
+      ...(overrides.attributes || {}),
+    };
+
+    const slugCandidate =
+      overrides.slug ||
+      base.slug ||
+      slugify(overrides.name || base.name || overrides.sku || base.sku);
+
+    return {
+      sku: overrides.sku || base.sku || `SKU-${Date.now()}`,
+      name: overrides.name || base.name || "Thuốc mới",
+      slug: slugCandidate,
+      categoryId:
+        overrides.categoryId || base.categoryId || categories[0]?.id || null,
+      price: overrides.price ?? base.price ?? 0,
+      status: overrides.status || base.status || "ACTIVE",
+      prescriptionRequired:
+        overrides.prescriptionRequired ?? base.prescriptionRequired ?? false,
+      description: overrides.description ?? base.description ?? "",
+      imageUrl: overrides.imageUrl ?? base.imageUrl ?? defaultImage,
+      attributes: JSON.stringify(mergedAttributes),
+    };
+  };
+
+  const enrichedDrugs = useMemo(() => {
+    return products.map((product) => {
+      const availability = availabilityMap[product.id];
+      const attrs = parseAttributes(product.attributes);
+      const unit = attrs.unit || "đơn vị";
+      const fallbackStock =
+        typeof attrs.stock === "number"
+          ? attrs.stock
+          : Number.isFinite(Number(attrs.stock))
+            ? Number(attrs.stock)
+            : null;
+      const available =
+        availability?.available ??
+        (fallbackStock != null ? Math.max(0, fallbackStock) : 0);
+      const images = Array.isArray(attrs.images)
+        ? attrs.images
+        : product.imageUrl
+          ? [product.imageUrl]
+          : [];
+      const stockStatus = available <= 0 ? "out" : available < 5 ? "low" : "in";
+      const stockLabel = available ? `${available} ${unit}` : "Hết hàng";
+
+      const categoryName =
+        categoryMap.get(product.categoryId) || "Không xác định";
+
+      return {
+        ...product,
+        categoryName,
+        category: categoryName,
+        priceLabel: formatPrice(product.price),
+        unit,
+        stockStatus,
+        stockLabel,
+        stockQuantity: available,
+        status: product.status || "INACTIVE",
+        image: product.imageUrl || images[0] || defaultImage,
+        images,
+        albumId: attrs.albumId || "",
+        rx: !!product.prescriptionRequired,
+        reviewCount: reviewCounts[product.id] ?? 0,
+      };
+    });
+  }, [products, availabilityMap, categoryMap, reviewCounts]);
 
   const filteredDrugs = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return drugs.filter((drug) => {
-      const matchesQuery = q
-        ? `${drug.name} ${drug.sku}`.toLowerCase().includes(q)
+    const query = search.trim().toLowerCase();
+    return enrichedDrugs.filter((drug) => {
+      const matchesQuery = query
+        ? `${drug.name} ${drug.sku} ${drug.categoryName}`
+            .toLowerCase()
+            .includes(query)
         : true;
 
       const matchesFilter = (() => {
-        if (filter === "active") return drug.status === "active";
         if (filter === "out") return drug.stockStatus === "out";
         if (filter === "rx") return !!drug.rx;
         if (filter === "low") return drug.stockStatus === "low";
@@ -96,48 +340,183 @@ const AdminDrugsPage = () => {
 
       return matchesQuery && matchesFilter;
     });
-  }, [drugs, search, filter]);
+  }, [enrichedDrugs, search, filter]);
 
-  const toggleStatus = (id) => {
-    setDrugs((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status: item.status === "active" ? "inactive" : "active",
-            }
-          : item
-      )
-    );
+  const openCreateModal = () => {
+    setModalMode("create");
+    setEditingProduct(null);
+    setModalOpen(true);
   };
 
-  const handleDelete = (id) => {
-    setDrugs((prev) => prev.filter((item) => item.id !== id));
+  const openEditModal = (drug) => {
+    setModalMode("edit");
+    setEditingProduct(drug);
+    setModalOpen(true);
   };
 
-  const handleSaveDrug = (payload) => {
-    const price = Number(payload.price) || 0;
-    const stockNumber = Number(payload.stock) || 0;
-    const unit = payload.unit?.trim() || "đơn vị";
-
-    const newDrug = {
-      id: `d-${Date.now()}`,
-      name: payload.name.trim(),
-      sku: payload.sku.trim() || `SKU-${Date.now()}`,
-      category: payload.category.trim() || "Khác",
-      price,
-      priceLabel: formatPrice(price),
-      unit,
-      stockLabel: stockNumber ? `${stockNumber} ${unit}` : "0",
-      stockStatus: payload.stockStatus || "in",
-      rx: !!payload.rx,
-      status: "active",
-      image: payload.image.trim() || defaultImage,
-    };
-
-    setDrugs((prev) => [newDrug, ...prev]);
-    setShowModal(false);
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingProduct(null);
   };
+
+  const handleSaveDrug = async (values, meta) => {
+    const targetCategoryId = values.categoryId || categories[0]?.id || null;
+    if (!targetCategoryId) {
+      setError("Vui lòng tạo ít nhất một danh mục trước khi thêm thuốc.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const overrides = {
+        sku: values.sku?.trim(),
+        name: values.name.trim(),
+        slug: slugify(values.name || values.sku),
+        categoryId: targetCategoryId,
+        price: values.price ?? 0,
+        status: values.status || "ACTIVE",
+        prescriptionRequired: !!values.rx,
+        description: "",
+        imageUrl: values.image?.trim() || values.images?.[0] || defaultImage,
+        attributes: {
+          unit: values.unit?.trim() || "đơn vị",
+          albumId: values.albumId || "",
+          images: values.images || [],
+          stock: Number(values.stock || 0),
+        },
+      };
+
+      const requestBody = buildCatalogRequest(
+        meta.mode === "edit" ? editingProduct : undefined,
+        overrides,
+      );
+
+      const endpoint =
+        meta.mode === "edit"
+          ? `/api/catalog/internal/products/${meta.id}`
+          : "/api/catalog/internal/products";
+
+      const response = await fetch(endpoint, {
+        method: meta.mode === "edit" ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const message = await readErrorMessage(
+          response,
+          `Không thể ${meta.mode === "edit" ? "cập nhật" : "tạo"} thuốc`,
+        );
+        throw new Error(message);
+      }
+
+      const payload = await response.json();
+      await syncInventory(payload.id, values.stock);
+      setReloadIndex((prev) => prev + 1);
+      window.alert(
+        meta.mode === "edit"
+          ? "Cập nhật thuốc thành công"
+          : "Thêm thuốc thành công",
+      );
+      closeModal();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (id) => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const product = products.find((item) => item.id === id);
+      if (!product) return;
+
+      const requestBody = buildCatalogRequest(product, {
+        status: product.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
+      });
+
+      const response = await fetch(`/api/catalog/internal/products/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const message = await readErrorMessage(
+          response,
+          "Không thể thay đổi trạng thái sản phẩm",
+        );
+        throw new Error(message);
+      }
+
+      const payload = await response.json();
+      await syncInventory(
+        payload.id,
+        availabilityMap[payload.id]?.available ?? 0,
+      );
+      setReloadIndex((prev) => prev + 1);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa sản phẩm này?")) {
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/catalog/internal/products/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const message = await readErrorMessage(
+          response,
+          "Không thể xóa sản phẩm",
+        );
+        throw new Error(message);
+      }
+      setReloadIndex((prev) => prev + 1);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewReviews = (productId) => {
+    const product = enrichedDrugs.find((item) => item.id === productId);
+    setReviewProduct(product || null);
+    setReviewStatus("");
+    setReviewModalOpen(true);
+  };
+
+  const modalInitialData = editingProduct
+    ? {
+        id: editingProduct.id,
+        name: editingProduct.name,
+        sku: editingProduct.sku,
+        categoryId: editingProduct.categoryId,
+        price: editingProduct.price,
+        unit: editingProduct.unit,
+        stock: editingProduct.stockQuantity,
+        status: editingProduct.status,
+        rx: editingProduct.rx,
+        image: editingProduct.image,
+        images: editingProduct.images || [],
+        albumId: editingProduct.albumId || "",
+      }
+    : null;
 
   return (
     <AdminLayout activeKey="drugs">
@@ -154,7 +533,7 @@ const AdminDrugsPage = () => {
           <button
             className="flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
             type="button"
-            onClick={() => setShowModal(true)}
+            onClick={openCreateModal}
           >
             <span className="material-symbols-outlined text-[20px]">add</span>
             Thêm thuốc mới
@@ -166,20 +545,86 @@ const AdminDrugsPage = () => {
           onSearchChange={setSearch}
           filter={filter}
           onFilterChange={setFilter}
+          categories={categories}
+          categoryId={categoryId}
+          onCategoryChange={setCategoryId}
+          status={status}
+          onStatusChange={setStatus}
+          sort={sort}
+          onSortChange={setSort}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          onReset={() => {
+            setSearch("");
+            setFilter("all");
+            setCategoryId("");
+            setStatus("ALL");
+            setSort("name,asc");
+            setPageSize(10);
+          }}
         />
+
+        {error && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        )}
+
+        {loading && (
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            Đang tải dữ liệu sản phẩm...
+          </div>
+        )}
 
         <DrugTable
           drugs={filteredDrugs}
-          onToggleStatus={toggleStatus}
-          onEdit={() => alert("Tính năng chỉnh sửa sẽ được bổ sung.")}
+          onToggleStatus={handleToggleStatus}
+          onEdit={openEditModal}
           onDelete={handleDelete}
+          onViewReviews={handleViewReviews}
         />
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <span>Tổng {totalElements.toLocaleString("vi-VN")} sản phẩm</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 disabled:opacity-50"
+              disabled={page === 0}
+              onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
+            >
+              Trước
+            </button>
+            <span>
+              Trang {page + 1} / {totalPages}
+            </span>
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 disabled:opacity-50"
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage((prev) => prev + 1)}
+            >
+              Sau
+            </button>
+          </div>
+        </div>
       </div>
 
       <DrugModal
-        open={showModal}
-        onClose={() => setShowModal(false)}
+        open={modalOpen}
+        onClose={closeModal}
         onSave={handleSaveDrug}
+        initialData={modalInitialData}
+        categories={categories}
+        mode={modalMode}
+      />
+
+      <ReviewModerationModal
+        open={reviewModalOpen}
+        onClose={() => setReviewModalOpen(false)}
+        product={reviewProduct}
+        statusFilter={reviewStatus}
+        onStatusFilterChange={setReviewStatus}
       />
     </AdminLayout>
   );

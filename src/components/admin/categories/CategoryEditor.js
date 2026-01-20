@@ -7,6 +7,7 @@ const CategoryEditor = ({
   onSave,
   onDelete,
   onCancel,
+  mode,
 }) => {
   if (!category) {
     return (
@@ -24,14 +25,14 @@ const CategoryEditor = ({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-text-main dark:text-white">
-              Chỉnh sửa danh mục
+              {mode === "create" ? "Tạo danh mục mới" : "Chỉnh sửa danh mục"}
             </h3>
             <p className="text-sm text-text-secondary dark:text-slate-400">
-              ID: {category.id}
+              {category.id ? `ID: ${category.id}` : "Danh mục chưa lưu"}
             </p>
           </div>
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
-            Đang chỉnh sửa
+            {mode === "create" ? "Tạo mới" : "Đang chỉnh sửa"}
           </span>
         </div>
       </div>
@@ -57,6 +58,26 @@ const CategoryEditor = ({
           <div className="space-y-2">
             <label
               className="block text-sm font-medium text-text-main dark:text-white"
+              htmlFor="cat-slug"
+            >
+              Slug danh mục <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="cat-slug"
+              value={category.slug}
+              onChange={(e) => onChange({ slug: e.target.value })}
+              className="block w-full rounded-lg border-border-light bg-background-light p-2.5 text-sm text-text-main focus:border-primary focus:ring-primary dark:border-border-dark dark:bg-background-dark dark:text-white"
+              placeholder="vi-du-thuoc-khong-ke-don"
+              type="text"
+            />
+            <p className="text-xs text-text-secondary dark:text-slate-500">
+              Slug dùng cho đường dẫn và tìm kiếm.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label
+              className="block text-sm font-medium text-text-main dark:text-white"
               htmlFor="parent-cat"
             >
               Danh mục cha
@@ -69,7 +90,7 @@ const CategoryEditor = ({
                 className="block w-full appearance-none rounded-lg border-border-light bg-background-light p-2.5 text-sm text-text-main focus:border-primary focus:ring-primary dark:border-border-dark dark:bg-background-dark dark:text-white"
               >
                 <option value="">Không có (cấp 1)</option>
-                {parentOptions.map((opt) => (
+                {(parentOptions || []).map((opt) => (
                   <option key={opt.id} value={opt.id}>
                     {opt.name}
                   </option>
@@ -115,10 +136,8 @@ const CategoryEditor = ({
             <label className="relative inline-flex cursor-pointer items-center">
               <input
                 type="checkbox"
-                checked={category.status === "active"}
-                onChange={(e) =>
-                  onChange({ status: e.target.checked ? "active" : "hidden" })
-                }
+                checked={!!category.active}
+                onChange={(e) => onChange({ active: e.target.checked })}
                 className="peer sr-only"
               />
               <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700 dark:border-gray-600" />
@@ -126,31 +145,25 @@ const CategoryEditor = ({
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text-main dark:text-white">
-              Ảnh danh mục
+            <label
+              className="block text-sm font-medium text-text-main dark:text-white"
+              htmlFor="cat-order"
+            >
+              Thứ tự hiển thị
             </label>
-            <div className="flex items-center gap-3">
-              <div className="h-20 w-20 rounded-lg bg-slate-100 border border-border-light dark:bg-slate-800 dark:border-border-dark overflow-hidden flex items-center justify-center">
-                {category.image ? (
-                  <img
-                    src={category.image}
-                    alt={category.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="material-symbols-outlined text-slate-400">
-                    image
-                  </span>
-                )}
-              </div>
-              <input
-                type="text"
-                value={category.image || ""}
-                onChange={(e) => onChange({ image: e.target.value })}
-                className="flex-1 rounded-lg border-border-light bg-background-light p-2.5 text-sm text-text-main focus:border-primary focus:ring-primary dark:border-border-dark dark:bg-background-dark dark:text-white"
-                placeholder="Dán liên kết ảnh hoặc để trống"
-              />
-            </div>
+            <input
+              id="cat-order"
+              type="number"
+              value={category.sortOrder ?? 0}
+              onChange={(e) =>
+                onChange({ sortOrder: Number(e.target.value || 0) })
+              }
+              className="block w-full rounded-lg border-border-light bg-background-light p-2.5 text-sm text-text-main focus:border-primary focus:ring-primary dark:border-border-dark dark:bg-background-dark dark:text-white"
+              min={0}
+            />
+            <p className="text-xs text-text-secondary dark:text-slate-500">
+              Số nhỏ hơn sẽ hiển thị trước.
+            </p>
           </div>
         </div>
       </div>
@@ -158,7 +171,8 @@ const CategoryEditor = ({
         <button
           type="button"
           onClick={onDelete}
-          className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:border-red-900/30 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-900/20"
+          disabled={!category.id}
+          className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/30 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-900/20"
         >
           <span className="material-symbols-outlined text-[18px]">delete</span>
           Xóa danh mục

@@ -11,7 +11,13 @@ const statusSwitch = (checked) =>
     ? "relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full bg-primary transition-colors duration-200 ease-in-out"
     : "relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full bg-slate-200 dark:bg-slate-600 transition-colors duration-200 ease-in-out";
 
-const DrugTable = ({ drugs, onToggleStatus, onEdit, onDelete }) => {
+const DrugTable = ({
+  drugs,
+  onToggleStatus,
+  onEdit,
+  onDelete,
+  onViewReviews,
+}) => {
   if (!drugs.length) {
     return (
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center shadow-sm">
@@ -36,6 +42,7 @@ const DrugTable = ({ drugs, onToggleStatus, onEdit, onDelete }) => {
               <th className="px-6 py-4 font-semibold">Giá bán</th>
               <th className="px-6 py-4 font-semibold">Kho</th>
               <th className="px-6 py-4 font-semibold text-center">Kê đơn?</th>
+              <th className="px-6 py-4 font-semibold">Đánh giá</th>
               <th className="px-6 py-4 font-semibold">Trạng thái</th>
               <th className="px-6 py-4 font-semibold text-right">Hành động</th>
             </tr>
@@ -99,19 +106,33 @@ const DrugTable = ({ drugs, onToggleStatus, onEdit, onDelete }) => {
                   )}
                 </td>
                 <td className="px-6 py-4">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {(drug.reviewCount ?? 0).toLocaleString("vi-VN")} đánh giá
+                    </span>
+                    <button
+                      type="button"
+                      className="text-xs text-primary underline-offset-4 hover:underline"
+                      onClick={() => onViewReviews?.(drug.id)}
+                    >
+                      Xem chi tiết
+                    </button>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
                   <button
                     type="button"
-                    className={statusSwitch(drug.status === "active")}
+                    className={statusSwitch(drug.status === "ACTIVE")}
                     onClick={() => onToggleStatus(drug.id)}
                     aria-label={
-                      drug.status === "active"
+                      drug.status === "ACTIVE"
                         ? "Tắt kinh doanh"
                         : "Bật kinh doanh"
                     }
                   >
                     <span
                       className={
-                        drug.status === "active"
+                        drug.status === "ACTIVE"
                           ? "translate-x-4 pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
                           : "translate-x-0 pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
                       }
