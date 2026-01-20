@@ -60,7 +60,9 @@ const PharmacistProfileCard = ({ pharmacist }) => {
               <p className="text-sm font-semibold text-slate-900 dark:text-white">
                 {safePharmacist.workingHours}
               </p>
-              <p className="text-xs text-slate-400">{safePharmacist.workingDays}</p>
+              <p className="text-xs text-slate-400">
+                {safePharmacist.workingDays}
+              </p>
             </div>
           </div>
 

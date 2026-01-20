@@ -1,11 +1,15 @@
-import React from "react";
+import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
 
 const Header = () => {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const closeMobile = () => setMobileOpen(false);
+
   return (
     <header className="sticky top-0 z-50 w-full bg-surface-light dark:bg-surface-dark border-b border-[#e7edf3] dark:border-slate-700 shadow-sm">
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20 gap-8">
+        <div className="flex items-center justify-between h-20 gap-3 sm:gap-6">
           <div className="flex items-center gap-3 shrink-0">
             <div className="size-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
               <span className="material-symbols-outlined text-3xl">
@@ -32,82 +36,143 @@ const Header = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <button className="md:hidden p-2 text-slate-600 dark:text-slate-300 hover:text-primary transition-colors">
               <span className="material-symbols-outlined">search</span>
             </button>
-            <button className="relative p-2 text-slate-600 dark:text-slate-300 hover:text-primary transition-colors group">
+            <NavLink
+              to="/cart"
+              className="relative p-2 text-slate-600 dark:text-slate-300 hover:text-primary transition-colors group"
+              aria-label="Xem giỏ hàng"
+            >
               <span className="material-symbols-outlined">shopping_cart</span>
               <span className="absolute top-1 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white group-hover:scale-110 transition-transform">
-                2
+                3
               </span>
-            </button>
-            <button className="p-2 text-slate-600 dark:text-slate-300 hover:text-primary transition-colors">
+            </NavLink>
+            <NavLink
+              to="/account"
+              className="p-2 text-slate-600 dark:text-slate-300 hover:text-primary transition-colors"
+              aria-label="Trang tài khoản"
+            >
               <span className="material-symbols-outlined">account_circle</span>
+            </NavLink>
+            <button
+              type="button"
+              className="md:hidden p-2 text-slate-600 dark:text-slate-300 hover:text-primary transition-colors"
+              aria-label="Mở menu"
+              onClick={() => setMobileOpen((v) => !v)}
+            >
+              <span className="material-symbols-outlined text-[24px]">
+                {mobileOpen ? "close" : "menu"}
+              </span>
             </button>
           </div>
         </div>
 
         <nav className="hidden md:flex gap-8 pb-4">
-          <NavLink
-            to="/"
-            className={({ isActive }) =>
-              [
-                "text-sm pb-1 transition-colors",
-                isActive
-                  ? "font-semibold text-primary border-b-2 border-primary"
-                  : "font-medium text-slate-600 dark:text-slate-300 hover:text-primary",
-              ].join(" ")
-            }
-          >
-            Trang chủ
-          </NavLink>
-          <NavLink
-            to="/medicines"
-            className={({ isActive }) =>
-              [
-                "text-sm pb-1 transition-colors",
-                isActive
-                  ? "font-semibold text-primary border-b-2 border-primary"
-                  : "font-medium text-slate-600 dark:text-slate-300 hover:text-primary",
-              ].join(" ")
-            }
-          >
-            Thuốc / Sản phẩm
-          </NavLink>
-          <NavLink
-            to="/pharmacists"
-            className={({ isActive }) =>
-              [
-                "text-sm pb-1 transition-colors",
-                isActive
-                  ? "font-semibold text-primary border-b-2 border-primary"
-                  : "font-medium text-slate-600 dark:text-slate-300 hover:text-primary",
-              ].join(" ")
-            }
-          >
-            Dược sĩ
-          </NavLink>
-          <NavLink
-            to="/introduction"
-            className={({ isActive }) =>
-              [
-                "text-sm pb-1 transition-colors",
-                isActive
-                  ? "font-semibold text-primary border-b-2 border-primary"
-                  : "font-medium text-slate-600 dark:text-slate-300 hover:text-primary",
-              ].join(" ")
-            }
-          >
-            Về chúng tôi
-          </NavLink>
+          {[
+            {
+              to: "/",
+              label: "Trang chủ",
+            },
+            {
+              to: "/medicines",
+              label: "Thuốc / Sản phẩm",
+            },
+            {
+              to: "/pharmacists",
+              label: "Dược sĩ",
+            },
+            {
+              to: "/introduction",
+              label: "Về chúng tôi",
+            },
+            {
+              to: "/chatbot",
+              label: "Tư vấn trực tuyến",
+            },
+          ].map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                [
+                  "text-sm pb-1 transition-colors whitespace-nowrap",
+                  isActive
+                    ? "font-semibold text-primary border-b-2 border-primary"
+                    : "font-medium text-slate-600 dark:text-slate-300 hover:text-primary",
+                ].join(" ")
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
           <a
             href="#"
-            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary transition-colors pb-1"
+            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary transition-colors pb-1 whitespace-nowrap"
           >
             Liên hệ
           </a>
         </nav>
+
+        {mobileOpen && (
+          <div className="md:hidden pb-4">
+            <div className="flex flex-col gap-2 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
+              {[
+                {
+                  to: "/",
+                  label: "Trang chủ",
+                },
+                {
+                  to: "/medicines",
+                  label: "Thuốc / Sản phẩm",
+                },
+                {
+                  to: "/pharmacists",
+                  label: "Dược sĩ",
+                },
+                {
+                  to: "/introduction",
+                  label: "Về chúng tôi",
+                },
+                {
+                  to: "/chatbot",
+                  label: "Tư vấn trực tuyến",
+                },
+              ].map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  onClick={closeMobile}
+                  className={({ isActive }) =>
+                    [
+                      "flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800",
+                    ].join(" ")
+                  }
+                >
+                  <span>{item.label}</span>
+                  <span className="material-symbols-outlined text-[18px] text-slate-400">
+                    chevron_right
+                  </span>
+                </NavLink>
+              ))}
+              <a
+                href="#"
+                className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                onClick={closeMobile}
+              >
+                <span>Liên hệ</span>
+                <span className="material-symbols-outlined text-[18px] text-slate-400">
+                  chevron_right
+                </span>
+              </a>
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );
