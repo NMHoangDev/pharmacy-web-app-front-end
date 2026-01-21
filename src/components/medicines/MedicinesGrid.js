@@ -1,11 +1,20 @@
 import React from "react";
+import { Link } from "react-router-dom";
+
+const badgeStyles = {
+  amber: "bg-amber-100 text-amber-700 border-amber-200",
+  green: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  blue: "bg-blue-100 text-blue-700 border-blue-200",
+  purple: "bg-purple-100 text-purple-700 border-purple-200",
+};
 
 const MedicinesGrid = ({ products }) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {products.map((product) => (
-        <div
+        <Link
           key={product.id}
+          to={`/medicines/${product.slug || product.id}`}
           className="group bg-surface-light dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300 flex flex-col"
         >
           <div className="relative aspect-[4/3] bg-white p-6 flex items-center justify-center overflow-hidden">
@@ -18,7 +27,7 @@ const MedicinesGrid = ({ products }) => {
             {product.badge && (
               <div className="absolute top-3 left-3 flex flex-col gap-2">
                 <span
-                  className={`px-2 py-1 bg-${product.badgeColor}-100 text-${product.badgeColor}-700 text-xs font-bold rounded shadow-sm border border-${product.badgeColor}-200`}
+                  className={`px-2 py-1 text-xs font-bold rounded shadow-sm border ${badgeStyles[product.badgeColor] || "bg-slate-100 text-slate-700 border-slate-200"}`}
                 >
                   {product.badge}
                 </span>
@@ -86,7 +95,7 @@ const MedicinesGrid = ({ products }) => {
               </div>
             </div>
           </div>
-        </div>
+        </Link>
       ))}
     </div>
   );

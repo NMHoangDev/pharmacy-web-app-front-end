@@ -10,25 +10,17 @@ const MedicinesFilters = ({
   minPrice,
   maxPrice,
   onChangePriceRange,
+  categories = [],
+  selectedCategoryIds = [],
+  onToggleCategory,
+  brands = [],
+  selectedBrands = [],
+  onToggleBrand,
+  audiences = [],
+  selectedAudiences = [],
+  onToggleAudience,
+  onReset,
 }) => {
-  const brands = [
-    "Panadol",
-    "Tylenol",
-    "Advil",
-    "Efferalgan",
-    "Hapacol",
-    "Voltaren",
-    "Salonpas",
-  ];
-
-  const audiences = [
-    "Người lớn",
-    "Trẻ em",
-    "Người cao tuổi",
-    "Phụ nữ mang thai",
-    "Mẹ & bé",
-  ];
-
   return (
     <aside className="w-full lg:w-72 flex-shrink-0 lg:sticky lg:top-24 z-30">
       <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
@@ -40,7 +32,11 @@ const MedicinesFilters = ({
             </span>
             <h3 className="font-bold">Bộ lọc</h3>
           </div>
-          <button className="text-xs font-semibold text-primary hover:text-primary-dark hover:underline">
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-xs font-semibold text-primary hover:text-primary-dark hover:underline"
+          >
             Xóa tất cả
           </button>
         </div>
@@ -109,61 +105,26 @@ const MedicinesFilters = ({
               </span>
             </summary>
             <div className="mt-3 space-y-2">
-              <label className="flex items-center gap-3 cursor-pointer group/item">
-                <input
-                  type="checkbox"
-                  defaultChecked
-                  className="form-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                />
-                <span className="text-sm text-slate-600 dark:text-slate-300 group-hover/item:text-primary transition-colors">
-                  Thuốc giảm đau, hạ sốt
-                </span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer group/item">
-                <input
-                  type="checkbox"
-                  className="form-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                />
-                <span className="text-sm text-slate-600 dark:text-slate-300 group-hover/item:text-primary transition-colors">
-                  Thuốc kháng viêm
-                </span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer group/item">
-                <input
-                  type="checkbox"
-                  className="form-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                />
-                <span className="text-sm text-slate-600 dark:text-slate-300 group-hover/item:text-primary transition-colors">
-                  Thuốc giãn cơ
-                </span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer group/item">
-                <input
-                  type="checkbox"
-                  className="form-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                />
-                <span className="text-sm text-slate-600 dark:text-slate-300 group-hover/item:text-primary transition-colors">
-                  Vitamin &amp; khoáng chất
-                </span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer group/item">
-                <input
-                  type="checkbox"
-                  className="form-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                />
-                <span className="text-sm text-slate-600 dark:text-slate-300 group-hover/item:text-primary transition-colors">
-                  Thực phẩm chức năng
-                </span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer group/item">
-                <input
-                  type="checkbox"
-                  className="form-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                />
-                <span className="text-sm text-slate-600 dark:text-slate-300 group-hover/item:text-primary transition-colors">
-                  Chăm sóc cá nhân
-                </span>
-              </label>
+              {categories.length ? (
+                categories.map((category) => (
+                  <label
+                    key={category.id}
+                    className="flex items-center gap-3 cursor-pointer group/item"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedCategoryIds.includes(category.id)}
+                      onChange={() => onToggleCategory?.(category.id)}
+                      className="form-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                    />
+                    <span className="text-sm text-slate-600 dark:text-slate-300 group-hover/item:text-primary transition-colors">
+                      {category.name}
+                    </span>
+                  </label>
+                ))
+              ) : (
+                <p className="text-xs text-slate-500">Chưa có danh mục.</p>
+              )}
             </div>
           </details>
 
@@ -176,20 +137,26 @@ const MedicinesFilters = ({
               </span>
             </summary>
             <div className="mt-3 space-y-2 max-h-48 overflow-y-auto pr-1">
-              {brands.map((brand) => (
-                <label
-                  key={brand}
-                  className="flex items-center gap-3 cursor-pointer group/item"
-                >
-                  <input
-                    type="checkbox"
-                    className="form-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                  />
-                  <span className="text-sm text-slate-600 dark:text-slate-300 group-hover/item:text-primary transition-colors">
-                    {brand}
-                  </span>
-                </label>
-              ))}
+              {brands.length ? (
+                brands.map((brand) => (
+                  <label
+                    key={brand}
+                    className="flex items-center gap-3 cursor-pointer group/item"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedBrands.includes(brand)}
+                      onChange={() => onToggleBrand?.(brand)}
+                      className="form-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                    />
+                    <span className="text-sm text-slate-600 dark:text-slate-300 group-hover/item:text-primary transition-colors">
+                      {brand}
+                    </span>
+                  </label>
+                ))
+              ) : (
+                <p className="text-xs text-slate-500">Chưa có dữ liệu.</p>
+              )}
             </div>
           </details>
 
@@ -202,20 +169,26 @@ const MedicinesFilters = ({
               </span>
             </summary>
             <div className="mt-3 space-y-2">
-              {audiences.map((label) => (
-                <label
-                  key={label}
-                  className="flex items-center gap-3 cursor-pointer group/item"
-                >
-                  <input
-                    type="checkbox"
-                    className="form-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                  />
-                  <span className="text-sm text-slate-600 dark:text-slate-300 group-hover/item:text-primary transition-colors">
-                    {label}
-                  </span>
-                </label>
-              ))}
+              {audiences.length ? (
+                audiences.map((label) => (
+                  <label
+                    key={label}
+                    className="flex items-center gap-3 cursor-pointer group/item"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedAudiences.includes(label)}
+                      onChange={() => onToggleAudience?.(label)}
+                      className="form-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                    />
+                    <span className="text-sm text-slate-600 dark:text-slate-300 group-hover/item:text-primary transition-colors">
+                      {label}
+                    </span>
+                  </label>
+                ))
+              ) : (
+                <p className="text-xs text-slate-500">Chưa có dữ liệu.</p>
+              )}
             </div>
           </details>
         </div>

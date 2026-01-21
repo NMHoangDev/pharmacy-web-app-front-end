@@ -20,6 +20,9 @@ const AdminPharmacistGrid = ({
   pharmacists,
   onToggleStatus,
   onToggleVerify,
+  onView,
+  onEdit,
+  onDelete,
 }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -89,7 +92,7 @@ const AdminPharmacistGrid = ({
               {p.status === "online" ? p.availability : "Offline"}
             </span>
           </div>
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => onToggleStatus(p.id)}
@@ -99,9 +102,24 @@ const AdminPharmacistGrid = ({
             </button>
             <button
               type="button"
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-primary/90"
+              onClick={() => onView?.(p.id)}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-primary hover:text-primary"
             >
-              Giao ca
+              Chi tiết
+            </button>
+            <button
+              type="button"
+              onClick={() => onEdit?.(p.id)}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+            >
+              Chỉnh sửa
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete?.(p.id)}
+              className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-rose-700"
+            >
+              Xóa
             </button>
           </div>
         </div>

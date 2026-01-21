@@ -1,82 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-const pharmacists = [
-  {
-    id: 1,
-    name: "DS. Nguyễn Thị Mai",
-    tag: "Dược lâm sàng",
-    experience: "5 năm KN",
-    rating: 4.9,
-    reviews: 142,
-    status: "online",
-    badge: "Đã xác minh chứng chỉ",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuD_hzgAKqB0MuZRr2-JN6pmes7C0pOe64NgG2v_lSM5i0H-2r5DjhKcQFaWA0-wlII8Igoq9IEo58i1vzvMxiLeLJ-WvTsBRGpyDH1ChCIJB0Y3uA_gB2QqEhalyhjgYxR76ENK-lXEl6QHiVFrSErj-A8Mgbom03lFmqyqiiTUtnYaW1LWD4Z-00YwfGxZC3OaLQk22v0oQSLZa9nDg1ElYRqz2b9XWnf4IERY242O0frVq64vUNdZpV-RVfQWn78Jju_2SRsR2FQE",
-  },
-  {
-    id: 2,
-    name: "DS. Trần Văn Bình",
-    tag: "Dược Nhi",
-    experience: "8 năm KN",
-    rating: 4.8,
-    reviews: 98,
-    status: "offline",
-    badge: "Đã xác minh chứng chỉ",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuD2NHaNy2oCo6rZX4vt8YTQeNmN310ZAiDHZS-tGCmi2K1XrhoHT88o_rmiMlzJoBr5mljFCqwQG5bSLzB2ZHPoFK0EF_BEObDqpAd9leHvQOdyjuqbexG0hb6_hjhnY4Dx1GDu_So3P1d_BaesL4HSjyoHn7zzjBFweH0lNzd_NYGhmf9FJijdgL_dI6uEYshswMDcfAgq-S63t1-d0nptWQGnaRYwd91moYhwjyyQGTLm4TSiZfFzu3TuXy-5oRudYGJevrIQdtPm",
-  },
-  {
-    id: 3,
-    name: "DS. Lê Thị Thanh",
-    tag: "TPCN",
-    experience: "3 năm KN",
-    rating: 5.0,
-    reviews: 45,
-    status: "online",
-    badge: "Đã xác minh chứng chỉ",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAkYYWoaWQ8FpuEVw38NTkhpZAnY1c1b6ZGnnHWIc9aSrXMkcpITy94LTrgAYOO5oPT4YAmKvi3BSAVvRhEt39On5BWKmOY4TAtEaXSR-BWfDR473W4qNb8GCjlIHSOAud_galWWdxkMz7o-LZ784HvJII3lNni5s5CDv0rsCmda1AC-laAAq8ri-nMQMOALcXjkoTNtGBlgRtINoVlRaKVALkq1PXIaQSnmWwQjvUxKQ87cdJkhpZ9pnaawT5DKQwYWZmXmYLGutz1",
-  },
-  {
-    id: 4,
-    name: "DS. Phạm Văn Dũng",
-    tag: "Dược Lý",
-    experience: "10 năm KN",
-    rating: 4.7,
-    reviews: 210,
-    status: "online",
-    badge: "Đã xác minh chứng chỉ",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCy6LKqVNa00v1nTHxSTt0mKXwkwuQHl9pbH_BilpU0tM2b3dWcfzU84ylgQxglkaNhptg89uM3u3ucj4DR8CsSTfm_h7eEnv71vfjIGjeVOBfJJTZAoQ9CxeAYuI11t8GnNcWXc6upHM5M23wgBj-yX9uIHUkSunhj9U-bCLRtp3hoYqoqry-EC_Mg-J9Ls7DhYiwL8Abf4vjw0XnPB27OFSXSHD1ZdbysMX4t0nwgJbeJZ3JF0pFgIvFEVN9g_E_RPElUf_F9PJ-g",
-  },
-  {
-    id: 5,
-    name: "DS. Nguyễn Hoàng Anh",
-    tag: "Dược Sĩ",
-    experience: "4 năm KN",
-    rating: 4.5,
-    reviews: 56,
-    status: "online",
-    badge: "Đã xác minh chứng chỉ",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDiDm4S9pusKByH7MyK1EyHwurRvUT-b5IjIKYdy8F7i0tIxsjhejoFsjloXxVNZB0VbJjaTLZpmiUxdf5ZrWuauh1MgSGf19XHUuINF-3csubjRlT1OccRGXuit9L9X2UegXrXdCD_bfgO1UcbV6GzyWcMwtRN1Ycg4n-dSjgTh4XpkrSYeKhX1goRWfKC_C06n_9qoNt72au9fzRWToOZy-FGhOMXyMJhazGYcqZSIGOdcDPDFZu2J9dFtnB5yG4G9l5HI5RQpTtT",
-  },
-  {
-    id: 6,
-    name: "DS. Đoàn Thị Bích",
-    tag: "Mỹ Phẩm",
-    experience: "2 năm KN",
-    rating: 4.6,
-    reviews: 32,
-    status: "offline",
-    badge: "Đã xác minh chứng chỉ",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuA2t4Tj7TQZ9naQS_AzkYWqmqAlh1ThVc5hbM7q3j3x_i8i59OEMdlfmBҳ",
-  },
-];
-
-const PharmacistsGrid = () => {
+const PharmacistsGrid = ({ pharmacists = [] }) => {
   const navigate = useNavigate();
 
   const handleNavigateBooking = (pharmacist) => {
@@ -123,7 +48,7 @@ const PharmacistsGrid = () => {
                   star
                 </span>
                 <span className="text-slate-900 dark:text-white font-bold ml-1 text-base">
-                  {pharmacist.rating.toFixed(1)}
+                  {(pharmacist.rating ?? 0).toFixed(1)}
                 </span>
               </div>
               <span>({pharmacist.reviews} đánh giá)</span>
