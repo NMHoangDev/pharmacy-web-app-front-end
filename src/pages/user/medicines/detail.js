@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Header from "../../../components/Header";
 import Footer from "../../../components/Footer";
+import { useAppContext } from "../../../context/AppContext";
+import { useCart } from "../../../contexts/CartContext";
+import { requireAuthOrRedirect, getUserId } from "../../../utils/auth";
+import * as cartApi from "../../../api/cartApi";
+import ConfirmIncreaseDialog from "../../../components/cart/ConfirmIncreaseDialog";
 
 const fallbackImage =
   "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=700&q=80";
@@ -23,7 +28,27 @@ const resolveGallery = (attrs, imageUrl) => {
   const images = [imageUrl, ...gallery].filter(Boolean);
   return images.length ? images : [fallbackImage];
 };
+const getAuthFromSession = () => {
+  const token = sessionStorage.getItem("authToken");
+  const authUserRaw = sessionStorage.getItem("authUser");
 
+  let authUser = null;
+  try {
+    authUser = authUserRaw ? JSON.parse(authUserRaw) : null;
+  } catch {
+    authUser = null;
+  }
+
+  const userId = authUser?.id;
+  const hasToken = !!token && String(token).trim().length > 0;
+
+  return {
+    userId,
+    token: token ? String(token).trim() : "",
+    authUser,
+    hasToken,
+  };
+};
 const ProductDetailPage = () => {
   const { idOrSlug } = useParams();
   const navigate = useNavigate();
@@ -32,10 +57,93 @@ const ProductDetailPage = () => {
   const [gallery, setGallery] = useState([]);
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingAddQty, setPendingAddQty] = useState(0);
   const [activeTab, setActiveTab] = useState("benefit");
   const [related, setRelated] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { authUser } = useAppContext();
+  const { upsertItem, refreshCart, cartItems } = useCart();
+  const currentPath = `/medicines/${idOrSlug}`;
+  const [existingQtyForPending, setExistingQtyForPending] = useState(0);
+  const [actionMessage, setActionMessage] = useState("");
+
+  const handleAddToCart = async () => {
+    // require auth
+    const { userId, hasToken } = getAuthFromSession();
+
+    if (!userId || !hasToken) {
+      setActionMessage("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.");
+      requireAuthOrRedirect(navigate, currentPath);
+      return;
+    }
+
+    if (!product?.id) {
+      setActionMessage("Không tìm thấy productId để thêm vào giỏ hàng.");
+      return;
+    }
+
+    try {
+      setActionMessage("");
+      console.log("[AddToCart] start", {
+        userId,
+        productId: product.id,
+        quantity,
+      });
+
+      // 1) add/update item in cart (CALL API)
+      await cartApi.upsertCartItem(userId, {
+        productId: product.id,
+        quantity,
+      });
+
+      // 2) refresh cart context so cart page updates
+      await refreshCart();
+
+      console.log("[AddToCart] success");
+      setActionMessage("Đã thêm vào giỏ hàng.");
+    } catch (err) {
+      console.error("[AddToCart] failed", err);
+      setActionMessage(err?.message || "Không thể thêm vào giỏ hàng");
+    }
+  };
+
+  const handleBuyNow = async () => {
+    const allowed = requireAuthOrRedirect(navigate, currentPath);
+    if (!allowed) return;
+    try {
+      await upsertItem(product.id, quantity);
+      await refreshCart();
+      navigate("/checkout");
+    } catch (err) {
+      console.error("Buy now failed", err);
+      setActionMessage(err?.message || "Không thể mua ngay");
+    }
+  };
+
+  const handleConfirmIncrease = async () => {
+    try {
+      const userId = getUserId();
+      if (!userId) {
+        setShowConfirm(false);
+        requireAuthOrRedirect(navigate, currentPath);
+        return;
+      }
+      const newQty = (existingQtyForPending || 0) + (pendingAddQty || 1);
+      await upsertItem(product.id, newQty);
+      await refreshCart();
+      console.log("Confirmed increase", { productId: product.id, newQty });
+      setActionMessage("Số lượng đã được cập nhật trong giỏ hàng.");
+    } catch (err) {
+      console.error("Confirm increase failed", err);
+      setActionMessage(err?.message || "Không thể cập nhật giỏ hàng");
+    } finally {
+      setShowConfirm(false);
+      setPendingAddQty(0);
+      setExistingQtyForPending(0);
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -110,53 +218,42 @@ const ProductDetailPage = () => {
   return (
     <div className="bg-background-light dark:bg-background-dark min-h-screen font-display flex flex-col text-slate-900 dark:text-slate-100 antialiased">
       <Header />
-      <main className="max-w-7xl mx-auto px-4 md:px-10 py-6 w-full flex-grow">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-sm text-slate-500 hover:text-primary mb-6"
-        >
-          <span className="material-symbols-outlined text-[20px]">
-            arrow_back
+
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="text-slate-500 hover:text-primary transition-colors font-medium"
+          >
+            Trang chủ
+          </button>
+          <span className="text-slate-300">/</span>
+          <button
+            type="button"
+            onClick={() => navigate("/medicines")}
+            className="text-slate-500 hover:text-primary transition-colors font-medium"
+          >
+            Danh mục
+          </button>
+          <span className="text-slate-300">/</span>
+          <span className="text-slate-900 dark:text-slate-100 font-semibold">
+            {product?.name || "Chi tiết sản phẩm"}
           </span>
-          Quay lại
-        </button>
+        </div>
 
+        {/* Loading / Error / Empty */}
         {loading ? (
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            Đang tải chi tiết sản phẩm...
+          <div className="py-16 text-center text-slate-500">Đang tải...</div>
+        ) : error ? (
+          <div className="py-16 text-center text-red-500">{error}</div>
+        ) : !product ? (
+          <div className="py-16 text-center text-slate-500">
+            Không tìm thấy sản phẩm.
           </div>
-        ) : null}
-        {error ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
-          </div>
-        ) : null}
-
-        {product ? (
+        ) : (
           <>
-            <div className="flex flex-wrap items-center gap-2 mb-8 text-sm">
-              <button
-                type="button"
-                onClick={() => navigate("/")}
-                className="text-slate-500 hover:text-primary transition-colors font-medium"
-              >
-                Trang chủ
-              </button>
-              <span className="text-slate-300">/</span>
-              <button
-                type="button"
-                onClick={() => navigate("/medicines")}
-                className="text-slate-500 hover:text-primary transition-colors font-medium"
-              >
-                Danh mục
-              </button>
-              <span className="text-slate-300">/</span>
-              <span className="text-slate-900 dark:text-slate-100 font-semibold">
-                {product.name}
-              </span>
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-16">
               <div className="lg:col-span-5 space-y-4">
                 <div className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 group relative">
@@ -167,10 +264,11 @@ const ProductDetailPage = () => {
                     }}
                   />
                 </div>
+
                 <div className="grid grid-cols-4 gap-4">
                   {gallery.slice(0, 4).map((item, index) => (
                     <button
-                      key={item}
+                      key={`${item}-${index}`}
                       type="button"
                       onClick={() => setActiveImage(index)}
                       className={`aspect-square border rounded-lg overflow-hidden p-1 ${
@@ -200,12 +298,15 @@ const ProductDetailPage = () => {
                     Còn hàng
                   </div>
                 </div>
+
                 <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white mb-2 leading-tight">
                   {product.name}
                 </h1>
+
                 <p className="text-slate-500 mb-6 text-lg">
                   {product.description || attributes.shortDescription || ""}
                 </p>
+
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl mb-8 border border-slate-100 dark:border-slate-800">
                   <div className="text-3xl font-black text-primary mb-1">
                     {priceLabel}
@@ -215,10 +316,12 @@ const ProductDetailPage = () => {
                       </span>
                     ) : null}
                   </div>
+
                   <p className="text-xs text-slate-400 mb-6 font-medium italic">
                     *Giá có thể thay đổi tùy vào thời điểm và chương trình
                     khuyến mãi.
                   </p>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="flex items-start gap-3">
                       <span className="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg">
@@ -228,9 +331,14 @@ const ProductDetailPage = () => {
                         <p className="text-xs text-slate-500 font-bold uppercase">
                           Dạng bào chế
                         </p>
-                        <p className="font-semibold text-sm">{dosageForm}</p>
+                        <p className="font-semibold text-sm">
+                          {attributes.dosageForm ||
+                            attributes.form ||
+                            "Chưa cập nhật"}
+                        </p>
                       </div>
                     </div>
+
                     <div className="flex items-start gap-3">
                       <span className="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg">
                         package_2
@@ -239,9 +347,14 @@ const ProductDetailPage = () => {
                         <p className="text-xs text-slate-500 font-bold uppercase">
                           Quy cách
                         </p>
-                        <p className="font-semibold text-sm">{packing}</p>
+                        <p className="font-semibold text-sm">
+                          {attributes.packing ||
+                            attributes.packaging ||
+                            "Chưa cập nhật"}
+                        </p>
                       </div>
                     </div>
+
                     <div className="flex items-start gap-3">
                       <span className="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg">
                         science
@@ -251,7 +364,9 @@ const ProductDetailPage = () => {
                           Thành phần chính
                         </p>
                         <p className="font-semibold text-sm">
-                          {ingredient || "Chưa cập nhật"}
+                          {attributes.ingredient ||
+                            attributes.activeIngredient ||
+                            "Chưa cập nhật"}
                         </p>
                       </div>
                     </div>
@@ -283,16 +398,37 @@ const ProductDetailPage = () => {
                       <span className="material-symbols-outlined">add</span>
                     </button>
                   </div>
-                  <button className="flex-1 h-14 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20">
+
+                  <button
+                    className="flex-1 h-14 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                    onClick={handleAddToCart}
+                    type="button"
+                  >
                     <span className="material-symbols-outlined">
                       add_shopping_cart
                     </span>
                     Thêm vào giỏ
                   </button>
-                  <button className="flex-1 h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-xl hover:opacity-90 transition-all">
+
+                  <button
+                    className="flex-1 h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-xl hover:opacity-90 transition-all"
+                    onClick={handleBuyNow}
+                    type="button"
+                  >
                     Mua ngay
                   </button>
                 </div>
+                {actionMessage ? (
+                  <p className="text-sm text-primary mt-3">{actionMessage}</p>
+                ) : null}
+
+                <ConfirmIncreaseDialog
+                  open={showConfirm}
+                  onOpenChange={(val) => setShowConfirm(val)}
+                  productName={product?.name}
+                  onConfirm={handleConfirmIncrease}
+                  onCancel={() => setShowConfirm(false)}
+                />
 
                 <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-800/30">
                   <div className="flex items-center gap-4">
@@ -317,6 +453,7 @@ const ProductDetailPage = () => {
               </div>
             </div>
 
+            {/* Tabs */}
             <div className="mt-12">
               <div className="border-b border-slate-200 dark:border-slate-800 flex flex-wrap gap-8 mb-8 overflow-x-auto whitespace-nowrap">
                 <button
@@ -364,6 +501,7 @@ const ProductDetailPage = () => {
                   Thông tin khác
                 </button>
               </div>
+
               <div className="prose prose-slate dark:prose-invert max-w-none space-y-6">
                 {activeTab === "benefit" ? (
                   <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -371,11 +509,11 @@ const ProductDetailPage = () => {
                       <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">
                         Công dụng &amp; Chỉ định
                       </h3>
-                      {usage ? (
-                        <p>{usage}</p>
-                      ) : (
-                        <p>Thông tin đang được cập nhật.</p>
-                      )}
+                      <p>
+                        {attributes.usage ||
+                          attributes.indications ||
+                          "Thông tin đang được cập nhật."}
+                      </p>
                     </div>
                     <div className="bg-primary/5 rounded-2xl p-6 border border-primary/10 h-fit">
                       <h4 className="font-bold text-primary mb-3 flex items-center gap-2">
@@ -391,6 +529,7 @@ const ProductDetailPage = () => {
                     </div>
                   </section>
                 ) : null}
+
                 {activeTab === "usage" ? (
                   <section>
                     <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">
@@ -402,25 +541,34 @@ const ProductDetailPage = () => {
                     </p>
                   </section>
                 ) : null}
+
                 {activeTab === "warning" ? (
                   <section>
                     <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">
                       Chống chỉ định &amp; Cảnh báo
                     </h3>
-                    <p>{warning || "Thông tin đang được cập nhật."}</p>
+                    <p>
+                      {attributes.warning ||
+                        attributes.contraindications ||
+                        "Thông tin đang được cập nhật."}
+                    </p>
                   </section>
                 ) : null}
+
                 {activeTab === "extra" ? (
                   <section>
                     <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">
                       Thông tin khác
                     </h3>
-                    <p>{extraInfo || "Thông tin đang được cập nhật."}</p>
+                    <p>
+                      {attributes.extraInfo || "Thông tin đang được cập nhật."}
+                    </p>
                   </section>
                 ) : null}
               </div>
             </div>
 
+            {/* Related */}
             {related.length ? (
               <div className="mt-20">
                 <div className="flex items-center justify-between mb-8">
@@ -428,6 +576,7 @@ const ProductDetailPage = () => {
                     Sản phẩm liên quan
                   </h2>
                 </div>
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                   {related.map((item) => (
                     <button
@@ -451,7 +600,7 @@ const ProductDetailPage = () => {
                       </div>
                       <div className="p-5">
                         <p className="text-xs text-slate-500 font-bold mb-1">
-                          {categoryLabel}
+                          {attributes.categoryLabel || "Sản phẩm"}
                         </p>
                         <h3 className="font-bold text-slate-900 dark:text-white text-sm mb-3 line-clamp-2 group-hover:text-primary transition-colors">
                           {item.name}
@@ -466,8 +615,9 @@ const ProductDetailPage = () => {
               </div>
             ) : null}
           </>
-        ) : null}
+        )}
       </main>
+
       <Footer />
     </div>
   );

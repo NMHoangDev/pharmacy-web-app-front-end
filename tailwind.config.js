@@ -3,12 +3,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: "#137fec",
-        "primary-dark": "#0b63b8",
-        "background-light": "#f6f7f8",
-        "background-dark": "#101922",
-        "surface-light": "#ffffff",
-        "surface-dark": "#1a2632",
+        // map semantic names to CSS variables for consistent use
+        primary: "var(--primary)",
+        "primary-hover": "var(--primary-hover)",
+        danger: "var(--danger)",
+        bg: "var(--bg)",
+        surface: "var(--surface)",
+        "surface-2": "var(--surface-2)",
+        border: "var(--border)",
+        text: "var(--text)",
+        muted: "var(--muted)",
+        overlay: "var(--overlay)",
       },
       fontFamily: {
         display: ["Inter", "sans-serif"],

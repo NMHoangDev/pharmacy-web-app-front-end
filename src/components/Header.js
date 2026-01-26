@@ -1,8 +1,19 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { useAppContext } from "../context/AppContext";
+import { useCart } from "../contexts/CartContext";
 
 const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { profile } = useAppContext();
+  const { itemCount } = useCart();
+
+  const avatarUrl = useMemo(() => {
+    if (!profile?.avatarBase64) return "";
+    return profile.avatarBase64.startsWith("data:")
+      ? profile.avatarBase64
+      : `data:image/png;base64,${profile.avatarBase64}`;
+  }, [profile]);
 
   const closeMobile = () => setMobileOpen(false);
 
@@ -46,16 +57,28 @@ const Header = () => {
               aria-label="Xem giỏ hàng"
             >
               <span className="material-symbols-outlined">shopping_cart</span>
-              <span className="absolute top-1 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white group-hover:scale-110 transition-transform">
-                3
-              </span>
+              {itemCount > 0 ? (
+                <span className="absolute top-1 right-0 flex h-4 min-w-[1rem] px-1 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white group-hover:scale-110 transition-transform">
+                  {itemCount}
+                </span>
+              ) : null}
             </NavLink>
             <NavLink
               to="/account"
               className="p-2 text-slate-600 dark:text-slate-300 hover:text-primary transition-colors"
               aria-label="Trang tài khoản"
             >
-              <span className="material-symbols-outlined">account_circle</span>
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="Ảnh đại diện"
+                  className="size-8 rounded-full object-cover border border-slate-200 dark:border-slate-600"
+                />
+              ) : (
+                <span className="material-symbols-outlined">
+                  account_circle
+                </span>
+              )}
             </NavLink>
             <button
               type="button"
@@ -108,12 +131,12 @@ const Header = () => {
               {item.label}
             </NavLink>
           ))}
-          <a
-            href="#"
+          <button
+            type="button"
             className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary transition-colors pb-1 whitespace-nowrap"
           >
             Liên hệ
-          </a>
+          </button>
         </nav>
 
         {mobileOpen && (
@@ -160,8 +183,8 @@ const Header = () => {
                   </span>
                 </NavLink>
               ))}
-              <a
-                href="#"
+              <button
+                type="button"
                 className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                 onClick={closeMobile}
               >
@@ -169,7 +192,7 @@ const Header = () => {
                 <span className="material-symbols-outlined text-[18px] text-slate-400">
                   chevron_right
                 </span>
-              </a>
+              </button>
             </div>
           </div>
         )}

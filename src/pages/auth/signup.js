@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import AuthLayout from "../../components/auth/AuthLayout";
 import AuthHero from "../../components/auth/AuthHero";
 import SignupForm from "../../components/auth/SignupForm";
+import { useAppContext } from "../../context/AppContext";
 
 const SignupPage = () => {
   const navigate = useNavigate();
+  const { login } = useAppContext();
   const API_BASE_URL = useMemo(
     () => process.env.REACT_APP_API_BASE_URL || "http://localhost:8087",
-    []
+    [],
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -78,17 +80,7 @@ const SignupPage = () => {
 
       // Auto-store token if returned
       if (data?.token) {
-        localStorage.setItem("authToken", data.token);
-        localStorage.setItem(
-          "authUser",
-          JSON.stringify({
-            id: data.userId,
-            email: data.email,
-            phone: data.phone,
-            fullName: data.fullName,
-            expiresAt: data.expiresAt,
-          })
-        );
+        login(data);
       }
 
       setTimeout(() => navigate("/login"), 600);

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import Header from "../../../components/Header";
 import Footer from "../../../components/Footer";
 import MedicinesBreadcrumbs from "../../../components/medicines/MedicinesBreadcrumbs";
@@ -7,6 +7,7 @@ import MedicinesHeaderBar from "../../../components/medicines/MedicinesHeaderBar
 import MedicinesGrid from "../../../components/medicines/MedicinesGrid";
 import MedicinesPagination from "../../../components/medicines/MedicinesPagination";
 import medicinesProducts, { parsePrice } from "../../../data/medicinesProducts";
+import EmptyState from "../../../components/EmptyState";
 
 const formatPrice = (value) =>
   `${Number(value || 0).toLocaleString("vi-VN")} đ`;
@@ -82,78 +83,73 @@ const MedicinesPage = () => {
     }));
   }, [overallMinPrice, overallMaxPrice]);
 
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const loadProducts = useCallback(async (signal) => {
+    setLoading(true);
+    setError("");
+    try {
+      const categoryResponse = await fetch("/api/catalog/public/categories", {
+        signal,
+      });
+      if (categoryResponse.ok) {
+        const categoryPayload = await categoryResponse.json();
+        setCategories(categoryPayload || []);
+      }
+
+      const response = await fetch(
+        "/api/catalog/public/products?size=200&sort=name,asc",
+        { signal },
+      );
+      if (!response.ok) {
+        throw new Error("Không thể tải danh sách sản phẩm");
+      }
+      const payload = await response.json();
+      const items = payload?.content ?? [];
+      const mapped = items.map((item) => {
+        const attrs = parseAttributes(item.attributes);
+        const badge = resolveBadge(attrs, item.createdAt);
+        const priceValue = Number(item.price || 0);
+        return {
+          id: item.id,
+          slug: item.slug,
+          title: item.name,
+          description: item.description || attrs.shortDescription || "",
+          price: formatPrice(priceValue),
+          priceValue,
+          oldPrice: attrs.oldPrice ? formatPrice(attrs.oldPrice) : "",
+          image:
+            item.imageUrl ||
+            "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=300&q=80",
+          rx: !!item.prescriptionRequired,
+          consult: !!attrs.consultationRequired,
+          badge: badge?.label,
+          badgeColor: badge?.color,
+          categoryId: item.categoryId,
+          brand: attrs.brand || attrs.manufacturer || "",
+          audience: attrs.audience || attrs.target || "",
+          createdAt: item.createdAt,
+        };
+      });
+      setProducts(mapped);
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        setError(err.message || "Không thể tải danh sách sản phẩm");
+        // on error do not populate demo products - show empty state
+        setProducts([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const categoryResponse = await fetch("/api/catalog/public/categories", {
-          signal: controller.signal,
-        });
-        if (categoryResponse.ok) {
-          const categoryPayload = await categoryResponse.json();
-          setCategories(categoryPayload || []);
-        }
-
-        const response = await fetch(
-          "/api/catalog/public/products?size=200&sort=name,asc",
-          { signal: controller.signal },
-        );
-        if (!response.ok) {
-          throw new Error("Không thể tải danh sách sản phẩm");
-        }
-        const payload = await response.json();
-        const items = payload.content ?? [];
-        const mapped = items.map((item) => {
-          const attrs = parseAttributes(item.attributes);
-          const badge = resolveBadge(attrs, item.createdAt);
-          const priceValue = Number(item.price || 0);
-          return {
-            id: item.id,
-            slug: item.slug,
-            title: item.name,
-            description: item.description || attrs.shortDescription || "",
-            price: formatPrice(priceValue),
-            priceValue,
-            oldPrice: attrs.oldPrice ? formatPrice(attrs.oldPrice) : "",
-            image:
-              item.imageUrl ||
-              "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=300&q=80",
-            rx: !!item.prescriptionRequired,
-            consult: !!attrs.consultationRequired,
-            badge: badge?.label,
-            badgeColor: badge?.color,
-            categoryId: item.categoryId,
-            brand: attrs.brand || attrs.manufacturer || "",
-            audience: attrs.audience || attrs.target || "",
-            createdAt: item.createdAt,
-          };
-        });
-        setProducts(mapped);
-      } catch (err) {
-        if (err.name !== "AbortError") {
-          setError(err.message || "Không thể tải danh sách sản phẩm");
-          setProducts(
-            medicinesProducts.map((product) => ({
-              ...product,
-              slug: product.slug || `drug-${product.id}`,
-              priceValue: parsePrice(product.price),
-              categoryId: null,
-              brand: product.brand || "",
-              audience: product.audience || "",
-              createdAt: null,
-            })),
-          );
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
+    loadProducts(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [loadProducts, reloadKey]);
+
+  const handleReload = useCallback(() => setReloadKey((v) => v + 1), []);
 
   const availableBrands = useMemo(() => {
     const set = new Set();
@@ -325,17 +321,32 @@ const MedicinesPage = () => {
                 setPage(0);
               }}
             />
-            {error ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 mb-4">
-                {error}
-              </div>
-            ) : null}
             {loading ? (
-              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 mb-4">
-                Đang tải sản phẩm...
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-40 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse"
+                  />
+                ))}
               </div>
-            ) : null}
-            <MedicinesGrid products={pagedProducts} />
+            ) : error ? (
+              <EmptyState
+                title={"Không thể tải danh sách thuốc"}
+                subtitle={error}
+                actionLabel={"Tải lại"}
+                onAction={handleReload}
+              />
+            ) : pagedProducts.length === 0 ? (
+              <EmptyState
+                title={"Không có sản phẩm"}
+                subtitle={"Hiện chưa có thuốc nào để hiển thị."}
+                actionLabel={"Tải lại"}
+                onAction={handleReload}
+              />
+            ) : (
+              <MedicinesGrid products={pagedProducts} />
+            )}
             <MedicinesPagination
               page={page}
               totalPages={totalPages}

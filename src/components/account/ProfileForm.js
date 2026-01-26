@@ -1,6 +1,12 @@
 import React from "react";
 
-const ProfileForm = ({ form, onChange, onSubmit, onCancel }) => {
+const ProfileForm = ({
+  form,
+  onChange,
+  onSubmit,
+  onCancel,
+  onAvatarChange,
+}) => {
   const handleChange = (field) => (e) => onChange(field, e.target.value);
 
   return (
@@ -26,25 +32,32 @@ const ProfileForm = ({ form, onChange, onSubmit, onCancel }) => {
                 style={{ backgroundImage: `url(${form.avatarUrl})` }}
                 aria-label="Ảnh đại diện hiện tại"
               />
-              <button
-                type="button"
-                className="absolute bottom-0 right-0 p-1.5 bg-primary text-white rounded-full shadow-lg hover:bg-blue-600 transition-colors border-2 border-white dark:border-slate-800"
+              <label
+                htmlFor="avatar-upload"
+                className="absolute bottom-0 right-0 p-1.5 bg-primary text-white rounded-full shadow-lg hover:bg-blue-600 transition-colors border-2 border-white dark:border-slate-800 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[18px]">
                   edit
                 </span>
-              </button>
+              </label>
             </div>
             <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                className="text-sm font-medium text-primary hover:text-blue-700 px-4 py-2 bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors w-fit"
+              <label
+                htmlFor="avatar-upload"
+                className="text-sm font-medium text-primary hover:text-blue-700 px-4 py-2 bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors w-fit cursor-pointer"
               >
                 Thay đổi ảnh đại diện
-              </button>
+              </label>
               <p className="text-xs text-slate-400">
                 Dung lượng tối đa 1MB. Định dạng: JPEG, PNG.
               </p>
+              <input
+                id="avatar-upload"
+                type="file"
+                accept="image/png, image/jpeg"
+                className="hidden"
+                onChange={onAvatarChange}
+              />
             </div>
           </div>
 

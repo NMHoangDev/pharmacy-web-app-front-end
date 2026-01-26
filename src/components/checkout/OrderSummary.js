@@ -8,6 +8,7 @@ const OrderSummary = ({
   total,
   onApplyCoupon,
   onSubmit,
+  submitting,
 }) => {
   const formatCurrency = (value) =>
     value.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
@@ -103,9 +104,12 @@ const OrderSummary = ({
       <button
         type="button"
         onClick={onSubmit}
-        className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3.5 px-4 rounded-lg shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+        disabled={submitting}
+        className={`w-full bg-primary hover:bg-primary/90 text-white font-bold py-3.5 px-4 rounded-lg shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+          submitting ? "opacity-70 cursor-not-allowed" : ""
+        }`}
       >
-        Xác nhận đặt hàng
+        {submitting ? "Đang xử lý..." : "Xác nhận đặt hàng"}
         <span className="material-symbols-outlined text-sm">arrow_forward</span>
       </button>
       <p className="text-xs text-center text-[#4c739a] dark:text-gray-500 mt-4">

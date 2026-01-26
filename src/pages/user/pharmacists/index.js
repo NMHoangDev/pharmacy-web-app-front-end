@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import EmptyState from "../../../components/EmptyState";
 import Header from "../../../components/Header";
 import Footer from "../../../components/Footer";
 import PharmacistsBreadcrumbs from "../../../components/pharmacists/PharmacistsBreadcrumbs";
@@ -35,9 +36,10 @@ const PharmacistsPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const load = async () => {
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const loadPharmacists = useCallback(
+    async (signal) => {
       setLoading(true);
       setError("");
       try {
@@ -54,36 +56,42 @@ const PharmacistsPage = () => {
         params.append("verified", "true");
 
         const response = await fetch(`/api/pharmacists?${params.toString()}`, {
-          signal: controller.signal,
+          signal,
         });
         if (!response.ok) {
           throw new Error("Không thể tải danh sách dược sĩ");
         }
         const payload = await response.json();
-        setTotal(payload.totalElements ?? 0);
-        setList(payload.content ?? []);
+        setTotal(payload?.totalElements ?? 0);
+        setList(payload?.content ?? []);
 
         const onlineResponse = await fetch("/api/pharmacists/online?limit=4", {
-          signal: controller.signal,
+          signal,
         });
         if (onlineResponse.ok) {
           const onlinePayload = await onlineResponse.json();
           setOnline(onlinePayload ?? []);
+        } else {
+          setOnline([]);
         }
       } catch (err) {
         if (err.name !== "AbortError") {
           setError(err.message || "Không thể tải dược sĩ");
         }
       } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
-    };
+    },
+    [filters],
+  );
 
-    load();
+  useEffect(() => {
+    const controller = new AbortController();
+    loadPharmacists(controller.signal);
     return () => controller.abort();
-  }, [filters]);
+  }, [loadPharmacists, reloadKey]);
+
+  const handleReload = useCallback(() => setReloadKey((v) => v + 1), []);
 
   const mappedList = useMemo(
     () =>
@@ -159,6 +167,13 @@ const PharmacistsPage = () => {
                 <div className="text-sm text-slate-500">
                   Đang tải dược sĩ...
                 </div>
+              ) : mappedList.length === 0 ? (
+                <EmptyState
+                  title={"Không có dược sĩ"}
+                  subtitle={"Hiện chưa có dược sĩ nào sẵn sàng tư vấn."}
+                  actionLabel={"Tải lại"}
+                  onAction={handleReload}
+                />
               ) : (
                 <PharmacistsGrid pharmacists={mappedList} />
               )}

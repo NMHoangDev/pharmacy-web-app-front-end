@@ -7,6 +7,8 @@ import DeliveryInfoForm from "../../components/checkout/DeliveryInfoForm";
 import ShippingMethods from "../../components/checkout/ShippingMethods";
 import PaymentMethods from "../../components/checkout/PaymentMethods";
 import OrderSummary from "../../components/checkout/OrderSummary";
+import { useAppContext } from "../../context/AppContext";
+import * as cartApi from "../../api/cartApi";
 
 const defaultItems = [
   {
@@ -88,6 +90,13 @@ const formatCurrency = (value) =>
 const CheckoutPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { authToken, authUser } = useAppContext();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const API_BASE_URL = useMemo(
+    () => process.env.REACT_APP_API_BASE_URL || "http://localhost:8087",
+    [],
+  );
 
   const cartItems = location.state?.cartItems?.length
     ? location.state.cartItems
@@ -107,7 +116,7 @@ const CheckoutPage = () => {
 
   const subtotal = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [cartItems]
+    [cartItems],
   );
 
   const shippingFee = useMemo(() => {
@@ -122,14 +131,44 @@ const CheckoutPage = () => {
     setDeliveryForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handlePlaceOrder = () => {
-    // Placeholder action; integrate API later
-    alert(
-      `Đặt hàng thành công!\nTổng thanh toán: ${formatCurrency(
-        total
-      )}\nPhương thức: ${paymentId}`
-    );
-    navigate("/");
+  const handlePlaceOrder = async () => {
+    setError("");
+    if (!authUser?.id || !authToken) {
+      navigate("/login");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const checkoutPayload = {
+        userId: authUser.id,
+        items: cartItems.map((item) => ({
+          productId: item.id,
+          productName: item.name,
+          unitPrice: item.price,
+          quantity: item.quantity,
+        })),
+      };
+
+      const checkoutData = await cartApi.checkout(checkoutPayload);
+
+      const paymentPayload = {
+        orderId: checkoutData.orderId,
+        reservationId: checkoutData.reservationId,
+        provider: paymentId,
+        transactionRef: `LOCAL-${Date.now()}`,
+        amount: total,
+      };
+
+      const payData = await cartApi.pay(paymentPayload);
+
+      // On successful payment redirect to order detail
+      navigate(`/orders/${payData.orderId || checkoutData.orderId}`);
+    } catch (err) {
+      setError(err.message || "Thanh toán không thành công.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -148,6 +187,11 @@ const CheckoutPage = () => {
               <p className="text-[#4c739a] dark:text-gray-400">
                 Vui lòng kiểm tra kỹ thông tin trước khi đặt hàng.
               </p>
+              {error && (
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
             </div>
 
             <DeliveryInfoForm form={deliveryForm} onChange={handleFormChange} />
@@ -174,6 +218,7 @@ const CheckoutPage = () => {
               total={total}
               onApplyCoupon={() => {}}
               onSubmit={handlePlaceOrder}
+              submitting={submitting}
             />
           </div>
         </div>

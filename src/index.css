@@ -1,3 +1,54 @@
+/* Design tokens (dark-first). Use CSS variables so Tailwind/JS can reference them. */
+:root {
+    --bg: #0B1220;
+    --surface: #0F1B2D;
+    --surface-2: #12233A;
+    --border: rgba(255, 255, 255, 0.10);
+    --text: rgba(255, 255, 255, 0.92);
+    --muted: rgba(255, 255, 255, 0.68);
+    --muted-2: rgba(255, 255, 255, 0.50);
+    --overlay: rgba(0, 0, 0, 0.70);
+
+    --primary: #2F8CFF;
+    --primary-hover: #1F6FDB;
+    --danger: #EF4444;
+    --focus: rgba(47, 140, 255, 0.40);
+}
+
+/* If the project uses class-based dark mode, ensure .dark keeps same tokens */
+.dark {
+    --bg: #0B1220;
+    --surface: #0F1B2D;
+    --surface-2: #12233A;
+    --border: rgba(255, 255, 255, 0.10);
+    --text: rgba(255, 255, 255, 0.92);
+    --muted: rgba(255, 255, 255, 0.68);
+    --muted-2: rgba(255, 255, 255, 0.50);
+    --overlay: rgba(0, 0, 0, 0.70);
+
+    --primary: #2F8CFF;
+    --primary-hover: #1F6FDB;
+    --danger: #EF4444;
+    --focus: rgba(47, 140, 255, 0.40);
+}
+
+/* Light theme overrides (optional). If app toggles .light, these will apply */
+.light {
+    --bg: #f6f7f8;
+    --surface: #ffffff;
+    --surface-2: #f3f6f9;
+    --border: rgba(13, 20, 27, 0.08);
+    --text: rgba(13, 20, 27, 0.92);
+    --muted: rgba(13, 20, 27, 0.6);
+    --muted-2: rgba(13, 20, 27, 0.4);
+    --overlay: rgba(0, 0, 0, 0.45);
+
+    --primary: #137fec;
+    --primary-hover: #0b63b8;
+    --danger: #dc2626;
+    --focus: rgba(19, 127, 236, 0.24);
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
