@@ -1,6 +1,15 @@
 import React from "react";
 
-const PharmacistsFilters = () => {
+const specialties = [
+  { value: "all", label: "Tất cả" },
+  { value: "clinical", label: "Dược lâm sàng" },
+  { value: "pediatric", label: "Dược nhi" },
+  { value: "supplement", label: "Tư vấn TPCN" },
+  { value: "cosmetic", label: "Dược mỹ phẩm" },
+  { value: "obstetric", label: "Dược thai sản" },
+];
+
+const PharmacistsFilters = ({ filters, onChange, onReset }) => {
   return (
     <aside className="hidden lg:flex flex-col gap-4 sticky top-24 bg-white dark:bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
       <div className="flex items-center justify-between border-b pb-3 border-slate-100 dark:border-slate-700">
@@ -10,7 +19,11 @@ const PharmacistsFilters = () => {
           </span>
           Bộ lọc
         </span>
-        <button className="text-sm text-slate-500 hover:text-primary">
+        <button
+          type="button"
+          onClick={onReset}
+          className="text-sm text-slate-500 hover:text-primary"
+        >
           Xóa tất cả
         </button>
       </div>
@@ -28,21 +41,24 @@ const PharmacistsFilters = () => {
           </span>
         </summary>
         <div className="text-slate-500 mt-3 flex flex-col gap-2">
-          {["Dược lâm sàng", "Dược nhi", "Tư vấn TPCN", "Dược mỹ phẩm"].map(
-            (label, index) => (
-              <label
-                key={label}
-                className="flex items-center gap-3 cursor-pointer hover:text-primary"
-              >
-                <input
-                  type="checkbox"
-                  defaultChecked={index === 0}
-                  className="form-checkbox rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
-                />
-                <span className="text-sm">{label}</span>
-              </label>
-            )
-          )}
+          {specialties.map((item) => (
+            <label
+              key={item.value}
+              className="flex items-center gap-3 cursor-pointer hover:text-primary"
+            >
+              <input
+                type="radio"
+                name="specialty"
+                value={item.value}
+                checked={filters.specialty === item.value}
+                onChange={(e) =>
+                  onChange({ ...filters, specialty: e.target.value })
+                }
+                className="form-radio border-gray-300 text-primary focus:ring-primary h-4 w-4"
+              />
+              <span className="text-sm">{item.label}</span>
+            </label>
+          ))}
         </div>
       </details>
 
@@ -59,17 +75,24 @@ const PharmacistsFilters = () => {
           </span>
         </summary>
         <div className="text-slate-500 mt-3 flex flex-col gap-2">
-          {["Online (Video/Chat)", "Tại quầy thuốc"].map((label, index) => (
+          {[
+            { value: "all", label: "Tất cả" },
+            { value: "ONLINE", label: "Online (Video/Chat)" },
+            { value: "IN_PERSON", label: "Tại quầy thuốc" },
+          ].map((item) => (
             <label
-              key={label}
+              key={item.value}
               className="flex items-center gap-3 cursor-pointer hover:text-primary"
             >
               <input
-                type="checkbox"
-                defaultChecked={index === 0}
-                className="form-checkbox rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                type="radio"
+                name="mode"
+                value={item.value}
+                checked={filters.mode === item.value}
+                onChange={(e) => onChange({ ...filters, mode: e.target.value })}
+                className="form-radio border-gray-300 text-primary focus:ring-primary h-4 w-4"
               />
-              <span className="text-sm">{label}</span>
+              <span className="text-sm">{item.label}</span>
             </label>
           ))}
         </div>
@@ -88,16 +111,27 @@ const PharmacistsFilters = () => {
           </span>
         </summary>
         <div className="text-slate-500 mt-3 flex flex-col gap-2">
-          {["Dưới 3 năm", "3 - 5 năm", "Trên 5 năm"].map((label) => (
+          {[
+            { value: "all", label: "Tất cả" },
+            { value: "junior", label: "Dưới 3 năm" },
+            { value: "mid", label: "3 - 5 năm" },
+            { value: "senior", label: "Trên 5 năm" },
+          ].map((item) => (
             <label
-              key={label}
+              key={item.value}
               className="flex items-center gap-3 cursor-pointer hover:text-primary"
             >
               <input
-                type="checkbox"
-                className="form-checkbox rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                type="radio"
+                name="experience"
+                value={item.value}
+                checked={filters.experience === item.value}
+                onChange={(e) =>
+                  onChange({ ...filters, experience: e.target.value })
+                }
+                className="form-radio border-gray-300 text-primary focus:ring-primary h-4 w-4"
               />
-              <span className="text-sm">{label}</span>
+              <span className="text-sm">{item.label}</span>
             </label>
           ))}
         </div>
@@ -144,7 +178,10 @@ const PharmacistsFilters = () => {
         </div>
       </details>
 
-      <button className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-white shadow hover:bg-primary-dark transition-colors">
+      <button
+        type="button"
+        className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-white shadow hover:bg-primary-dark transition-colors"
+      >
         Áp dụng
       </button>
     </aside>

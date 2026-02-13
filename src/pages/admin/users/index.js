@@ -5,6 +5,15 @@ import AdminStats from "../../../components/admin/user-management/AdminStats";
 import AdminFilters from "../../../components/admin/user-management/AdminFilters";
 import UserTable from "../../../components/admin/user-management/UserTable";
 import UserDrawer from "../../../components/admin/user-management/UserDrawer";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../../components/ui/dialog";
+import { Button } from "../../../components/ui/button";
 
 const requestJson = async (url, options = {}) => {
   const response = await fetch(url, {
@@ -29,7 +38,7 @@ const requestJson = async (url, options = {}) => {
         ? payload.slice(0, 300)
         : JSON.stringify(payload || {}).slice(0, 300);
     throw new Error(
-      `HTTP ${response.status} ${response.statusText}. ${details}`
+      `HTTP ${response.status} ${response.statusText}. ${details}`,
     );
   }
 
@@ -72,6 +81,12 @@ const AdminUsersPage = () => {
   const [drawerActionError, setDrawerActionError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [actionDialog, setActionDialog] = useState({
+    open: false,
+    title: "",
+    message: "",
+    tone: "success",
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -94,11 +109,11 @@ const AdminUsersPage = () => {
           (err && err.message) || "Không tải được danh sách người dùng.";
         if (msg.includes("HTTP 401")) {
           setError(
-            "API trả về 401 (Unauthorized). Nếu bạn đang gọi qua gateway, hãy kiểm tra cấu hình security của gateway/admin-bff hoặc token đăng nhập."
+            "API trả về 401 (Unauthorized). Nếu bạn đang gọi qua gateway, hãy kiểm tra cấu hình security của gateway/admin-bff hoặc token đăng nhập.",
           );
         } else if (msg.includes("<!DOCTYPE") || msg.includes("text/html")) {
           setError(
-            "Máy chủ trả về HTML (không phải JSON). Thường do gọi nhầm host/port hoặc React dev server trả index.html. Hãy chắc `proxy` trỏ về gateway và gateway/admin-bff đang chạy."
+            "Máy chủ trả về HTML (không phải JSON). Thường do gọi nhầm host/port hoặc React dev server trả index.html. Hãy chắc `proxy` trỏ về gateway và gateway/admin-bff đang chạy.",
           );
         } else {
           setError("Không tải được danh sách người dùng. Vui lòng thử lại.");
@@ -175,7 +190,7 @@ const AdminUsersPage = () => {
 
   const handleToggleSelect = (id) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
 
@@ -192,11 +207,11 @@ const AdminUsersPage = () => {
               status,
               attention: status !== "active" ? true : user.attention,
             }
-          : user
-      )
+          : user,
+      ),
     );
     setDrawerUser((prev) =>
-      prev && ids.includes(prev.id) ? { ...prev, status } : prev
+      prev && ids.includes(prev.id) ? { ...prev, status } : prev,
     );
   };
 
@@ -206,9 +221,9 @@ const AdminUsersPage = () => {
       ids.map((id) =>
         requestJson(
           `/api/admin/users/${id}/status?status=${encodeURIComponent(status)}`,
-          { method: "POST" }
-        )
-      )
+          { method: "POST" },
+        ),
+      ),
     );
     updateStatus(ids, status);
   };
@@ -233,7 +248,7 @@ const AdminUsersPage = () => {
     setDrawerActionError("");
     setDrawerMode("create");
     setDrawerUser(
-      normalizeUser({ id: null, email: "", phone: "", fullName: "" })
+      normalizeUser({ id: null, email: "", phone: "", fullName: "" }),
     );
   };
 
@@ -267,11 +282,27 @@ const AdminUsersPage = () => {
 
       await reloadUsers();
       setDrawerUser(null);
+      setActionDialog({
+        open: true,
+        title: "Lưu thành công",
+        message:
+          drawerMode === "create"
+            ? "Đã tạo người dùng mới."
+            : "Đã cập nhật thông tin người dùng.",
+        tone: "success",
+      });
     } catch (err) {
       console.error("Save user failed", err);
       setDrawerActionError(
-        (err && err.message) || "Không thể lưu người dùng. Vui lòng thử lại."
+        (err && err.message) || "Không thể lưu người dùng. Vui lòng thử lại.",
       );
+      setActionDialog({
+        open: true,
+        title: "Không thể lưu",
+        message:
+          (err && err.message) || "Không thể lưu người dùng. Vui lòng thử lại.",
+        tone: "error",
+      });
     } finally {
       setDrawerSaving(false);
     }
@@ -287,11 +318,24 @@ const AdminUsersPage = () => {
       });
       await reloadUsers();
       setDrawerUser(null);
+      setActionDialog({
+        open: true,
+        title: "Đã xóa người dùng",
+        message: "Người dùng đã được xóa khỏi hệ thống.",
+        tone: "success",
+      });
     } catch (err) {
       console.error("Delete user failed", err);
       setDrawerActionError(
-        (err && err.message) || "Không thể xóa người dùng. Vui lòng thử lại."
+        (err && err.message) || "Không thể xóa người dùng. Vui lòng thử lại.",
       );
+      setActionDialog({
+        open: true,
+        title: "Không thể xóa",
+        message:
+          (err && err.message) || "Không thể xóa người dùng. Vui lòng thử lại.",
+        tone: "error",
+      });
     } finally {
       setDrawerDeleting(false);
     }
@@ -395,12 +439,37 @@ const AdminUsersPage = () => {
             ? persistStatus([drawerUser.id], status).catch((err) => {
                 console.error("Drawer status update failed", err);
                 setDrawerActionError(
-                  "Không thể cập nhật trạng thái. Vui lòng thử lại."
+                  "Không thể cập nhật trạng thái. Vui lòng thử lại.",
                 );
               })
             : null
         }
       />
+
+      <Dialog
+        open={actionDialog.open}
+        onOpenChange={(open) => setActionDialog((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{actionDialog.title}</DialogTitle>
+            <DialogDescription>{actionDialog.message}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant={
+                actionDialog.tone === "error" ? "destructive" : "default"
+              }
+              onClick={() =>
+                setActionDialog((prev) => ({ ...prev, open: false }))
+              }
+            >
+              Đóng
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };

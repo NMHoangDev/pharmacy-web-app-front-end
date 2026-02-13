@@ -13,6 +13,15 @@ const BookingPage = () => {
   const location = useLocation();
 
   const pharmacistFromState = location.state?.pharmacist;
+  const pharmacistIdFromState =
+    pharmacistFromState?.id ?? pharmacistFromState?.pharmacistId;
+  if (!pharmacistIdFromState) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "BookingPage: pharmacist id not found in location.state.pharmacist",
+    );
+  }
+
   const pharmacist = pharmacistFromState
     ? {
         name: pharmacistFromState.name,
@@ -48,6 +57,7 @@ const BookingPage = () => {
               <div className="lg:col-span-8">
                 <BookingForm
                   onBackToPharmacists={() => navigate("/pharmacists")}
+                  pharmacistId={pharmacistIdFromState}
                 />
               </div>
             </div>

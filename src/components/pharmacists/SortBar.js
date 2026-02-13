@@ -1,10 +1,12 @@
 import React from "react";
 
-const SortBar = () => {
+const SortBar = ({ total = 0 }) => {
   return (
     <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-b border-slate-200 dark:border-slate-700">
       <p className="text-sm text-slate-500 font-medium">
-        <span className="text-slate-900 dark:text-white font-bold">24</span>{" "}
+        <span className="text-slate-900 dark:text-white font-bold">
+          {total}
+        </span>{" "}
         dược sĩ phù hợp
       </p>
       <div className="flex items-center gap-3">

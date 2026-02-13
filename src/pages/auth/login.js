@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import AuthLayout from "../../components/auth/AuthLayout";
 import AuthHero from "../../components/auth/AuthHero";
 import LoginForm from "../../components/auth/LoginForm";
+import { useAppContext } from "../../context/AppContext";
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const { login } = useAppContext();
   const API_BASE_URL = useMemo(
     () => process.env.REACT_APP_API_BASE_URL || "http://localhost:8087",
-    []
+    [],
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -38,22 +40,12 @@ const LoginPage = () => {
 
       const data = await res.json();
 
-      localStorage.setItem("authToken", data.token);
-      localStorage.setItem(
-        "authUser",
-        JSON.stringify({
-          id: data.userId,
-          email: data.email,
-          phone: data.phone,
-          fullName: data.fullName,
-          expiresAt: data.expiresAt,
-        })
-      );
+      login(data);
 
       navigate("/");
     } catch (err) {
       const msg = err.message || "Sai mật khẩu hoặc tài khoản không tồn tại.";
-      console.loading("Login error", err);
+      console.error("Login error", err);
       setError(msg);
       setModal({ open: true, message: msg });
     } finally {

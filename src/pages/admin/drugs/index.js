@@ -117,7 +117,34 @@ const AdminDrugsPage = () => {
       (payload.items ?? []).forEach((entry) => {
         map[entry.productId] = entry;
       });
+
+      const seedTasks = [];
+      items.forEach((item) => {
+        const entry = map[item.id];
+        if (!entry) {
+          return;
+        }
+        const attrs = parseAttributes(item.attributes);
+        const seedStock = Number(attrs.stock);
+        if (
+          Number.isFinite(seedStock) &&
+          seedStock > 0 &&
+          entry.onHand === 0 &&
+          entry.reserved === 0
+        ) {
+          map[item.id] = {
+            ...entry,
+            onHand: seedStock,
+            available: seedStock,
+          };
+          seedTasks.push(syncInventory(item.id, seedStock, entry.onHand));
+        }
+      });
+
       setAvailabilityMap(map);
+      if (seedTasks.length) {
+        await Promise.allSettled(seedTasks);
+      }
     } catch (err) {
       console.warn("Lỗi khi tải tồn kho", err);
       setAvailabilityMap({});
@@ -217,13 +244,22 @@ const AdminDrugsPage = () => {
     };
   }, [search, filter, categoryId, status, sort, pageSize, page, reloadIndex]);
 
-  const syncInventory = async (productId, targetStock) => {
-    if (typeof targetStock !== "number" || Number.isNaN(targetStock)) {
+  const syncInventory = async (
+    productId,
+    targetStock,
+    currentOnHandOverride,
+  ) => {
+    const normalizedStock = Number(targetStock);
+    if (!Number.isFinite(normalizedStock)) {
       return;
     }
 
-    const current = availabilityMap[productId]?.available ?? 0;
-    const delta = targetStock - current;
+    const current = Number.isFinite(currentOnHandOverride)
+      ? currentOnHandOverride
+      : (availabilityMap[productId]?.onHand ??
+        availabilityMap[productId]?.available ??
+        0);
+    const delta = normalizedStock - current;
     if (delta === 0) {
       return;
     }

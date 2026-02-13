@@ -1,81 +1,107 @@
-import React from "react";
+import React, { useState } from "react";
+import { formatVnd } from "../../utils/currency";
 
 const CartSummary = ({
-  subtotal,
-  discount,
-  vatRate,
-  vatAmount,
-  total,
-  itemCount,
+  subtotal = 0,
+  discount = 0,
+  vatAmount = 0,
+  total = 0,
+  itemCount = 0,
   onCheckout,
 }) => {
-  const formatCurrency = (value) =>
-    value.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
+  const [code, setCode] = useState("");
+  const [applying, setApplying] = useState(false);
+
+  const applyCoupon = async () => {
+    setApplying(true);
+    try {
+      // placeholder: in future call parent prop to validate coupon
+      await new Promise((r) => setTimeout(r, 700));
+      // No coupon logic implemented: show inline message (could be enhanced)
+      // eslint-disable-next-line no-alert
+      alert("Mã giảm giá chưa được hỗ trợ trong demo");
+    } catch (e) {
+      // ignore
+    } finally {
+      setApplying(false);
+    }
+  };
 
   return (
-    <div className="bg-white dark:bg-[#1a2634] rounded-lg border border-[#cfdbe7] dark:border-gray-700 p-6 sticky top-24 shadow-sm">
-      <h3 className="text-[#0d141b] dark:text-white text-lg font-bold mb-4">
+    <div className="bg-white dark:bg-[#0f1720] rounded-2xl border border-slate-200 dark:border-gray-800 p-6 shadow-md w-full lg:sticky lg:top-24">
+      <h3 className="text-slate-900 dark:text-white text-xl lg:text-2xl font-extrabold mb-4">
         Tổng tiền giỏ hàng
       </h3>
 
-      <div className="flex gap-2 mb-6">
-        <input
-          type="text"
-          className="flex-1 rounded-lg border-[#cfdbe7] dark:border-gray-600 bg-slate-50 dark:bg-gray-900 text-sm px-3 py-2 focus:ring-primary focus:border-primary placeholder:text-gray-400 dark:text-white"
-          placeholder="Mã giảm giá"
-        />
-        <button className="px-4 py-2 bg-[#e7edf3] dark:bg-gray-700 text-[#0d141b] dark:text-white text-sm font-semibold rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-          Áp dụng
-        </button>
+      <div className="mb-4">
+        <div className="flex gap-2">
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="Mã giảm giá"
+            className="flex-1 min-w-0 h-12 px-3 rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <button
+            onClick={applyCoupon}
+            disabled={applying || !code.trim()}
+            className={`shrink-0 h-12 px-4 rounded-lg bg-primary text-white text-sm font-medium whitespace-nowrap ${
+              applying ? "opacity-60 cursor-wait" : "hover:bg-primary/90"
+            }`}
+          >
+            {applying ? "Đang áp dụng..." : "Áp dụng"}
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          Nhập mã để giảm giá (nếu có)
+        </p>
       </div>
 
-      <div className="flex flex-col gap-3 pb-4 border-b border-[#cfdbe7] dark:border-gray-700">
-        <div className="flex justify-between">
-          <span className="text-[#4c739a] text-sm">
+      <div className="flex flex-col gap-3 pb-4 border-b border-slate-100 dark:border-gray-800">
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-slate-500">
             Tạm tính ({itemCount} sản phẩm)
           </span>
-          <span className="text-[#0d141b] dark:text-white text-sm font-medium">
-            {formatCurrency(subtotal)}
+          <span className="text-sm font-medium text-slate-900 dark:text-white">
+            {formatVnd(subtotal)}
           </span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-[#4c739a] text-sm">Giảm giá</span>
-          <span className="text-[#0d141b] dark:text-white text-sm font-medium">
-            {formatCurrency(discount)}
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-slate-500">Giảm giá</span>
+          <span className="text-sm font-medium text-slate-900 dark:text-white">
+            {formatVnd(discount)}
           </span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-[#4c739a] text-sm">
-            Thuế VAT ({vatRate * 100}%)
-          </span>
-          <span className="text-[#0d141b] dark:text-white text-sm font-medium">
-            {formatCurrency(vatAmount)}
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-slate-500">Thuế VAT (8%)</span>
+          <span className="text-sm font-medium text-slate-900 dark:text-white">
+            {formatVnd(vatAmount)}
           </span>
         </div>
       </div>
 
-      <div className="flex justify-between py-4">
-        <span className="text-[#0d141b] dark:text-white text-base font-bold">
-          Tổng cộng
-        </span>
-        <span className="text-primary text-xl font-bold">
-          {formatCurrency(total)}
-        </span>
+      <div className="flex justify-between items-end py-4">
+        <div>
+          <div className="text-base text-slate-500">Tổng cộng</div>
+          <div className="text-sm text-slate-400">Đã bao gồm VAT 8%</div>
+        </div>
+        <div className="text-right">
+          <div className="text-2xl font-extrabold text-primary">
+            {formatVnd(total)}
+          </div>
+        </div>
       </div>
 
       <button
         type="button"
         onClick={onCheckout}
-        className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex justify-center items-center gap-2"
+        className="w-full mt-2 bg-primary text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-primary/30 transition-all flex items-center justify-center gap-2"
       >
         Tiến hành thanh toán
-        <span className="material-symbols-outlined text-sm">arrow_forward</span>
+        <span className="text-sm">→</span>
       </button>
-      <div className="mt-4 flex items-center justify-center gap-2 text-[#4c739a] text-xs">
-        <span className="material-symbols-outlined text-base">
-          verified_user
-        </span>
-        <span>Thanh toán bảo mật 100%</span>
+
+      <div className="mt-3 text-xs text-slate-500 text-center">
+        Thanh toán bảo mật 100%
       </div>
     </div>
   );

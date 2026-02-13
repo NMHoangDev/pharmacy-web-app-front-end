@@ -1,47 +1,25 @@
-import React, { useMemo, useState } from "react";
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { useNavigate } from "react-router-dom";
+import { useAppContext } from "../../context/AppContext";
+import productApi from "../../api/productApi";
+import { useCart } from "../../contexts/CartContext";
+import { getUserId } from "../../utils/auth";
+import { calcSubtotal, calcVat } from "../../utils/currency";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import CartBreadcrumbs from "../../components/cart/CartBreadcrumbs";
 import CartItemRow from "../../components/cart/CartItemRow";
 import CartSummary from "../../components/cart/CartSummary";
 import RelatedProducts from "../../components/cart/RelatedProducts";
+import EmptyState from "../../components/EmptyState";
 
 const VAT_RATE = 0.08;
-
-const initialCart = [
-  {
-    id: "item-panadol",
-    name: "Panadol Extra",
-    subtitle: "Hộp 15 vỉ x 12 viên",
-    price: 120000,
-    quantity: 1,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCRU8EEqyAuUefWlJcQLDCY5GgwUgKHGQvqO3kVf0gLzTqSPqAft7NtGTlp5TUkiY9CanQy8LfjZcoQMDK3v5uzhgqybTa1UQ1l0fV4_2ps1d6RMrY3KhKvUQl8_FfhIpWcn1lYL0jh96ywUSc9AgkknKrpJv0CBFFsVNb5MYg2qyt0-EaBpzPaaXK5-o6Dp-C1vsPVHDlecFJG9ZDb8iuovnLr098Srr_cr6SDCQD1AA-XsMW3MtTJv04Av7kZADiQHB12Ft9Ql7_A",
-    alt: "Hộp Panadol Extra đỏ",
-  },
-  {
-    id: "item-berberin",
-    name: "Berberin 100mg",
-    subtitle: "Lọ 100 viên",
-    price: 25000,
-    quantity: 2,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAkAQ4qAKdQWMJVnpDfwtpMuekHTIcR2U8uBl_XboWCiBnl2x0MF9IyGIxJeDty88OZ3Xvg6-tJTXmbEo1tZ4tnQYr43vUKshmWf4oZGLLeslSmw-vnc-WKjG7ummghE5Sd21Naq2q6i2IEJT1Rv3443OPU7GG-8kDDwQvFDbEH4qc7CRG720ZaqsEDfxE-t1_69tdT-JaPlq8tLReCzoTXPsYI_yPxDhc7aKO5AVw4lmtJLiTa2-_Wr921phYeyBGy9gahX38RvL7o",
-    alt: "Lọ Berberin màu vàng",
-  },
-  {
-    id: "item-vitamin-c",
-    name: "Vitamin C 500mg",
-    subtitle: "Hộp 10 vỉ",
-    price: 45000,
-    quantity: 1,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuB8vaPrYdlw7fVPGHaiFZLKXS5fW_rNm7OkNfcmHWyZhnMjbasDE3qlkD6kvmSPytMu7tlwFYL39mLj72R33RYb8gFu3QvMPeO8jqm4KQxR2g3Wrtb5iK7hXpOYkE3yUC1KpVvn-uAvQaSERM-3BBpUbBFMSMTqCQyBZ4GR1HsU8okWmbiKI-H7b4VnJsIGePTxsX1X9XaBHAPH_-Kmh17EPWzXaVkn93KKs8f7gCUCt_BScDP2OpjWwG2u_OTZPlCyYyw0xhISIL4r",
-    badge: "Bán chạy",
-    alt: "Vỉ Vitamin C màu cam",
-  },
-];
 
 const relatedProducts = [
   {
@@ -80,30 +58,129 @@ const relatedProducts = [
 ];
 
 const formatCurrency = (value) =>
-  value.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
+  Number(value || 0).toLocaleString("vi-VN", {
+    style: "currency",
+    currency: "VND",
+  });
 
 const CartPage = () => {
   const navigate = useNavigate();
-  const [cartItems, setCartItems] = useState(initialCart);
-  const [selectedIds, setSelectedIds] = useState(() =>
-    initialCart.map((item) => item.id)
+  const { authUser } = useAppContext();
+
+  const {
+    cartItems: ctxCartItems,
+    loading,
+    refreshCart,
+    upsertItem,
+    removeItem,
+  } = useCart();
+
+  // debug: log context cart items on every render
+  // eslint-disable-next-line no-console
+  console.log("CartPage render -> ctxCartItems:", ctxCartItems);
+  // debug: auth info
+  // eslint-disable-next-line no-console
+  console.log(
+    "CartPage authToken:",
+    sessionStorage.getItem("authToken"),
+    "getUserId:",
+    getUserId(),
   );
 
-  const itemCount = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
-    [cartItems]
+  const [cartItems, setCartItems] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const productCacheRef = useRef({});
+
+  // Build display cart items from ctxCartItems + product cache
+  // Ensure we refresh on mount if context is empty
+  useEffect(() => {
+    if (
+      !loading &&
+      (!Array.isArray(ctxCartItems) || ctxCartItems.length === 0)
+    ) {
+      // eslint-disable-next-line no-console
+      console.log("CartPage mounted -> ctx empty calling refreshCart");
+      refreshCart().catch((e) => {
+        // eslint-disable-next-line no-console
+        console.warn("refreshCart error", e);
+      });
+    }
+  }, [loading, ctxCartItems, refreshCart]);
+
+  useEffect(() => {
+    const loadForCart = async () => {
+      const rawItems = Array.isArray(ctxCartItems) ? ctxCartItems : [];
+      if (rawItems.length === 0) {
+        setCartItems([]);
+        setSelectedIds([]);
+        return;
+      }
+
+      const uniqueIds = Array.from(
+        new Set(rawItems.map((i) => i.productId)),
+      ).filter(Boolean);
+      const toFetch = uniqueIds.filter(
+        (id) => productCacheRef.current[id] === undefined,
+      );
+
+      if (toFetch.length) {
+        await Promise.all(
+          toFetch.map(async (id) => {
+            try {
+              const p = await productApi.getProductById(id);
+              productCacheRef.current[id] = p || null;
+            } catch (e) {
+              productCacheRef.current[id] = null;
+            }
+          }),
+        );
+      }
+
+      const items = rawItems.map((it) => {
+        const p = productCacheRef.current[it.productId];
+        return {
+          id: it.productId, // IMPORTANT: use productId as key for row & selection
+          name: (p && (p.name || p.title)) || "Sản phẩm không tên",
+          price: (p && (p.price || p.unitPrice)) || it.unitPrice || 0,
+          image: (p && (p.imageUrl || p.image)) || undefined,
+          subtitle:
+            p && (p.subtitle || p.shortDescription)
+              ? p.subtitle || p.shortDescription
+              : "",
+          quantity: it.quantity || 1,
+        };
+      });
+
+      setCartItems(items);
+      // auto select all by default (optional)
+      setSelectedIds(items.map((i) => i.id));
+    };
+
+    loadForCart();
+  }, [ctxCartItems]);
+
+  const totalItemCount = useMemo(
+    () =>
+      cartItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+    [cartItems],
   );
 
-  const subtotal = useMemo(() => {
-    return cartItems.reduce((sum, item) => {
-      if (!selectedIds.includes(item.id)) return sum;
-      return sum + item.price * item.quantity;
-    }, 0);
-  }, [cartItems, selectedIds]);
+  const subtotal = useMemo(
+    () => calcSubtotal(cartItems, selectedIds),
+    [cartItems, selectedIds],
+  );
 
   const discount = 0;
-  const vatAmount = subtotal * VAT_RATE;
-  const total = subtotal - discount + vatAmount;
+
+  const vatAmount = useMemo(
+    () => calcVat(subtotal - discount, VAT_RATE),
+    [subtotal, discount],
+  );
+
+  const total = useMemo(
+    () => subtotal - discount + vatAmount,
+    [subtotal, discount, vatAmount],
+  );
 
   const allSelected =
     selectedIds.length === cartItems.length && cartItems.length > 0;
@@ -114,39 +191,49 @@ const CartPage = () => {
 
   const handleSelect = (id, checked) => {
     setSelectedIds((prev) => {
-      if (checked) {
-        return prev.includes(id) ? prev : [...prev, id];
-      }
+      if (checked) return prev.includes(id) ? prev : [...prev, id];
       return prev.filter((itemId) => itemId !== id);
     });
   };
 
-  const handleQuantityChange = (id, quantity) => {
+  // id here is productId
+  const handleQuantityChange = async (id, quantity) => {
+    const newQty = Math.max(1, Number(quantity) || 1);
+
+    // optimistic UI
     setCartItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
+      prev.map((it) => (it.id === id ? { ...it, quantity: newQty } : it)),
     );
+
+    try {
+      await upsertItem(id, newQty);
+      // optional: refreshCart to sync header cart icon count
+      await refreshCart();
+    } catch (err) {
+      await refreshCart();
+      alert(err?.message || "Không thể cập nhật số lượng");
+    }
   };
 
-  const handleRemove = (id) => {
-    setCartItems((prev) => prev.filter((item) => item.id !== id));
-    setSelectedIds((prev) => prev.filter((itemId) => itemId !== id));
+  const handleRemove = async (id) => {
+    try {
+      await removeItem(id);
+      setSelectedIds((prev) => prev.filter((itemId) => itemId !== id));
+      // optional: refreshCart to sync
+      await refreshCart();
+    } catch (err) {
+      alert(err?.message || "Không thể xóa sản phẩm");
+    }
   };
 
-  const handleCheckout = () => {
-    const itemsForCheckout = cartItems.filter((item) =>
-      selectedIds.includes(item.id)
-    );
-    if (itemsForCheckout.length === 0) {
-      alert("Vui lòng chọn ít nhất một sản phẩm để thanh toán.");
+  const handleCheckout = useCallback(() => {
+    if (!selectedIds.length) {
+      alert("Vui lòng chọn ít nhất 1 sản phẩm để thanh toán.");
       return;
     }
-
-    navigate("/checkout", {
-      state: {
-        cartItems: itemsForCheckout,
-      },
-    });
-  };
+    // tuỳ hệ thống của bạn: dùng /checkout hoặc /payment
+    navigate("/checkout");
+  }, [navigate, selectedIds]);
 
   return (
     <div className="bg-background-light dark:bg-background-dark text-[#0d141b] dark:text-white font-display min-h-screen flex flex-col">
@@ -162,74 +249,83 @@ const CartPage = () => {
                 Giỏ hàng của bạn
               </h1>
               <p className="text-[#4c739a] text-sm font-normal leading-normal">
-                ({itemCount} sản phẩm)
+                ({totalItemCount} sản phẩm)
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 px-4">
             <div className="lg:col-span-8 flex flex-col gap-4">
-              <div className="flex overflow-hidden rounded-lg border border-[#cfdbe7] dark:border-gray-700 bg-white dark:bg-[#1a2634] shadow-sm">
-                <table className="flex-1 w-full">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-gray-800 border-b border-[#cfdbe7] dark:border-gray-700">
-                      <th className="px-4 py-3 text-left w-[50px]">
-                        <input
-                          type="checkbox"
-                          checked={allSelected}
-                          onChange={(e) => toggleSelectAll(e.target.checked)}
-                          className="h-5 w-5 rounded border-[#cfdbe7] border-2 bg-transparent text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer"
-                        />
-                      </th>
-                      <th className="px-4 py-3 text-left text-[#4c739a] text-sm font-medium leading-normal w-[40%]">
-                        Sản phẩm
-                      </th>
-                      <th className="hidden sm:table-cell px-4 py-3 text-left text-[#4c739a] text-sm font-medium leading-normal">
-                        Đơn giá
-                      </th>
-                      <th className="px-4 py-3 text-left text-[#4c739a] text-sm font-medium leading-normal">
-                        Số lượng
-                      </th>
-                      <th className="hidden md:table-cell px-4 py-3 text-left text-[#4c739a] text-sm font-medium leading-normal">
-                        Thành tiền
-                      </th>
-                      <th className="px-4 py-3 text-right text-[#4c739a] text-sm font-medium leading-normal" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#cfdbe7] dark:divide-gray-700">
-                    {cartItems.map((item) => (
-                      <CartItemRow
-                        key={item.id}
-                        item={item}
-                        isSelected={selectedIds.includes(item.id)}
-                        onSelect={handleSelect}
-                        onChangeQuantity={handleQuantityChange}
-                        onRemove={handleRemove}
-                        formatCurrency={formatCurrency}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-                <div className="p-4 bg-slate-50 dark:bg-gray-800 border-t border-[#cfdbe7] dark:border-gray-700 sm:hidden">
-                  <p className="text-xs text-center text-[#4c739a]">
-                    Kéo sang trái để xem thêm chi tiết
-                  </p>
-                </div>
-              </div>
+              {/* Empty state first (when not loading) */}
+              {!loading && cartItems.length === 0 ? (
+                <EmptyState
+                  title="Giỏ hàng trống"
+                  subtitle="Bạn chưa thêm sản phẩm nào vào giỏ hàng."
+                  actionLabel="Tiếp tục mua sắm"
+                  onAction={() => navigate("/medicines")}
+                />
+              ) : (
+                <div className="flex overflow-hidden rounded-lg border border-[#cfdbe7] dark:border-gray-700 bg-white dark:bg-[#1a2634] shadow-sm">
+                  <table className="flex-1 w-full">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-gray-800 border-b border-[#cfdbe7] dark:border-gray-700">
+                        <th className="px-4 py-3 text-left w-[50px]">
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={(e) => toggleSelectAll(e.target.checked)}
+                            className="h-5 w-5 rounded border-[#cfdbe7] border-2 bg-transparent text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer"
+                          />
+                        </th>
+                        <th className="px-4 py-3 text-left text-[#4c739a] text-sm font-medium leading-normal w-[40%]">
+                          Sản phẩm
+                        </th>
+                        <th className="hidden sm:table-cell px-4 py-3 text-left text-[#4c739a] text-sm font-medium leading-normal">
+                          Đơn giá
+                        </th>
+                        <th className="px-4 py-3 text-left text-[#4c739a] text-sm font-medium leading-normal">
+                          Số lượng
+                        </th>
+                        <th className="hidden md:table-cell px-4 py-3 text-left text-[#4c739a] text-sm font-medium leading-normal">
+                          Thành tiền
+                        </th>
+                        <th className="px-4 py-3 text-right text-[#4c739a] text-sm font-medium leading-normal" />
+                      </tr>
+                    </thead>
 
-              {cartItems.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 bg-white dark:bg-[#1a2634] rounded-lg border border-[#cfdbe7] dark:border-gray-700">
-                  <span className="material-symbols-outlined text-[64px] text-gray-300">
-                    shopping_basket
-                  </span>
-                  <p className="mt-4 text-gray-500 font-medium">
-                    Giỏ hàng của bạn đang trống
-                  </p>
-                  <button className="mt-4 px-6 py-2 bg-primary text-white rounded-lg text-sm font-bold">
-                    Tiếp tục mua sắm
-                  </button>
+                    <tbody className="divide-y divide-[#cfdbe7] dark:divide-gray-700">
+                      {cartItems.map((item) => (
+                        <CartItemRow
+                          key={item.id}
+                          item={item}
+                          isSelected={selectedIds.includes(item.id)}
+                          onSelect={handleSelect}
+                          onChangeQuantity={handleQuantityChange}
+                          onRemove={handleRemove}
+                          formatCurrency={formatCurrency}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="p-4 bg-slate-50 dark:bg-gray-800 border-t border-[#cfdbe7] dark:border-gray-700 sm:hidden">
+                    <p className="text-xs text-center text-[#4c739a]">
+                      Kéo sang trái để xem thêm chi tiết
+                    </p>
+                  </div>
                 </div>
               )}
+
+              {loading ? (
+                <div className="flex flex-col gap-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-20 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse"
+                    />
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <div className="lg:col-span-4 flex flex-col gap-6">
@@ -239,7 +335,7 @@ const CartPage = () => {
                 vatRate={VAT_RATE}
                 vatAmount={vatAmount}
                 total={total}
-                itemCount={itemCount}
+                itemCount={totalItemCount}
                 onCheckout={handleCheckout}
               />
             </div>
