@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import AccountSidebar from "../../components/account/AccountSidebar";
 import ProfileForm from "../../components/account/ProfileForm";
 import { useAppContext } from "../../context/AppContext";
-import api from "../../api/client";
-import apiClient from "../../api/apiClient";
+import { authApi } from "../../api/httpClients";
+import { getQuestionBySlug, getUserQuestions } from "../../api/contentApi";
+import { listOrders } from "../../api/orderApi";
+
 import {
   Dialog,
   DialogContent,
@@ -14,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog";
+import AppointmentList from "../../components/account/AppointmentList";
 
 const defaultProfile = {
   name: "Nguyễn Văn A",
@@ -29,11 +33,33 @@ const defaultProfile = {
 };
 
 const AccountPage = () => {
-  const { authToken, authUser, logout, profile, setProfile } = useAppContext();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const queryTab = new URLSearchParams(location.search).get("tab");
+  const { accessToken, authUser, userId, logout, profile, setProfile } =
+    useAppContext();
+  const currentUserId = userId || authUser?.id;
   const [form, setForm] = useState(defaultProfile);
-  const [activeKey, setActiveKey] = useState("profile");
+  const [activeKey, setActiveKey] = useState(
+    location.state?.activeTab || queryTab || "profile",
+  );
   const [orders, setOrders] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [myQuestions, setMyQuestions] = useState([]);
+  const [questionLoading, setQuestionLoading] = useState(false);
+  const [questionPagination, setQuestionPagination] = useState({
+    page: 1,
+    pageSize: 10,
+    total: 0,
+  });
+  const [answerDialog, setAnswerDialog] = useState({
+    open: false,
+    question: null,
+    answers: [],
+    pagination: { page: 1, pageSize: 10, total: 0 },
+    loading: false,
+    error: "",
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successDialog, setSuccessDialog] = useState({
@@ -51,6 +77,13 @@ const AccountPage = () => {
     [],
   );
 
+  useEffect(() => {
+    const nextTab = location.state?.activeTab || queryTab;
+    if (nextTab) {
+      setActiveKey(nextTab);
+    }
+  }, [location.state, queryTab]);
+
   const avatarPreview = useMemo(() => {
     const value =
       form.avatarUrl || profile?.avatarBase64 || defaultProfile.avatarUrl;
@@ -62,12 +95,13 @@ const AccountPage = () => {
   }, [form.avatarUrl, profile?.avatarBase64]);
 
   useEffect(() => {
-    if (!authUser?.id || !authToken) return;
+    if (!currentUserId || !accessToken) return;
     const loadProfile = async () => {
       setLoading(true);
       setError("");
       try {
-        const data = await api.getUser(authUser.id);
+        const res = await authApi.get(`/api/users/${currentUserId}`);
+        const data = res.data;
         const merged = {
           ...defaultProfile,
           name: data.fullName || defaultProfile.name,
@@ -86,16 +120,16 @@ const AccountPage = () => {
     };
 
     loadProfile();
-  }, [API_BASE_URL, authToken, authUser?.id, setProfile]);
+  }, [API_BASE_URL, accessToken, currentUserId, setProfile]);
 
   useEffect(() => {
-    if (activeKey !== "orders" || !authUser?.id || !authToken) return;
+    if (activeKey !== "orders" || !currentUserId || !accessToken) return;
     const loadOrders = async () => {
       setLoading(true);
       setError("");
       try {
-        const data = await api.listOrdersByUser(authUser.id);
-        setOrders(data || []);
+        const data = await listOrders(currentUserId);
+        setOrders(Array.isArray(data) ? data : []);
       } catch (err) {
         setError(err.message || "Không thể tải lịch sử đơn hàng");
       } finally {
@@ -103,16 +137,16 @@ const AccountPage = () => {
       }
     };
     loadOrders();
-  }, [API_BASE_URL, activeKey, authToken, authUser?.id]);
+  }, [API_BASE_URL, activeKey, accessToken, currentUserId]);
 
   useEffect(() => {
-    if (activeKey !== "consult" || !authUser?.id || !authToken) return;
+    if (activeKey !== "consult" || !currentUserId || !accessToken) return;
     const loadAppointments = async () => {
       setLoading(true);
       setError("");
       try {
-        const res = await apiClient.get(
-          `/api/appointments/user/${authUser.id}?page=0&size=20`,
+        const res = await authApi.get(
+          `/api/appointments/user/${currentUserId}?page=0&size=20`,
         );
         const data = res.data || {};
         setAppointments(data?.content || []);
@@ -123,7 +157,97 @@ const AccountPage = () => {
       }
     };
     loadAppointments();
-  }, [API_BASE_URL, activeKey, authToken, authUser?.id]);
+  }, [API_BASE_URL, activeKey, accessToken, currentUserId]);
+
+  useEffect(() => {
+    if (activeKey !== "questions" || !currentUserId || !accessToken) return;
+    const loadQuestions = async () => {
+      setQuestionLoading(true);
+      setError("");
+      try {
+        const data = await getUserQuestions(currentUserId, {
+          page: questionPagination.page,
+          pageSize: questionPagination.pageSize,
+          sortBy: "createdAt",
+          sortDir: "desc",
+        });
+        setMyQuestions(data.items || []);
+        setQuestionPagination(
+          data.pagination || { page: 1, pageSize: 10, total: 0 },
+        );
+      } catch (err) {
+        setError(err.message || "Không thể tải câu hỏi của bạn");
+      } finally {
+        setQuestionLoading(false);
+      }
+    };
+    loadQuestions();
+  }, [
+    activeKey,
+    accessToken,
+    currentUserId,
+    questionPagination.page,
+    questionPagination.pageSize,
+  ]);
+
+  const openAnswerDialog = async (question) => {
+    if (!question?.slug) return;
+    setAnswerDialog({
+      open: true,
+      question,
+      answers: [],
+      pagination: { page: 1, pageSize: 10, total: 0 },
+      loading: true,
+      error: "",
+    });
+    try {
+      const data = await getQuestionBySlug(question.slug, {
+        answerPage: 1,
+        answerPageSize: 10,
+        sortAnswersBy: "newest",
+      });
+      const pageData = data?.answers || { items: [], pagination: null };
+      setAnswerDialog((prev) => ({
+        ...prev,
+        question: data,
+        answers: pageData.items || [],
+        pagination: pageData.pagination || { page: 1, pageSize: 10, total: 0 },
+        loading: false,
+      }));
+    } catch (err) {
+      setAnswerDialog((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.message || "Không thể tải câu trả lời",
+      }));
+    }
+  };
+
+  const loadMoreAnswers = async () => {
+    if (!answerDialog.question?.slug || answerDialog.loading) return;
+    const nextPage = (answerDialog.pagination?.page || 1) + 1;
+    setAnswerDialog((prev) => ({ ...prev, loading: true }));
+    try {
+      const data = await getQuestionBySlug(answerDialog.question.slug, {
+        answerPage: nextPage,
+        answerPageSize: answerDialog.pagination?.pageSize || 10,
+        sortAnswersBy: "newest",
+      });
+      const pageData = data?.answers || { items: [], pagination: null };
+      setAnswerDialog((prev) => ({
+        ...prev,
+        answers: [...prev.answers, ...(pageData.items || [])],
+        pagination: pageData.pagination || prev.pagination,
+        loading: false,
+      }));
+    } catch (err) {
+      setAnswerDialog((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.message || "Không thể tải thêm câu trả lời",
+      }));
+    }
+  };
 
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -150,7 +274,7 @@ const AccountPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!authUser?.id || !authToken) {
+    if (!currentUserId || !accessToken) {
       setError("Bạn cần đăng nhập để lưu thay đổi.");
       return;
     }
@@ -169,7 +293,8 @@ const AccountPage = () => {
         fullName: form.fullName,
         avatarBase64,
       };
-      const data = await api.updateUser(authUser.id, payload);
+      const res = await authApi.put(`/api/users/${currentUserId}`, payload);
+      const data = res.data;
       setProfile(data);
       setForm((prev) => ({
         ...prev,
@@ -195,14 +320,14 @@ const AccountPage = () => {
   const handlePasswordChange = async (e) => {
     e.preventDefault();
     setPasswordStatus("");
-    if (!authUser?.id || !authToken) return;
+    if (!currentUserId || !accessToken) return;
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       setPasswordStatus("Mật khẩu mới không khớp.");
       return;
     }
     try {
-      const res = await apiClient.post(`/api/auth/change-password`, {
-        userId: authUser.id,
+      const res = await authApi.post(`/api/auth/change-password`, {
+        userId: currentUserId,
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });
@@ -239,6 +364,12 @@ const AccountPage = () => {
       icon: "calendar_month",
       badge: appointments.length ? String(appointments.length) : undefined,
       onClick: () => setActiveKey("consult"),
+    },
+    {
+      key: "questions",
+      label: "Câu hỏi của tôi",
+      icon: "forum",
+      onClick: () => setActiveKey("questions"),
     },
     {
       key: "password",
@@ -296,12 +427,23 @@ const AccountPage = () => {
                     {orders.map((order) => (
                       <div
                         key={order.id}
-                        className="border border-slate-200 dark:border-slate-700 rounded-lg p-4"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => navigate(`/order-detail/${order.id}`)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            navigate(`/order-detail/${order.id}`);
+                          }
+                        }}
+                        className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition"
                       >
                         <div className="flex flex-wrap justify-between gap-3">
                           <div>
                             <p className="text-sm text-slate-500">Mã đơn</p>
-                            <p className="font-semibold">{order.id}</p>
+                            <p className="font-semibold">
+                              {order.orderCode || order.id}
+                            </p>
                           </div>
                           <div>
                             <p className="text-sm text-slate-500">Trạng thái</p>
@@ -315,6 +457,18 @@ const AccountPage = () => {
                               {order.totalAmount?.toLocaleString("vi-VN")} đ
                             </p>
                           </div>
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/order-detail/${order.id}`);
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                          >
+                            Xem chi tiết
+                          </button>
                         </div>
                         <div className="mt-3 text-sm text-slate-600">
                           {order.items?.map((item) => (
@@ -343,46 +497,105 @@ const AccountPage = () => {
             {activeKey === "consult" && (
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
                 <h2 className="text-2xl font-bold">Lịch tư vấn</h2>
-                {loading ? (
+                <AppointmentList
+                  appointments={appointments}
+                  loading={loading}
+                />
+              </div>
+            )}
+            {activeKey === "questions" && (
+              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold">Câu hỏi của tôi</h2>
+                  <span className="text-sm text-slate-500">
+                    {questionPagination.total || 0} câu hỏi
+                  </span>
+                </div>
+                {questionLoading ? (
                   <p className="text-sm text-slate-500">Đang tải...</p>
-                ) : appointments.length ? (
-                  <div className="space-y-4">
-                    {appointments.map((appointment) => (
+                ) : myQuestions.length ? (
+                  <div className="space-y-3">
+                    {myQuestions.map((q) => (
                       <div
-                        key={appointment.id}
+                        key={q.id}
                         className="border border-slate-200 dark:border-slate-700 rounded-lg p-4"
                       >
-                        <div className="flex flex-wrap justify-between gap-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
-                            <p className="text-sm text-slate-500">Ngày hẹn</p>
-                            <p className="font-semibold">
-                              {appointment.startAt || "Chưa xác định"}
+                            <p className="font-semibold text-slate-900 dark:text-white">
+                              {q.title}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {q.createdAt
+                                ? new Date(q.createdAt).toLocaleString("vi-VN")
+                                : ""}
+                              {q.moderationStatus && (
+                                <span className="ml-2 uppercase">
+                                  · {q.moderationStatus}
+                                </span>
+                              )}
                             </p>
                           </div>
-                          <div>
-                            <p className="text-sm text-slate-500">Trạng thái</p>
-                            <p className="font-semibold text-primary">
-                              {appointment.status}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-slate-500">Dược sĩ</p>
-                            <p className="font-semibold">
-                              {appointment.pharmacistId}
-                            </p>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-slate-500">
+                              {q.answerCount} trả lời
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openAnswerDialog(q)}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20"
+                            >
+                              Xem tất cả trả lời
+                            </button>
                           </div>
                         </div>
-                        {appointment.notes && (
-                          <p className="mt-3 text-sm text-slate-600">
-                            {appointment.notes}
-                          </p>
-                        )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500">Chưa có lịch tư vấn.</p>
+                  <p className="text-sm text-slate-500">
+                    Bạn chưa đặt câu hỏi nào.
+                  </p>
                 )}
+
+                <div className="flex items-center justify-center pt-4">
+                  <nav className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                      onClick={() =>
+                        setQuestionPagination((p) => ({
+                          ...p,
+                          page: Math.max(1, p.page - 1),
+                        }))
+                      }
+                    >
+                      <span className="material-symbols-outlined">
+                        chevron_left
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="w-10 h-10 bg-primary text-white font-bold rounded-lg shadow-md shadow-primary/20"
+                    >
+                      {questionPagination.page}
+                    </button>
+                    <button
+                      type="button"
+                      className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                      onClick={() =>
+                        setQuestionPagination((p) => ({
+                          ...p,
+                          page: p.page + 1,
+                        }))
+                      }
+                    >
+                      <span className="material-symbols-outlined">
+                        chevron_right
+                      </span>
+                    </button>
+                  </nav>
+                </div>
               </div>
             )}
             {activeKey === "password" && (
@@ -476,6 +689,75 @@ const AccountPage = () => {
               Đóng
             </button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={answerDialog.open}
+        onOpenChange={(open) =>
+          setAnswerDialog((prev) => ({ ...prev, open, error: "" }))
+        }
+      >
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {answerDialog.question?.title || "Câu trả lời"}
+            </DialogTitle>
+            <DialogDescription>
+              {answerDialog.question?.createdAt
+                ? new Date(answerDialog.question.createdAt).toLocaleString(
+                    "vi-VN",
+                  )
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="text-sm text-slate-600 dark:text-slate-300">
+              {answerDialog.question?.content}
+            </div>
+            {answerDialog.error ? (
+              <div className="text-sm text-rose-500">{answerDialog.error}</div>
+            ) : null}
+            {answerDialog.answers.length ? (
+              <div className="space-y-3">
+                {answerDialog.answers.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3"
+                  >
+                    <div className="h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-700" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                          {a.author?.displayName || "Ẩn danh"}
+                        </p>
+                        <span className="text-xs text-slate-400">
+                          {a.createdAt
+                            ? new Date(a.createdAt).toLocaleString("vi-VN")
+                            : ""}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-700 dark:text-slate-300 mt-1">
+                        {a.content}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Chưa có câu trả lời.</p>
+            )}
+            {answerDialog.pagination?.total > answerDialog.answers.length ? (
+              <button
+                type="button"
+                onClick={loadMoreAnswers}
+                disabled={answerDialog.loading}
+                className="w-full py-2 text-sm font-semibold text-primary hover:bg-primary/10 rounded-lg"
+              >
+                {answerDialog.loading ? "Đang tải..." : "Xem thêm"}
+              </button>
+            ) : null}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

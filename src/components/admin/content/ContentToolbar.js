@@ -31,9 +31,12 @@ const ContentToolbar = ({
           className="h-10 pl-3 pr-8 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-text-main dark:text-white text-sm rounded-lg focus:ring-primary focus:border-primary cursor-pointer shadow-sm"
         >
           <option value="all">Tất cả trạng thái</option>
-          <option value="published">Đã xuất bản</option>
-          <option value="draft">Bản nháp</option>
-          <option value="scheduled">Đã lên lịch</option>
+          <option value="PUBLISHED">Đã xuất bản</option>
+          <option value="DRAFT">Bản nháp</option>
+          <option value="PENDING">Chờ duyệt</option>
+          <option value="REJECTED">Bị từ chối</option>
+          <option value="HIDDEN">Đã ẩn</option>
+          <option value="ARCHIVED">Lưu trữ</option>
         </select>
         <select
           value={author}

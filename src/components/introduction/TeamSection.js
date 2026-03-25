@@ -1,4 +1,6 @@
 import React from "react";
+import { Stagger, StaggerItem, Reveal } from "../ui/Reveal";
+import { motion } from "framer-motion";
 
 const pharmacists = [
   {
@@ -38,61 +40,105 @@ const pharmacists = [
 
 const TeamSection = () => {
   return (
-    <section>
-      <div className="px-4 pb-3 pt-5 flex items-center justify-between">
-        <h2 className="text-[#0d141b] dark:text-white text-[22px] font-bold leading-tight tracking-[-0.015em]">
-          Đội ngũ Dược sĩ Chuyên môn
-        </h2>
-        <button className="text-primary text-sm font-bold flex items-center gap-1 hover:underline">
-          Xem tất cả
-          <span className="material-symbols-outlined text-sm">
-            arrow_forward
-          </span>
-        </button>
-      </div>
+    <section className="px-4 py-10">
+      <Reveal>
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-[#0d141b] dark:text-white text-[24px] md:text-[26px] font-black tracking-[-0.02em]">
+              Đội ngũ Dược sĩ Chuyên môn
+            </h2>
+            <p className="mt-1 text-[#4c739a] dark:text-slate-300 text-sm">
+              Xác minh chứng chỉ • Tư vấn tận tâm • Hỗ trợ nhanh
+            </p>
+          </div>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6 p-4">
-        {pharmacists.map((pharmacist) => (
-          <article
-            key={pharmacist.id}
-            className="flex flex-col gap-3 pb-3 group cursor-pointer"
-          >
-            <div
-              className="w-full bg-center bg-no-repeat aspect-[3/4] bg-cover rounded-xl overflow-hidden relative shadow-sm group-hover:shadow-md transition-all"
-              style={{ backgroundImage: `url('${pharmacist.image}')` }}
+          <button className="text-primary text-sm font-bold inline-flex items-center gap-1 hover:opacity-90">
+            Xem tất cả
+            <span className="material-symbols-outlined text-sm">arrow_forward</span>
+          </button>
+        </div>
+      </Reveal>
+
+      <Stagger className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {pharmacists.map((p) => (
+          <StaggerItem key={p.id}>
+            <motion.article
+              whileHover={{ y: -6 }}
+              whileTap={{ scale: 0.99 }}
+              className="group cursor-pointer rounded-2xl border border-slate-200/70 dark:border-slate-800/60 bg-white/80 dark:bg-slate-950/30 backdrop-blur overflow-hidden shadow-sm hover:shadow-xl transition-all"
             >
-              {pharmacist.experience && (
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 pt-10">
-                  <p className="text-white text-xs font-medium opacity-90">
-                    {pharmacist.experience}
-                  </p>
-                </div>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <p className="text-[#0d141b] dark:text-white text-lg font-bold leading-normal">
-                  {pharmacist.name}
-                </p>
-                <span
-                  className="material-symbols-outlined text-primary text-[18px]"
-                  title="Đã xác minh"
-                >
-                  verified
-                </span>
+              <div className="relative aspect-[4/5] overflow-hidden">
+                <div
+                  className="absolute inset-0 bg-cover bg-center"
+                  style={{ backgroundImage: `url('${p.image}')` }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+                <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-[1.06]" />
+
+                {p.experience && (
+                  <div className="absolute bottom-3 left-3 right-3">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-black/35 border border-white/15 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+                      <span className="size-2 rounded-full bg-emerald-400" />
+                      {p.experience}
+                    </div>
+                  </div>
+                )}
               </div>
-              <p className="text-primary text-sm font-semibold leading-normal">
-                {pharmacist.role}
-              </p>
-              {pharmacist.license && (
-                <p className="text-[#4c739a] dark:text-slate-300 text-xs font-normal leading-normal mt-1">
-                  {pharmacist.license}
-                </p>
-              )}
-            </div>
-          </article>
+
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[#0d141b] dark:text-white text-base font-extrabold leading-snug">
+                        {p.name}
+                      </p>
+                      <span
+                        className="material-symbols-outlined text-primary text-[18px]"
+                        title="Đã xác minh"
+                      >
+                        verified
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-primary text-sm font-semibold">
+                      {p.role}
+                    </p>
+
+                    {p.license && (
+                      <p className="mt-2 text-[#4c739a] dark:text-slate-300 text-xs">
+                        {p.license}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[20px]">
+                      chat
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 h-px bg-slate-200/70 dark:bg-slate-800/60" />
+
+                <div className="mt-3 flex items-center justify-between text-xs text-[#4c739a] dark:text-slate-300">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px]">
+                      schedule
+                    </span>
+                    Phản hồi nhanh
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px]">
+                      shield
+                    </span>
+                    Bảo mật
+                  </span>
+                </div>
+              </div>
+            </motion.article>
+          </StaggerItem>
         ))}
-      </div>
+      </Stagger>
     </section>
   );
 };

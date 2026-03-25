@@ -3,156 +3,35 @@ import AdminLayout from "../../../components/admin/AdminLayout";
 import OrdersToolbar from "../../../components/admin/orders/OrdersToolbar";
 import OrdersTable from "../../../components/admin/orders/OrdersTable";
 import OrderDetailPanel from "../../../components/admin/orders/OrderDetailPanel";
+import AdminPageContainer from "../../../components/common/AdminPageContainer";
+import AdminTableWrapper from "../../../components/common/AdminTableWrapper";
+import { authApi } from "../../../api/httpClients";
 
-const formatCurrency = (n) => `$${Number(n).toFixed(2)}`;
+const formatCurrency = (n) => `$${Number(n || 0).toFixed(2)}`;
 
-const initialOrders = [
-  {
-    id: "ORD-001",
-    customer: "Nguyen Van A",
-    date: "2023-10-24T10:30:00",
-    total: 120,
-    payment: "paid",
-    status: "processing",
-    phone: "+84 901 234 567",
-    address: "123 Le Loi, Ben Thanh, Quan 1, HCMC",
-    customerNote: "Khách hàng thân thiết",
-    items: [
-      {
-        name: "Panadol Extra (Red)",
-        meta: "Hộp 100 viên",
-        qty: 2,
-        priceLabel: "$12.00",
-        image:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuDJlRa1D3FfdFZJwNztwKBNDeHUgu4pm7qdAccMjVuGHsDG_2P97VnMhCgqoDfGRZxoi-iam8q6LbWY79ae7r9y_Zi8dsNzofeuRRABX11DS_UNKtssWW8HcEumnJLroXgC5FIaqhkiMnC5MO8h4DAtnRIEksOJQh2MAa3T1ukOUhSA9r4cQ-XGKQYDzES9hO5ef2ZDSs9Y6Vnlh2hp5GK0hnIYX3dp_IteReudUKTL1xSGmrLaCflsjN-GWr0PQyV_tR6hqlxfyesV",
-      },
-      {
-        name: "Prospan Cough Syrup",
-        meta: "Chai 100ml",
-        qty: 1,
-        priceLabel: "$15.50",
-        image:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuDaQj4XRW5jfP9SHomgrDuvXJMclb075fc2wtxURRWd2Xy5XTgIBRwgc6gVhX6nqfKcdjyrFicTWrD_6iu5oDl1YUB7HYxGtrUNlb3zr3TmYkq3b9onpTJLnZOARM6ZxJwdby4DeXUlUOssvAggC-6A--wdo-UEGh6XCKTDCh7uC8FLzHr1_4C5ugLCEmM4QbTa199QFfxmTTn8Vvm0iOtTIua8d-MbhoXXTcDLI0OMdJOPU04kGKyffmA9cG-wRpjh0iHpjtq4bfa2",
-      },
-      {
-        name: "Vitamin C 500mg",
-        meta: "Hộp 30 viên",
-        qty: 5,
-        priceLabel: "$8.00",
-        image:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuBfMN4lxPOoF6fRE5YjW6fpf-jgRLz6oFjyYoxtyql9dAnwn4el6TRjd2af5sUezxF8ob4UNPInA6H6OjnUDc6t6Et15TnacmNiMOK_CEdoUu6HGGAZrSqaIOQAi7aC7X1ehv7YPScBRqlJJY5AEJUot1T-_IpRNYTwLfcdAPylcvh_WBMmST7AfeLNzMAcCmih8I8VY_qyZsZZKkSHBxTy2hv_pecx7TM3AxKNGMYi2ISAcbVk2fJDqF2ukN699nmpZw0iqasr_Y-C",
-      },
-    ],
-    shipping: 5,
-  },
-  {
-    id: "ORD-002",
-    customer: "Tran Thi B",
-    date: "2023-10-23T14:15:00",
-    total: 45.5,
-    payment: "unpaid",
-    status: "pending",
-    phone: "+84 912 000 333",
-    address: "456 Nguyen Trai, District 5, HCMC",
-    customerNote: "Cần gọi xác nhận trước khi giao",
-    items: [
-      {
-        name: "Berocca Performance",
-        meta: "Tuýp 10 viên",
-        qty: 1,
-        priceLabel: "$25.00",
-        image:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuBIt8MB3u8OOCHANLF2CfTXKV36q0kIDmFtyRTToFpWedLMfMGNvAO_G5JlIPX_KOupdwB3n2pdSHFjen0prE_X3HOuIoPftCim5JtO6d8HomqrWU7JYGSaVjJUChCgvlNQUJyjFSf1gLkCHKvJa5EOp4pLHxiSGNT0_GqEyBb5qsiZel8GLwi0MracgKGTbeGkIrwffj58oPBD9Jz0gK_CI8D8BpyOwCsnM-aPV-4_XNhNnt2f70cGkecbre3Q9Fo1grgr2U90_n6s",
-      },
-      {
-        name: "Vitamin C 500mg",
-        meta: "Hộp 30 viên",
-        qty: 3,
-        priceLabel: "$8.00",
-        image:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuBfMN4lxPOoF6fRE5YjW6fpf-jgRLz6oFjyYoxtyql9dAnwn4el6TRjd2af5sUezxF8ob4UNPInA6H6OjnUDc6t6Et15TnacmNiMOK_CEdoUu6HGGAZrSqaIOQAi7aC7X1ehv7YPScBRqlJJY5AEJUot1T-_IpRNYTwLfcdAPylcvh_WBMmST7AfeLNzMAcCmih8I8VY_qyZsZZKkSHBxTy2hv_pecx7TM3AxKNGMYi2ISAcbVk2fJDqF2ukN699nmpZw0iqasr_Y-C",
-      },
-    ],
-    shipping: 5,
-  },
-  {
-    id: "ORD-003",
-    customer: "Le Van C",
-    date: "2023-10-23T09:00:00",
-    total: 210,
-    payment: "paid",
-    status: "completed",
-    phone: "+84 987 777 222",
-    address: "789 Vo Thi Sau, District 3, HCMC",
-    customerNote: "Khách mua định kỳ",
-    items: [
-      {
-        name: "Panadol Extra (Red)",
-        meta: "Hộp 100 viên",
-        qty: 5,
-        priceLabel: "$12.00",
-        image:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuDJlRa1D3FfdFZJwNztwKBNDeHUgu4pm7qdAccMjVuGHsDG_2P97VnMhCgqoDfGRZxoi-iam8q6LbWY79ae7r9y_Zi8dsNzofeuRRABX11DS_UNKtssWW8HcEumnJLroXgC5FIaqhkiMnC5MO8h4DAtnRIEksOJQh2MAa3T1ukOUhSA9r4cQ-XGKQYDzES9hO5ef2ZDSs9Y6Vnlh2hp5GK0hnIYX3dp_IteReudUKTL1xSGmrLaCflsjN-GWr0PQyV_tR6hqlxfyesV",
-      },
-      {
-        name: "Prospan Cough Syrup",
-        meta: "Chai 100ml",
-        qty: 2,
-        priceLabel: "$15.50",
-        image:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuDaQj4XRW5jfP9SHomgrDuvXJMclb075fc2wtxURRWd2Xy5XTgIBRwgc6gVhX6nqfKcdjyrFicTWrD_6iu5oDl1YUB7HYxGtrUNlb3zr3TmYkq3b9onpTJLnZOARM6ZxJwdby4DeXUlUOssvAggC-6A--wdo-UEGh6XCKTDCh7uC8FLzHr1_4C5ugLCEmM4QbTa199QFfxmTTn8Vvm0iOtTIua8d-MbhoXXTcDLI0OMdJOPU04kGKyffmA9cG-wRpjh0iHpjtq4bfa2",
-      },
-    ],
-    shipping: 0,
-  },
-  {
-    id: "ORD-004",
-    customer: "Pham Thi D",
-    date: "2023-10-22T11:20:00",
-    total: 85,
-    payment: "paid",
-    status: "shipped",
-    phone: "+84 933 456 111",
-    address: "12 Hai Ba Trung, District 1, HCMC",
-    customerNote: "Đang chuyển",
-    items: [
-      {
-        name: "Berocca Performance",
-        meta: "Tuýp 10 viên",
-        qty: 1,
-        priceLabel: "$25.00",
-        image:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuBIt8MB3u8OOCHANLF2CfTXKV36q0kIDmFtyRTToFpWedLMfMGNvAO_G5JlIPX_KOupdwB3n2pdSHFjen0prE_X3HOuIoPftCim5JtO6d8HomqrWU7JYGSaVjJUChCgvlNQUJyjFSf1gLkCHKvJa5EOp4pLHxiSGNT0_GqEyBb5qsiZel8GLwi0MracgKGTbeGkIrwffj58oPBD9Jz0gK_CI8D8BpyOwCsnM-aPV-4_XNhNnt2f70cGkecbre3Q9Fo1grgr2U90_n6s",
-      },
-    ],
-    shipping: 5,
-  },
-  {
-    id: "ORD-005",
-    customer: "Hoang Van E",
-    date: "2023-10-22T16:45:00",
-    total: 15,
-    payment: "refunded",
-    status: "cancelled",
-    phone: "+84 933 999 000",
-    address: "01 Nguyen Hue, District 1, HCMC",
-    customerNote: "Đã hoàn tiền",
-    items: [
-      {
-        name: "Khẩu trang 4 lớp",
-        meta: "Hộp 50 cái",
-        qty: 1,
-        priceLabel: "$15.00",
-        image:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuAcwAsgIceZ-i3iDrfCK8wU1cMATpaKU9tDMcAZabrpL6YgwzXlSUS1gM6T0HRblEH1yY9yilN4EfCNQaVGMfz9bzDLAzRYFvU484libnDtm6gDN20o3wwmpV4Cn7ul40y9MBaYRmpaTau4VTrOlWBV-o8fI8g4XRc-sCIuxemIGKLljYGtYP7fwWwCm29HG_Fh6e_L_UObXnFrmcDx1jnCC79BikwyowQmAJ5pcDUyMLWGIsPgY1fH-sqU9wFaMrDnoWWaiMEXDZ8k",
-      },
-    ],
-    shipping: 0,
-  },
-];
+const statusMapFromApi = {
+  DRAFT: "pending",
+  PENDING_PAYMENT: "pending",
+  PLACED: "processing",
+  CONFIRMED: "processing",
+  SHIPPING: "shipped",
+  COMPLETED: "completed",
+  CANCELED: "cancelled",
+};
+
+const statusMapToApi = {
+  pending: "PENDING_PAYMENT",
+  processing: "CONFIRMED",
+  shipped: "SHIPPING",
+  completed: "COMPLETED",
+  cancelled: "CANCELED",
+};
+
+const placeholderImage =
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuAcwAsgIceZ-i3iDrfCK8wU1cMATpaKU9tDMcAZabrpL6YgwzXlSUS1gM6T0HRblEH1yY9yilN4EfCNQaVGMfz9bzDLAzRYFvU484libnDtm6gDN20o3wwmpV4Cn7ul40y9MBaYRmpaTau4VTrOlWBV-o8fI8g4XRc-sCIuxemIGKLljYGtYP7fwWwCm29HG_Fh6e_L_UObXnFrmcDx1jnCC79BikwyowQmAJ5pcDUyMLWGIsPgY1fH-sqU9wFaMrDnoWWaiMEXDZ8k";
 
 const normalizeOrder = (order) => {
-  const dateObj = new Date(order.date);
+  const dateObj = new Date(order.date || order.createdAt || Date.now());
   return {
     ...order,
     dateObj,
@@ -164,62 +43,187 @@ const normalizeOrder = (order) => {
       hour: "2-digit",
       minute: "2-digit",
     })}`,
-    subtotalLabel: formatCurrency(order.total - order.shipping),
-    shippingLabel: formatCurrency(order.shipping),
-    totalLabel: formatCurrency(order.total),
+    subtotalLabel: formatCurrency(
+      order.subtotal ?? order.total - order.shipping,
+    ),
+    shippingLabel: formatCurrency(order.shipping ?? order.shippingFee ?? 0),
+    totalLabel: formatCurrency(order.total ?? order.totalAmount),
   };
 };
 
+const mapApiOrder = (order) => {
+  const shippingAddress = order.shippingAddress || {};
+  const addressParts = [
+    shippingAddress.addressLine,
+    shippingAddress.wardName,
+    shippingAddress.districtName,
+    shippingAddress.provinceName,
+  ].filter(Boolean);
+
+  return normalizeOrder({
+    id: order.id,
+    userId: order.userId,
+    fulfillmentBranchId: order.fulfillmentBranchId || null,
+    fulfillmentAssignedAt: order.fulfillmentAssignedAt || null,
+    fulfillmentAssignedBy: order.fulfillmentAssignedBy || null,
+    fulfillmentStatus: order.fulfillmentStatus || null,
+    inventoryReservationId: order.inventoryReservationId || null,
+    customer: shippingAddress.fullName || order.userId || "Khách hàng",
+    date: order.createdAt,
+    total: order.totalAmount,
+    payment: (order.paymentStatus || "unpaid").toLowerCase(),
+    status: statusMapFromApi[order.status] || "pending",
+    phone: shippingAddress.phone || "",
+    address: addressParts.join(", ") || "",
+    customerNote: order.note || "",
+    items: (order.items || []).map((item) => ({
+      name: item.productName || "Sản phẩm",
+      meta: item.productId,
+      qty: item.quantity,
+      priceLabel: formatCurrency(item.unitPrice),
+      image: placeholderImage,
+    })),
+    shipping: order.shippingFee ?? 0,
+    subtotal: order.subtotal,
+    shippingFee: order.shippingFee,
+    totalAmount: order.totalAmount,
+    createdAt: order.createdAt,
+  });
+};
+
+const pagerBtn =
+  "rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
+
 const AdminOrdersPage = () => {
-  const [orders, setOrders] = useState(initialOrders.map(normalizeOrder));
-  const [filters, setFilters] = useState({ query: "", status: "all" });
-  const [selectedId, setSelectedId] = useState(initialOrders[0].id);
+  const [orders, setOrders] = useState([]);
+  const [filters, setFilters] = useState({
+    query: "",
+    status: "all",
+    payment: "all",
+    sort: "newest",
+  });
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(0);
+  const [selectedId, setSelectedId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const filteredOrders = useMemo(() => {
     const q = filters.query.trim().toLowerCase();
     return orders
       .filter((order) => {
-        const matchesQuery = q
-          ? `${order.id} ${order.customer}`.toLowerCase().includes(q)
-          : true;
+        const searchable =
+          `${order.id} ${order.customer} ${order.userId || ""} ${order.phone || ""}`
+            .toLowerCase()
+            .trim();
+        const matchesQuery = q ? searchable.includes(q) : true;
         const matchesStatus =
           filters.status === "all" || order.status === filters.status;
-        return matchesQuery && matchesStatus;
+        const matchesPayment =
+          filters.payment === "all" || order.payment === filters.payment;
+        return matchesQuery && matchesStatus && matchesPayment;
       })
-      .sort((a, b) => b.dateObj - a.dateObj);
+      .sort((a, b) =>
+        filters.sort === "oldest"
+          ? a.dateObj - b.dateObj
+          : b.dateObj - a.dateObj,
+      );
   }, [orders, filters]);
 
-  useEffect(() => {
-    if (!filteredOrders.find((o) => o.id === selectedId)) {
-      setSelectedId(filteredOrders[0]?.id || null);
-    }
-  }, [filteredOrders, selectedId]);
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredOrders.length / pageSize)),
+    [filteredOrders.length, pageSize],
+  );
 
-  const handleUpdateStatus = (status) => {
-    if (!selectedId) return;
-    setOrders((prev) =>
-      prev.map((o) => (o.id === selectedId ? { ...o, status } : o))
-    );
+  const pagedOrders = useMemo(() => {
+    const start = page * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, page, pageSize]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadOrders = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await authApi.get("/api/admin/orders", {
+          signal: controller.signal,
+        });
+        const items = Array.isArray(response?.data) ? response.data : [];
+        setOrders(items.map(mapApiOrder));
+        setError("");
+      } catch (err) {
+        if (err && err.name === "AbortError") return;
+        setError("Không tải được danh sách đơn hàng.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadOrders();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filters.query, filters.status, filters.payment, filters.sort, pageSize]);
+
+  const handleUpdateStatus = async (status, idOverride) => {
+    const targetId = idOverride || selectedId;
+    if (!targetId) return;
+    const apiStatus = statusMapToApi[status] || status.toUpperCase();
+    try {
+      const response = await authApi.post(
+        `/api/admin/orders/${targetId}/status`,
+        null,
+        {
+          params: { status: apiStatus },
+        },
+      );
+      const updated = mapApiOrder(response.data);
+      setOrders((prev) => prev.map((o) => (o.id === targetId ? updated : o)));
+      setError("");
+    } catch (err) {
+      setError("Không cập nhật được trạng thái đơn hàng.");
+    }
   };
 
-  const selectedOrder = filteredOrders.find((o) => o.id === selectedId);
+  const handleAssignBranch = async (orderId, branchId) => {
+    const targetId = orderId || selectedId;
+    if (!targetId || !branchId) return null;
+    try {
+      const response = await authApi.post(
+        `/api/admin/orders/${targetId}/assign-branch`,
+        { branchId },
+      );
+      const updated = mapApiOrder(response.data);
+      setOrders((prev) => prev.map((o) => (o.id === targetId ? updated : o)));
+      setError("");
+      return updated;
+    } catch (err) {
+      setError("Không thể gán chi nhánh cho đơn hàng.");
+      return null;
+    }
+  };
+
+  const selectedOrder = orders.find((o) => o.id === selectedId) || null;
 
   return (
     <AdminLayout activeKey="orders">
-      <div className="flex-1 flex flex-col w-full max-w-[1600px] mx-auto p-6 h-[calc(100vh-40px)] overflow-hidden">
-        <div className="flex flex-wrap justify-between items-center gap-4 mb-6 shrink-0">
+      <AdminPageContainer>
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-lg font-semibold text-slate-900">
               Quản lý đơn hàng
             </h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-              Theo dõi và xử lý đơn hàng khách đặt.
+            <p className="mt-1 text-sm text-slate-400">
+              Theo dõi và xử lý đơn hàng khách đặt
             </p>
           </div>
           <div className="flex gap-3">
             <button
               type="button"
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              className="flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
             >
               <span className="material-symbols-outlined text-[20px]">
                 file_download
@@ -228,11 +232,11 @@ const AdminOrdersPage = () => {
             </button>
             <button
               type="button"
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-white text-sm font-bold shadow-lg shadow-primary/30 hover:bg-primary/90 transition-colors"
+              className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-sm hover:bg-primary/90"
               onClick={() => alert("Chức năng thêm đơn mới sẽ được bổ sung")}
             >
               <span className="material-symbols-outlined text-[20px]">add</span>
-              Đơn mới
+              + Đơn mới
             </button>
           </div>
         </div>
@@ -242,22 +246,83 @@ const AdminOrdersPage = () => {
           onSearchChange={(query) => setFilters({ ...filters, query })}
           status={filters.status}
           onStatusChange={(status) => setFilters({ ...filters, status })}
+          payment={filters.payment}
+          onPaymentChange={(payment) => setFilters({ ...filters, payment })}
+          sort={filters.sort}
+          onSortChange={(sort) => setFilters({ ...filters, sort })}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          onReset={() => {
+            setFilters({
+              query: "",
+              status: "all",
+              payment: "all",
+              sort: "newest",
+            });
+            setPageSize(10);
+          }}
         />
 
-        <div className="flex flex-1 gap-6 overflow-hidden min-h-0 relative">
-          <div className="flex-1 min-w-0">
-            <OrdersTable
-              orders={filteredOrders}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-            />
+        {error && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
           </div>
-          <OrderDetailPanel
-            order={selectedOrder}
-            onUpdateStatus={handleUpdateStatus}
-          />
-        </div>
-      </div>
+        )}
+
+        {loading && (
+          <AdminTableWrapper className="px-4 py-3 text-sm text-slate-600">
+            Đang tải dữ liệu đơn hàng...
+          </AdminTableWrapper>
+        )}
+
+        <OrdersTable
+          orders={pagedOrders}
+          onView={(orderId) => setSelectedId(orderId)}
+          onComplete={(orderId) => handleUpdateStatus("completed", orderId)}
+          onCancel={(orderId) => handleUpdateStatus("cancelled", orderId)}
+        />
+
+        <AdminTableWrapper className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm text-slate-500">
+              Đang hiển thị {pagedOrders.length} đơn hàng
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className={pagerBtn}
+                disabled={page <= 0}
+                onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+              >
+                Trước
+              </button>
+              <span className="text-sm text-slate-600">
+                Trang {Math.max(1, page + 1)} / {Math.max(1, totalPages)}
+              </span>
+              <button
+                type="button"
+                className={pagerBtn}
+                disabled={page >= Math.max(0, totalPages - 1)}
+                onClick={() =>
+                  setPage((prev) =>
+                    Math.min(Math.max(0, totalPages - 1), prev + 1),
+                  )
+                }
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        </AdminTableWrapper>
+
+        <OrderDetailPanel
+          open={Boolean(selectedOrder)}
+          order={selectedOrder}
+          onClose={() => setSelectedId(null)}
+          onUpdateStatus={handleUpdateStatus}
+          onAssignBranch={handleAssignBranch}
+        />
+      </AdminPageContainer>
     </AdminLayout>
   );
 };

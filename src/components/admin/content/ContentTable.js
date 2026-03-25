@@ -19,9 +19,63 @@ const statusConfig = {
       "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800",
     icon: "schedule",
   },
+  pending: {
+    label: "Chờ duyệt",
+    className:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800",
+    icon: "hourglass_empty",
+  },
+  rejected: {
+    label: "Bị từ chối",
+    className:
+      "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 border border-rose-200 dark:border-rose-800",
+    icon: "block",
+  },
+  hidden: {
+    label: "Đã ẩn",
+    className:
+      "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700",
+    icon: "visibility_off",
+  },
+  archived: {
+    label: "Lưu trữ",
+    className:
+      "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800",
+    icon: "inventory_2",
+  },
 };
 
-const ContentTable = ({ articles, onPreview, onEdit, onDelete }) => {
+// Helper gộp class an toàn
+const cx = (...classes) => classes.filter(Boolean).join(" ");
+
+// Size variants cho badge status (giảm ~2 lần so với hiện tại)
+const STATUS_SIZE = {
+  // hiện tại bạn đang dùng: text-xs px-2.5 py-1 gap-1.5, dot 1.5, icon 14px
+  // => giảm xuống:
+  sm: {
+    badge: "text-[10px] px-1.5 py-0.5 gap-1",
+    dot: "w-1 h-1",
+    icon: "text-[10px] leading-none",
+  },
+  // nếu sau này muốn giữ size cũ:
+  md: {
+    badge: "text-xs px-2.5 py-1 gap-1.5",
+    dot: "w-1.5 h-1.5",
+    icon: "text-[14px] leading-none",
+  },
+};
+
+const ContentTable = ({
+  articles,
+  onPreview,
+  onEdit,
+  onDelete,
+  onTogglePublish,
+  // bạn có thể truyền size từ ngoài: "sm" | "md"
+  statusSize = "sm",
+}) => {
+  const size = STATUS_SIZE[statusSize] || STATUS_SIZE.sm;
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
@@ -50,9 +104,18 @@ const ContentTable = ({ articles, onPreview, onEdit, onDelete }) => {
             </th>
           </tr>
         </thead>
+
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-surface-light dark:bg-surface-dark">
           {articles.map((item) => {
-            const status = statusConfig[item.status];
+            const fallback = {
+              label: item.status || "",
+              className:
+                "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600",
+            };
+
+            const status =
+              statusConfig[item.status] || statusConfig.draft || fallback;
+
             return (
               <tr
                 key={item.id}
@@ -64,6 +127,7 @@ const ContentTable = ({ articles, onPreview, onEdit, onDelete }) => {
                     type="checkbox"
                   />
                 </td>
+
                 <td className="py-4 px-6">
                   <div className="flex items-center gap-4">
                     <div
@@ -81,23 +145,32 @@ const ContentTable = ({ articles, onPreview, onEdit, onDelete }) => {
                     </div>
                   </div>
                 </td>
+
                 <td className="py-4 px-6">
                   <span
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${status.className}`}
+                    className={cx(
+                      "inline-flex items-center rounded-full font-medium border",
+                      size.badge,
+                      status.className,
+                    )}
                   >
                     {status.dot && (
                       <span
-                        className={`w-1.5 h-1.5 rounded-full ${status.dot}`}
+                        className={cx("rounded-full", size.dot, status.dot)}
                       />
                     )}
                     {status.icon && (
-                      <span className="material-symbols-outlined text-[14px]">
+                      <span
+                        className={cx("material-symbols-outlined", size.icon)}
+                        aria-hidden="true"
+                      >
                         {status.icon}
                       </span>
                     )}
-                    {status.label}
+                    <span className="leading-none">{status.label}</span>
                   </span>
                 </td>
+
                 <td className="py-4 px-6">
                   <div className="flex items-center gap-2">
                     <div className="size-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
@@ -108,13 +181,34 @@ const ContentTable = ({ articles, onPreview, onEdit, onDelete }) => {
                     </p>
                   </div>
                 </td>
+
                 <td className="py-4 px-6 text-right">
                   <p className="text-sm text-text-main dark:text-gray-300">
                     {item.updatedAt}
                   </p>
                 </td>
+
                 <td className="py-4 px-6 text-right">
                   <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {onTogglePublish && (
+                      <button
+                        type="button"
+                        className="p-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-md text-emerald-600"
+                        title={
+                          item.status === "published"
+                            ? "Gỡ xuất bản"
+                            : "Xuất bản"
+                        }
+                        onClick={() => onTogglePublish(item)}
+                      >
+                        <span className="material-symbols-outlined text-[20px]">
+                          {item.status === "published"
+                            ? "unpublished"
+                            : "publish"}
+                        </span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-gray-500 dark:text-gray-400"
@@ -125,6 +219,7 @@ const ContentTable = ({ articles, onPreview, onEdit, onDelete }) => {
                         visibility
                       </span>
                     </button>
+
                     <button
                       type="button"
                       className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md text-primary"
@@ -135,6 +230,7 @@ const ContentTable = ({ articles, onPreview, onEdit, onDelete }) => {
                         edit
                       </span>
                     </button>
+
                     <button
                       type="button"
                       className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md text-red-500"

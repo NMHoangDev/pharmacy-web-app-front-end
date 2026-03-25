@@ -52,3 +52,153 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.tiptap h1 {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-weight: 700;
+    margin: 0.75rem 0;
+    position: relative;
+    padding-left: 1.5rem;
+}
+
+.tiptap h1::before {
+    content: "#";
+    position: absolute;
+    left: 0;
+    opacity: 0.5;
+}
+
+.tiptap h2 {
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 700;
+    margin: 0.75rem 0;
+    position: relative;
+    padding-left: 2rem;
+}
+
+.tiptap h2::before {
+    content: "##";
+    position: absolute;
+    left: 0;
+    opacity: 0.5;
+}
+
+.tiptap p {
+    margin: 0.5rem 0;
+}
+
+.tiptap ul,
+.tiptap ol {
+    padding-left: 1.25rem;
+    margin: 0.5rem 0;
+}
+
+.tiptap blockquote {
+    padding-left: 0.75rem;
+    border-left: 3px solid currentColor;
+    opacity: 0.9;
+}
+
+.tiptap .tiptap-figure {
+    margin: 1rem auto;
+    text-align: center;
+}
+
+.tiptap .tiptap-figure img {
+    max-width: 100%;
+    height: auto;
+    max-height: 360px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+}
+
+.tiptap .tiptap-caption {
+    margin-top: 0.5rem;
+    font-style: italic;
+    font-size: 0.9em;
+    color: #6b7280;
+    text-align: center;
+}
+
+.dark .tiptap .tiptap-caption {
+    color: #9ca3af;
+}
+
+.tiptap img {
+    max-width: 100%;
+    height: auto;
+    max-height: 360px;
+    object-fit: contain;
+    display: block;
+    margin: 0.75rem auto;
+}
+
+.tiptap img+p {
+    text-align: center;
+    font-style: italic;
+    font-size: 0.9em;
+    margin-top: -0.25rem;
+    color: var(--muted);
+}
+
+.post-content h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 1rem 0;
+}
+
+.post-content h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0.75rem 0;
+}
+
+.post-content p {
+    margin: 0.5rem 0;
+}
+
+.post-content .tiptap-figure {
+    margin: 1rem auto;
+    text-align: center;
+}
+
+.post-content .tiptap-figure img {
+    max-width: 100%;
+    height: auto;
+    max-height: 520px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+}
+
+.post-content .tiptap-caption {
+    margin-top: 0.5rem;
+    font-style: italic;
+    font-size: 0.9em;
+    color: #6b7280;
+    text-align: center;
+}
+
+.dark .post-content .tiptap-caption {
+    color: #9ca3af;
+}
+
+.post-content img {
+    max-width: 100%;
+    height: auto;
+    max-height: 520px;
+    object-fit: contain;
+    display: block;
+    margin: 0.75rem auto;
+}
+
+.post-content img+p {
+    text-align: center;
+    font-style: italic;
+    font-size: 0.9em;
+    margin-top: -0.25rem;
+    color: var(--muted);
+}

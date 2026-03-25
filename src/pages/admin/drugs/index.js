@@ -4,6 +4,10 @@ import DrugFilters from "../../../components/admin/drugs/DrugFilters";
 import DrugTable from "../../../components/admin/drugs/DrugTable";
 import DrugModal from "../../../components/admin/drugs/DrugModal";
 import ReviewModerationModal from "../../../components/admin/drugs/ReviewModerationModal";
+import { authApi as api } from "../../../api/httpClients";
+import axios from "axios";
+import AdminPageContainer from "../../../components/common/AdminPageContainer";
+import AdminTableWrapper from "../../../components/common/AdminTableWrapper";
 
 const defaultImage =
   "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=300&q=80";
@@ -41,6 +45,9 @@ const readErrorMessage = async (response, fallback) => {
   }
 };
 
+const pagerBtn =
+  "rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
+
 const AdminDrugsPage = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -74,16 +81,8 @@ const AdminDrugsPage = () => {
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const response = await fetch("/api/catalog/public/categories");
-        if (!response.ok) {
-          const message = await readErrorMessage(
-            response,
-            "Không thể tải danh mục",
-          );
-          throw new Error(message);
-        }
-        const payload = await response.json();
-        setCategories(payload);
+        const response = await api.get("/api/catalog/public/categories");
+        setCategories(response.data);
       } catch (err) {
         console.warn("Không thể tải danh mục", err);
       }
@@ -98,21 +97,16 @@ const AdminDrugsPage = () => {
       return;
     }
 
-    const params = new URLSearchParams();
-    items.forEach((item) => params.append("productIds", item.id));
+    const params = {
+      productIds: items.map((item) => item.id).join(","),
+    };
 
     try {
-      const response = await fetch(
-        `/api/inventory/internal/inventory/availability?${params.toString()}`,
+      const response = await api.get(
+        "/api/inventory/internal/inventory/availability",
+        { params },
       );
-      if (!response.ok) {
-        const message = await readErrorMessage(
-          response,
-          "Không thể tải tồn kho",
-        );
-        throw new Error(message);
-      }
-      const payload = await response.json();
+      const payload = response.data;
       const map = {};
       (payload.items ?? []).forEach((entry) => {
         map[entry.productId] = entry;
@@ -159,13 +153,13 @@ const AdminDrugsPage = () => {
 
     const tasks = items.map(async (item) => {
       try {
-        const response = await fetch(
-          `/api/reviews/internal/product/${item.id}?page=0&size=1`,
+        const response = await api.get(
+          `/api/reviews/internal/product/${item.id}`,
+          {
+            params: { page: 0, size: 1 },
+          },
         );
-        if (!response.ok) {
-          return [item.id, 0];
-        }
-        const payload = await response.json();
+        const payload = response.data;
         return [item.id, payload.totalElements ?? 0];
       } catch {
         return [item.id, 0];
@@ -184,34 +178,27 @@ const AdminDrugsPage = () => {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({
+      const queryParams = {
         page: String(page),
         size: String(pageSize),
         sort,
-      });
+      };
       if (search.trim()) {
-        params.set("q", search.trim());
+        queryParams.q = search.trim();
       }
       if (status && status !== "ALL") {
-        params.set("status", status);
+        queryParams.status = status;
       }
       if (categoryId) {
-        params.set("categoryId", categoryId);
+        queryParams.categoryId = categoryId;
       }
 
-      const response = await fetch(
-        `/api/catalog/internal/products?${params.toString()}`,
-        { signal },
-      );
-      if (!response.ok) {
-        const message = await readErrorMessage(
-          response,
-          "Không thể tải sản phẩm",
-        );
-        throw new Error(message);
-      }
+      const response = await api.get("/api/catalog/internal/products", {
+        params: queryParams,
+        signal,
+      });
 
-      const payload = await response.json();
+      const payload = response.data;
       if (signal.aborted) return;
 
       const items = payload.content ?? [];
@@ -221,8 +208,8 @@ const AdminDrugsPage = () => {
       fetchAvailability(items);
       fetchReviewCounts(items);
     } catch (err) {
-      if (err.name !== "AbortError") {
-        setError(err.message);
+      if (err.name !== "AbortError" && !axios.isCancel(err)) {
+        setError(err.response?.data?.message || err.message);
       }
     } finally {
       if (!signal.aborted) {
@@ -265,22 +252,11 @@ const AdminDrugsPage = () => {
     }
 
     try {
-      const response = await fetch("/api/inventory/internal/inventory/adjust", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId,
-          delta,
-          reason: "Admin sync",
-        }),
+      await api.post("/api/inventory/internal/inventory/adjust", {
+        productId,
+        delta,
+        reason: "Admin sync",
       });
-      if (!response.ok) {
-        const message = await readErrorMessage(
-          response,
-          "Không thể đồng bộ tồn kho",
-        );
-        throw new Error(message);
-      }
     } catch (err) {
       console.warn("Đồng bộ tồn kho thất bại", err);
     }
@@ -304,7 +280,9 @@ const AdminDrugsPage = () => {
       slug: slugCandidate,
       categoryId:
         overrides.categoryId || base.categoryId || categories[0]?.id || null,
-      price: overrides.price ?? base.price ?? 0,
+      costPrice: overrides.costPrice ?? base.costPrice ?? 0,
+      salePrice:
+        overrides.salePrice ?? base.baseSalePrice ?? base.effectivePrice ?? 0,
       status: overrides.status || base.status || "ACTIVE",
       prescriptionRequired:
         overrides.prescriptionRequired ?? base.prescriptionRequired ?? false,
@@ -343,7 +321,9 @@ const AdminDrugsPage = () => {
         ...product,
         categoryName,
         category: categoryName,
-        priceLabel: formatPrice(product.price),
+        priceLabel: formatPrice(
+          product.effectivePrice ?? product.baseSalePrice ?? 0,
+        ),
         unit,
         stockStatus,
         stockLabel,
@@ -411,7 +391,8 @@ const AdminDrugsPage = () => {
         name: values.name.trim(),
         slug: slugify(values.name || values.sku),
         categoryId: targetCategoryId,
-        price: values.price ?? 0,
+        costPrice: values.costPrice ?? 0,
+        salePrice: values.salePrice ?? 0,
         status: values.status || "ACTIVE",
         prescriptionRequired: !!values.rx,
         description: "",
@@ -429,26 +410,15 @@ const AdminDrugsPage = () => {
         overrides,
       );
 
-      const endpoint =
+      const response =
         meta.mode === "edit"
-          ? `/api/catalog/internal/products/${meta.id}`
-          : "/api/catalog/internal/products";
+          ? await api.put(
+              `/api/catalog/internal/products/${meta.id}`,
+              requestBody,
+            )
+          : await api.post("/api/catalog/internal/products", requestBody);
 
-      const response = await fetch(endpoint, {
-        method: meta.mode === "edit" ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const message = await readErrorMessage(
-          response,
-          `Không thể ${meta.mode === "edit" ? "cập nhật" : "tạo"} thuốc`,
-        );
-        throw new Error(message);
-      }
-
-      const payload = await response.json();
+      const payload = response.data;
       await syncInventory(payload.id, values.stock);
       setReloadIndex((prev) => prev + 1);
       window.alert(
@@ -476,21 +446,12 @@ const AdminDrugsPage = () => {
         status: product.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
       });
 
-      const response = await fetch(`/api/catalog/internal/products/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
+      const response = await api.put(
+        `/api/catalog/internal/products/${id}`,
+        requestBody,
+      );
 
-      if (!response.ok) {
-        const message = await readErrorMessage(
-          response,
-          "Không thể thay đổi trạng thái sản phẩm",
-        );
-        throw new Error(message);
-      }
-
-      const payload = await response.json();
+      const payload = response.data;
       await syncInventory(
         payload.id,
         availabilityMap[payload.id]?.available ?? 0,
@@ -512,16 +473,7 @@ const AdminDrugsPage = () => {
     setError("");
 
     try {
-      const response = await fetch(`/api/catalog/internal/products/${id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        const message = await readErrorMessage(
-          response,
-          "Không thể xóa sản phẩm",
-        );
-        throw new Error(message);
-      }
+      await api.delete(`/api/catalog/internal/products/${id}`);
       setReloadIndex((prev) => prev + 1);
     } catch (err) {
       setError(err.message);
@@ -543,7 +495,9 @@ const AdminDrugsPage = () => {
         name: editingProduct.name,
         sku: editingProduct.sku,
         categoryId: editingProduct.categoryId,
-        price: editingProduct.price,
+        costPrice: editingProduct.costPrice ?? 0,
+        salePrice:
+          editingProduct.effectivePrice ?? editingProduct.baseSalePrice ?? 0,
         unit: editingProduct.unit,
         stock: editingProduct.stockQuantity,
         status: editingProduct.status,
@@ -556,18 +510,18 @@ const AdminDrugsPage = () => {
 
   return (
     <AdminLayout activeKey="drugs">
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <AdminPageContainer>
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <h1 className="text-lg font-semibold text-slate-900">
               Quản lý thuốc
-            </h2>
-            <p className="text-slate-500 mt-1 dark:text-slate-400">
+            </h1>
+            <p className="mt-1 text-sm text-slate-400">
               Quản lý danh mục, giá cả và tồn kho thuốc toàn hệ thống.
             </p>
           </div>
           <button
-            className="flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
             type="button"
             onClick={openCreateModal}
           >
@@ -607,9 +561,9 @@ const AdminDrugsPage = () => {
         )}
 
         {loading && (
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <AdminTableWrapper className="px-4 py-3 text-sm text-slate-600">
             Đang tải dữ liệu sản phẩm...
-          </div>
+          </AdminTableWrapper>
         )}
 
         <DrugTable
@@ -620,31 +574,39 @@ const AdminDrugsPage = () => {
           onViewReviews={handleViewReviews}
         />
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <span>Tổng {totalElements.toLocaleString("vi-VN")} sản phẩm</span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 disabled:opacity-50"
-              disabled={page === 0}
-              onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
-            >
-              Trước
-            </button>
-            <span>
-              Trang {page + 1} / {totalPages}
+        <AdminTableWrapper className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm text-slate-500">
+              Tổng {totalElements.toLocaleString("vi-VN")} sản phẩm
             </span>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 disabled:opacity-50"
-              disabled={page + 1 >= totalPages}
-              onClick={() => setPage((prev) => prev + 1)}
-            >
-              Sau
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className={pagerBtn}
+                disabled={page <= 0}
+                onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+              >
+                Trước
+              </button>
+              <span className="text-sm text-slate-600">
+                Trang {Math.max(1, page + 1)} / {Math.max(1, totalPages)}
+              </span>
+              <button
+                type="button"
+                className={pagerBtn}
+                disabled={page >= Math.max(0, totalPages - 1)}
+                onClick={() =>
+                  setPage((prev) =>
+                    Math.min(Math.max(0, totalPages - 1), prev + 1),
+                  )
+                }
+              >
+                Sau
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
+        </AdminTableWrapper>
+      </AdminPageContainer>
 
       <DrugModal
         open={modalOpen}

@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
+import { authApi as api } from "../../../api/httpClients";
 
 const defaultForm = {
   name: "",
   sku: "",
   categoryId: "",
-  price: "",
+  costPrice: "",
+  salePrice: "",
   unit: "đơn vị",
   stock: "",
   status: "ACTIVE",
@@ -35,7 +37,8 @@ const DrugModal = ({
       name: initialData?.name ?? "",
       sku: initialData?.sku ?? "",
       categoryId: initialData?.categoryId ?? "",
-      price: initialData?.price ?? "",
+      costPrice: initialData?.costPrice ?? "",
+      salePrice: initialData?.salePrice ?? "",
       unit: initialData?.unit ?? defaultForm.unit,
       stock: initialData?.stock ?? "",
       status: initialData?.status ?? defaultForm.status,
@@ -99,7 +102,8 @@ const DrugModal = ({
       {
         ...form,
         stock: Number(form.stock || 0),
-        price: Number(form.price || 0),
+        costPrice: Number(form.costPrice || 0),
+        salePrice: Number(form.salePrice || 0),
       },
       {
         mode,
@@ -142,24 +146,12 @@ const DrugModal = ({
         };
       });
 
-      const response = await fetch("/api/media/drugs/base64", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          albumId: form.albumId || null,
-          images: payloadImages,
-        }),
+      const response = await api.post("/api/media/drugs/base64", {
+        albumId: form.albumId || null,
+        images: payloadImages,
       });
 
-      if (!response.ok) {
-        const message = await readErrorMessage(
-          response,
-          "Không thể tải ảnh lên",
-        );
-        throw new Error(message);
-      }
-
-      const data = await response.json();
+      const data = response.data;
       setForm((prev) => ({
         ...prev,
         albumId: data.albumId || prev.albumId,
@@ -266,6 +258,20 @@ const DrugModal = ({
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Giá gốc (VNĐ)
+                </label>
+                <input
+                  className="w-full rounded-lg border-slate-300 py-2.5 px-3 shadow-sm focus:border-primary focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-white sm:text-sm"
+                  min="0"
+                  placeholder="0"
+                  type="number"
+                  value={form.costPrice}
+                  onChange={(e) => handleChange("costPrice", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Giá bán (VNĐ)
                 </label>
                 <input
@@ -273,8 +279,8 @@ const DrugModal = ({
                   min="0"
                   placeholder="0"
                   type="number"
-                  value={form.price}
-                  onChange={(e) => handleChange("price", e.target.value)}
+                  value={form.salePrice}
+                  onChange={(e) => handleChange("salePrice", e.target.value)}
                 />
               </div>
 

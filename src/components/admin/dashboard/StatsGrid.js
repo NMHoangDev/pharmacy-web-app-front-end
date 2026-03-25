@@ -53,7 +53,13 @@ const StatCard = ({ title, value, suffix, change, changeType, icon, note }) => {
 };
 
 const StatsGrid = ({ stats }) => (
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+  <div
+    className={`grid grid-cols-1 sm:grid-cols-2 ${
+      {
+        5: "lg:grid-cols-5",
+      }[Math.min(5, stats?.length || 0)] || "lg:grid-cols-4"
+    } gap-4`}
+  >
     {stats.map((item) => (
       <StatCard key={item.key} {...item} />
     ))}

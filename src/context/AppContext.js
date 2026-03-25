@@ -1,90 +1,181 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
-import { setAccessToken } from "../api/apiClient";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
+import notificationApi from "../api/notificationApi";
+import { toNotificationViewModel } from "../utils/notificationUtils";
+import { useAuth } from "../auth/useAuth";
 
 // Tạo context dùng cho global state toàn app
 const AppContext = createContext(null);
 
 export const AppProvider = ({ children }) => {
-  // Ví dụ một global state: theme, sau này bạn có thể thêm những state khác (user, cart, ...)
+  const auth = useAuth();
+
   const [theme, setTheme] = useState("light");
-  const [authToken, setAuthToken] = useState(() => {
-    return sessionStorage.getItem("authToken") || "";
-  });
-  const [profile, setProfile] = useState(null);
-  const [authUser, setAuthUser] = useState(() => {
+  const [notificationRefreshVersion, setNotificationRefreshVersion] =
+    useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+
+  const {
+    isLoading: authLoading,
+    accessToken,
+    authUser,
+    userId,
+    roles,
+    isAuthenticated,
+    isAdmin,
+    isStaff,
+    isPharmacist,
+    isUser,
+    login: authLogin,
+    logout: authLogout,
+    hasRole,
+  } = auth;
+
+  const [profile, setProfileState] = useState(() => {
     try {
-      const raw = sessionStorage.getItem("authUser");
+      const raw = sessionStorage.getItem("userProfile");
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
   });
 
-  const roles = useMemo(() => {
-    if (!authToken) return [];
-    try {
-      const payload = authToken.split(".")[1];
-      if (!payload) return [];
-      const json = JSON.parse(
-        atob(payload.replace(/-/g, "+").replace(/_/g, "/")),
-      );
-      const rawRoles = json.roles || [];
-      return Array.isArray(rawRoles) ? rawRoles : [];
-    } catch {
-      return [];
+  const setProfile = useCallback((data) => {
+    setProfileState(data);
+    if (data) {
+      sessionStorage.setItem("userProfile", JSON.stringify(data));
+    } else {
+      sessionStorage.removeItem("userProfile");
     }
-  }, [authToken]);
+  }, []);
 
-  const isAuthenticated = Boolean(authToken);
-  const isAdmin = roles.includes("ROLE_ADMIN");
-  const isUser = roles.includes("ROLE_USER") || isAdmin;
+  const login = useCallback(
+    (data) => {
+      authLogin(data);
+    },
+    [authLogin],
+  );
 
-  const login = (data) => {
-    setAuthToken(data.token || "");
-    setAuthUser({
-      id: data.userId,
-      email: data.email,
-      phone: data.phone,
-      fullName: data.fullName,
-      expiresAt: data.expiresAt,
-    });
-    sessionStorage.setItem("authToken", data.token || "");
-    // update axios in-memory token as well
-    setAccessToken(data.token || null);
-    sessionStorage.setItem(
-      "authUser",
-      JSON.stringify({
-        id: data.userId,
-        email: data.email,
-        phone: data.phone,
-        fullName: data.fullName,
-        expiresAt: data.expiresAt,
-      }),
-    );
-  };
-
-  const logout = () => {
-    setAuthToken("");
-    setAuthUser(null);
+  const logout = useCallback(() => {
+    authLogout();
     setProfile(null);
-    sessionStorage.removeItem("authToken");
-    sessionStorage.removeItem("authUser");
-    setAccessToken(null);
-  };
+    sessionStorage.removeItem("userProfile");
+  }, [authLogout, setProfile]);
+
+  const resetNotificationState = useCallback(() => {
+    setNotifications([]);
+    setUnreadCount(0);
+    setNotificationsLoading(false);
+  }, []);
+
+  const refreshUnreadCount = useCallback(async () => {
+    if (!isAuthenticated || !accessToken) {
+      setUnreadCount(0);
+      return 0;
+    }
+
+    try {
+      const nextCount = await notificationApi.getUnreadNotificationCount();
+      const safeCount = Math.max(0, Number(nextCount) || 0);
+      setUnreadCount(safeCount);
+      return safeCount;
+    } catch (err) {
+      const status = Number(err?.status || err?.response?.status || 0);
+      if (status === 401 || status === 403) {
+        setUnreadCount(0);
+        return 0;
+      }
+      console.warn("[AppContext] Failed to refresh unread count", err);
+      return unreadCount;
+    }
+  }, [accessToken, isAuthenticated, unreadCount]);
+
+  const refreshNotifications = useCallback(async () => {
+    setNotificationRefreshVersion((prev) => prev + 1);
+
+    if (!isAuthenticated || !accessToken) {
+      resetNotificationState();
+      return { items: [], unreadCount: 0 };
+    }
+
+    setNotificationsLoading(true);
+    try {
+      const data = await notificationApi.getMyNotifications(20);
+      const items = Array.isArray(data?.items)
+        ? data.items.map(toNotificationViewModel)
+        : [];
+      const nextUnreadCount = Math.max(0, Number(data?.unreadCount || 0));
+
+      setNotifications(items);
+      setUnreadCount(nextUnreadCount);
+
+      return { items, unreadCount: nextUnreadCount };
+    } catch (err) {
+      const status = Number(err?.status || err?.response?.status || 0);
+      if (status === 401 || status === 403) {
+        resetNotificationState();
+        return { items: [], unreadCount: 0 };
+      }
+
+      console.warn("[AppContext] Failed to refresh notifications", err);
+      return { items: notifications, unreadCount };
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [
+    accessToken,
+    isAuthenticated,
+    notifications,
+    resetNotificationState,
+    unreadCount,
+  ]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !accessToken) {
+      resetNotificationState();
+      return;
+    }
+
+    refreshUnreadCount();
+  }, [
+    accessToken,
+    isAuthenticated,
+    refreshUnreadCount,
+    resetNotificationState,
+  ]);
 
   const value = {
     theme,
     setTheme,
-    authToken,
+    accessToken,
     authUser,
+    userId,
     roles,
-    isAuthenticated,
-    isAdmin,
-    isUser,
     profile,
     setProfile,
+    authLoading,
+    isAuthenticated,
+    isAdmin,
+    isStaff,
+    isPharmacist,
+    isUser,
+    notifications,
+    unreadCount,
+    notificationsLoading,
+    notificationRefreshVersion,
     login,
     logout,
+    hasRole,
+    refreshUnreadCount,
+    refreshNotifications,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

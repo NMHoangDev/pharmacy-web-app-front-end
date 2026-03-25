@@ -2,6 +2,8 @@ import React, { useMemo } from "react";
 
 const ScheduleCalendar = ({
   monthLabel,
+  year,
+  month,
   daysInMonth,
   summary,
   selectedDate,
@@ -9,10 +11,9 @@ const ScheduleCalendar = ({
 }) => {
   const days = useMemo(() => {
     return Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-      const dateKey = `${summary.year}-${summary.month}-${String(day).padStart(
-        2,
-        "0"
-      )}`;
+      const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(
+        day,
+      ).padStart(2, "0")}`;
       const info = summary.map[dateKey] || {
         total: 0,
         pending: 0,
@@ -21,7 +22,12 @@ const ScheduleCalendar = ({
       };
       return { day, dateKey, info };
     });
-  }, [daysInMonth, summary]);
+  }, [daysInMonth, summary, year, month]);
+
+  const leadingBlanks = useMemo(() => {
+    const firstDay = new Date(year, month - 1, 1).getDay();
+    return Array.from({ length: firstDay }, (_, index) => index);
+  }, [year, month]);
 
   return (
     <div className="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4">
@@ -41,19 +47,19 @@ const ScheduleCalendar = ({
         ))}
       </div>
       <div className="grid grid-cols-7 gap-y-2">
-        <div className="h-9" />
-        <div className="h-9" />
-        <div className="h-9" />
+        {leadingBlanks.map((blank) => (
+          <div key={`blank-${blank}`} className="h-9" />
+        ))}
         {days.map((day) => {
           const isSelected = selectedDate === day.dateKey;
           const hasAppointments = day.info.total > 0;
           const colorDot = day.info.cancelled
             ? "bg-red-500"
             : day.info.pending
-            ? "bg-orange-500"
-            : day.info.confirmed
-            ? "bg-green-500"
-            : "bg-white";
+              ? "bg-orange-500"
+              : day.info.confirmed
+                ? "bg-green-500"
+                : "bg-white";
           return (
             <button
               key={day.dateKey}

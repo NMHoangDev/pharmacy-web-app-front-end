@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "../../lib/utils";
+import { motion } from "framer-motion";
 
 const Button = React.forwardRef(
   (
@@ -25,9 +26,11 @@ const Button = React.forwardRef(
     };
 
     return (
-      <button
+      <motion.button
         ref={ref}
         type={type}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
         className={cn(
           "inline-flex items-center justify-center rounded-xl font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none",
           variants[variant],

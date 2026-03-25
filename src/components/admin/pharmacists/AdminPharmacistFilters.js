@@ -1,24 +1,44 @@
 import React from "react";
+import BranchSelect from "../shared/BranchSelect";
 
-const AdminPharmacistFilters = ({ filters, onChange, onReset }) => {
+const AdminPharmacistFilters = ({
+  filters,
+  onChange,
+  onReset,
+  branches = [],
+  branchId = "",
+  onBranchChange,
+  branchLoading = false,
+}) => {
   return (
-    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col lg:flex-row gap-4 items-center">
-      <div className="relative w-full lg:flex-1 group">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <span className="material-symbols-outlined text-slate-400 group-focus-within:text-primary transition-colors">
-            search
-          </span>
+    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:items-center">
+        <div className="relative min-w-0 sm:col-span-2 lg:col-span-4 group">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <span className="material-symbols-outlined text-slate-400 group-focus-within:text-primary transition-colors">
+              search
+            </span>
+          </div>
+          <input
+            value={filters.query}
+            onChange={(e) => onChange({ ...filters, query: e.target.value })}
+            className="block w-full pl-10 pr-3 py-2.5 border-none bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary placeholder:text-slate-400 sm:text-sm transition-all"
+            placeholder="Tìm kiếm theo tên hoặc ID..."
+            type="text"
+          />
         </div>
-        <input
-          value={filters.query}
-          onChange={(e) => onChange({ ...filters, query: e.target.value })}
-          className="block w-full pl-10 pr-3 py-2.5 border-none bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary placeholder:text-slate-400 sm:text-sm transition-all"
-          placeholder="Tìm kiếm theo tên hoặc ID..."
-          type="text"
-        />
-      </div>
-      <div className="flex w-full lg:w-auto gap-3 overflow-x-auto pb-1 lg:pb-0">
-        <div className="relative min-w-[160px]">
+
+        <div className="sm:col-span-1 lg:col-span-3">
+          <BranchSelect
+            branches={branches}
+            value={branchId}
+            onChange={onBranchChange}
+            loading={branchLoading}
+            emptyLabel="Tất cả chi nhánh"
+          />
+        </div>
+
+        <div className="relative sm:col-span-1 lg:col-span-2">
           <select
             value={filters.specialty}
             onChange={(e) =>
@@ -39,7 +59,8 @@ const AdminPharmacistFilters = ({ filters, onChange, onReset }) => {
             </span>
           </div>
         </div>
-        <div className="relative min-w-[140px]">
+
+        <div className="relative sm:col-span-1 lg:col-span-1">
           <select
             value={filters.status}
             onChange={(e) => onChange({ ...filters, status: e.target.value })}
@@ -55,7 +76,8 @@ const AdminPharmacistFilters = ({ filters, onChange, onReset }) => {
             </span>
           </div>
         </div>
-        <div className="relative min-w-[140px]">
+
+        <div className="relative sm:col-span-1 lg:col-span-1">
           <select
             value={filters.verification}
             onChange={(e) =>
@@ -73,13 +95,16 @@ const AdminPharmacistFilters = ({ filters, onChange, onReset }) => {
             </span>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onReset}
-          className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-primary transition-colors"
-        >
-          Xóa bộ lọc
-        </button>
+
+        <div className="sm:col-span-1 lg:col-span-1 lg:justify-self-end">
+          <button
+            type="button"
+            onClick={onReset}
+            className="w-full whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-primary transition-colors"
+          >
+            Xóa bộ lọc
+          </button>
+        </div>
       </div>
     </div>
   );

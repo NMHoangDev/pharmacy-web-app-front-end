@@ -1,11 +1,5 @@
-import apiClient, { setAccessToken } from "./apiClient";
+import { authApi as apiClient } from "./httpClients";
 
-// helper: build headers for JSON + optional explicit token override
-function jsonHeaders(token) {
-  const h = { "Content-Type": "application/json" };
-  if (token) h.Authorization = `Bearer ${token}`;
-  return h;
-}
 
 async function handleAxios(promise) {
   try {

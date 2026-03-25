@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
@@ -13,51 +13,85 @@ const BookingPage = () => {
   const location = useLocation();
 
   const pharmacistFromState = location.state?.pharmacist;
-  const pharmacistIdFromState =
-    pharmacistFromState?.id ?? pharmacistFromState?.pharmacistId;
-  if (!pharmacistIdFromState) {
+
+  const pharmacist = useMemo(() => {
+    if (!pharmacistFromState) return undefined;
+
+    const id = pharmacistFromState.id ?? pharmacistFromState.pharmacistId;
+
+    return {
+      id,
+      name:
+        pharmacistFromState.fullName ??
+        pharmacistFromState.name ??
+        pharmacistFromState.displayName ??
+        "Dược sĩ",
+      image: pharmacistFromState.avatarUrl ?? pharmacistFromState.image ?? "",
+      online: pharmacistFromState.status
+        ? pharmacistFromState.status === "online"
+        : Boolean(pharmacistFromState.online),
+      specialty:
+        pharmacistFromState.specialtyLabel ??
+        pharmacistFromState.specialty ??
+        pharmacistFromState.tag ??
+        "Tư vấn dược",
+      verified:
+        Boolean(pharmacistFromState.verified) ||
+        Boolean(pharmacistFromState.isVerified),
+      verifiedText:
+        pharmacistFromState.verifiedText ??
+        pharmacistFromState.badge ??
+        (pharmacistFromState.verified || pharmacistFromState.isVerified
+          ? "Đã xác thực chuyên môn"
+          : "Chưa xác thực"),
+      workingHours: pharmacistFromState.workingHours ?? "08:00 - 17:00",
+      workingDays: pharmacistFromState.workingDays ?? "Thứ 2 - Thứ 7",
+      languages: pharmacistFromState.languages ?? "Tiếng Việt",
+      education: pharmacistFromState.education ?? "Đang cập nhật",
+    };
+  }, [pharmacistFromState]);
+
+  const pharmacistId = pharmacist?.id;
+
+  if (!pharmacistId) {
     // eslint-disable-next-line no-console
     console.warn(
       "BookingPage: pharmacist id not found in location.state.pharmacist",
     );
   }
 
-  const pharmacist = pharmacistFromState
-    ? {
-        name: pharmacistFromState.name,
-        image: pharmacistFromState.image,
-        online: pharmacistFromState.status
-          ? pharmacistFromState.status === "online"
-          : pharmacistFromState.online,
-        specialty: pharmacistFromState.specialty ?? pharmacistFromState.tag,
-        verifiedText:
-          pharmacistFromState.verifiedText ?? pharmacistFromState.badge,
-        workingHours: pharmacistFromState.workingHours,
-        workingDays: pharmacistFromState.workingDays,
-        languages: pharmacistFromState.languages,
-        education: pharmacistFromState.education,
-      }
-    : undefined;
-
   return (
-    <div className="min-h-screen bg-[#f4f7fb] dark:bg-slate-950 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <Header />
 
       <main className="flex-1 py-8">
-        <div className="px-4 md:px-10 lg:px-40 flex justify-center">
+        <div className="px-4 md:px-8 lg:px-16 xl:px-24 flex justify-center">
           <div className="flex flex-col max-w-[1200px] flex-1 gap-6">
             <BookingBreadcrumbs />
 
-            <BookingHeading />
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <BookingHeading />
+              <button
+                type="button"
+                onClick={() => navigate("/pharmacists")}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  arrow_back
+                </span>
+                Quay lại danh sách
+              </button>
+            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              <div className="lg:col-span-4 flex flex-col gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-4 h-fit lg:sticky lg:top-24">
                 <PharmacistProfileCard pharmacist={pharmacist} />
               </div>
+
               <div className="lg:col-span-8">
                 <BookingForm
                   onBackToPharmacists={() => navigate("/pharmacists")}
-                  pharmacistId={pharmacistIdFromState}
+                  pharmacistId={pharmacistId}
                 />
               </div>
             </div>

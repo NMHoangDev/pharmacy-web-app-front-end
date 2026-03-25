@@ -8,6 +8,10 @@ import MedicinesGrid from "../../../components/medicines/MedicinesGrid";
 import MedicinesPagination from "../../../components/medicines/MedicinesPagination";
 import medicinesProducts, { parsePrice } from "../../../data/medicinesProducts";
 import EmptyState from "../../../components/EmptyState";
+import PageTransition from "../../../components/ui/PageTransition";
+import { publicApi } from "../../../api/httpClients";
+import { useCart } from "../../../contexts/CartContext";
+import useNotificationAction from "../../../hooks/useNotificationAction";
 
 const formatPrice = (value) =>
   `${Number(value || 0).toLocaleString("vi-VN")} đ`;
@@ -56,6 +60,35 @@ const MedicinesPage = () => {
     max: fallbackMax,
   });
 
+  const { upsertItem } = useCart();
+  const { notifyAfterSuccess } = useNotificationAction();
+
+  const handleAddToCart = useCallback(
+    async (product) => {
+      try {
+        await notifyAfterSuccess({
+          action: () => upsertItem(product.id, 1),
+          notificationPayload: {
+            category: "CART",
+            title: "Thêm vào giỏ hàng thành công",
+            message: `Bạn đã thêm ${product.title || product.name} vào giỏ hàng`,
+            sourceType: "PRODUCT",
+            sourceId: String(product.id),
+            sourceEventType: "CART_ITEM_ADDED",
+            actionUrl: "/cart",
+          },
+          options: {
+            silent: false,
+            errorMessage: "Failed to create notification after add to cart:",
+          },
+        });
+      } catch (err) {
+        console.error("Failed to add to cart:", err);
+      }
+    },
+    [notifyAfterSuccess, upsertItem],
+  );
+
   const handlePriceRangeChange = (nextRange) => {
     let { min, max } = nextRange;
     if (min > max) {
@@ -83,43 +116,64 @@ const MedicinesPage = () => {
     }));
   }, [overallMinPrice, overallMaxPrice]);
 
+  useEffect(() => {
+    setPriceRange((prev) => {
+      const minBound = Math.min(overallMinPrice, overallMaxPrice);
+      const maxBound = Math.max(overallMinPrice, overallMaxPrice);
+      if (prev.min > maxBound || prev.max < minBound || prev.min > prev.max) {
+        return { min: minBound, max: maxBound };
+      }
+      return prev;
+    });
+  }, [overallMinPrice, overallMaxPrice]);
+
   const [reloadKey, setReloadKey] = useState(0);
 
   const loadProducts = useCallback(async (signal) => {
     setLoading(true);
     setError("");
+
     try {
-      const categoryResponse = await fetch("/api/catalog/public/categories", {
+      const categoryResponse = await publicApi.get(
+        "/api/catalog/public/categories",
+        {
+          signal,
+        },
+      );
+      setCategories(categoryResponse.data || []);
+
+      const response = await publicApi.get("/api/catalog/public/products", {
+        params: {
+          size: 200,
+          sort: "name,asc",
+        },
         signal,
       });
-      if (categoryResponse.ok) {
-        const categoryPayload = await categoryResponse.json();
-        setCategories(categoryPayload || []);
-      }
 
-      const response = await fetch(
-        "/api/catalog/public/products?size=200&sort=name,asc",
-        { signal },
-      );
-      if (!response.ok) {
-        throw new Error("Không thể tải danh sách sản phẩm");
-      }
-      const payload = await response.json();
-      const items = payload?.content ?? [];
+      const payload = response.data;
+      // robust parsing: handle array, pageable (.content), or wrapper (.data)
+      const items =
+        payload?.content ??
+        payload?.data ??
+        (Array.isArray(payload) ? payload : []);
+
       const mapped = items.map((item) => {
         const attrs = parseAttributes(item.attributes);
         const badge = resolveBadge(attrs, item.createdAt);
-        const priceValue = Number(item.price || 0);
+        const priceValue = Number(
+          item.price ?? item.salePrice ?? item.baseSalePrice ?? 0,
+        );
         return {
           id: item.id,
           slug: item.slug,
-          title: item.name,
+          title: item.name || item.title || "No Name",
           description: item.description || attrs.shortDescription || "",
           price: formatPrice(priceValue),
           priceValue,
           oldPrice: attrs.oldPrice ? formatPrice(attrs.oldPrice) : "",
           image:
             item.imageUrl ||
+            item.image ||
             "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=300&q=80",
           rx: !!item.prescriptionRequired,
           consult: !!attrs.consultationRequired,
@@ -133,9 +187,15 @@ const MedicinesPage = () => {
       });
       setProducts(mapped);
     } catch (err) {
-      if (err.name !== "AbortError") {
+      // detect cancellation
+      const isCancel =
+        err.name === "AbortError" ||
+        err.code === "ERR_CANCELED" ||
+        err?.message?.toLowerCase().includes("canceled");
+
+      if (!isCancel) {
+        console.error("loadProducts -> error:", err);
         setError(err.message || "Không thể tải danh sách sản phẩm");
-        // on error do not populate demo products - show empty state
         setProducts([]);
       }
     } finally {
@@ -285,7 +345,7 @@ const MedicinesPage = () => {
   };
 
   return (
-    <div className="bg-background-light dark:bg-background-dark min-h-screen font-display flex flex-col text-slate-900 dark:text-white antialiased">
+    <PageTransition className="bg-background-light dark:bg-background-dark min-h-screen font-display flex flex-col text-slate-900 dark:text-white antialiased">
       <Header />
       <div className="max-w-[1280px] mx-auto px-4 lg:px-8 py-6 flex-grow w-full">
         <MedicinesBreadcrumbs />
@@ -345,7 +405,10 @@ const MedicinesPage = () => {
                 onAction={handleReload}
               />
             ) : (
-              <MedicinesGrid products={pagedProducts} />
+              <MedicinesGrid
+                products={pagedProducts}
+                onAddToCart={handleAddToCart}
+              />
             )}
             <MedicinesPagination
               page={page}
@@ -361,7 +424,7 @@ const MedicinesPage = () => {
         </div>
       </div>
       <Footer />
-    </div>
+    </PageTransition>
   );
 };
 

@@ -1,25 +1,7 @@
-import apiClient from "./apiClient";
+import { authApi as apiClient } from "./httpClients";
 
 function ensureUserId(userId) {
   if (!userId) throw new Error("Missing userId");
-}
-
-function getAuthToken() {
-  const token = sessionStorage.getItem("authToken");
-  if (!token || String(token).trim().length === 0) {
-    throw new Error("Missing auth token. Please login.");
-  }
-  const authToken = `Bearer ${token}`;
-  console.log(authToken);
-  return String(authToken).trim();
-}
-
-function authHeaders() {
-  const raw = getAuthToken();
-  const normalized = raw.toLowerCase().startsWith("bearer ")
-    ? raw
-    : `Bearer ${raw}`;
-  return { Authorization: normalized };
 }
 
 function assertAppointmentsPath(url) {
@@ -40,6 +22,7 @@ export async function pingAppointments() {
   const res = await apiClient.get(url);
   return res?.data ?? {};
 }
+
 function toLocalDateTimeString(input) {
   // input có thể là Date hoặc string
   if (!input) return input;
@@ -64,17 +47,17 @@ export async function createAppointment(payload) {
   if (!pharmacistId) throw new Error("Missing pharmacistId");
   if (!startAt) throw new Error("Missing startAt");
   if (!endAt) throw new Error("Missing endAt");
+
   const body = {
     ...payload,
     startAt: toLocalDateTimeString(payload.startAt),
     endAt: toLocalDateTimeString(payload.endAt),
   };
-  console.log(payload);
+
   const url = "/api/appointments";
   assertAppointmentsPath(url);
 
-  const res = await apiClient.post(url, body, { headers: authHeaders() });
-  console.log(payload);
+  const res = await apiClient.post(url, body);
   return res?.data ?? {};
 }
 
@@ -82,7 +65,7 @@ export async function listAppointmentsByUser(userId, page = 0, size = 10) {
   ensureUserId(userId);
   const url = `/api/appointments/user/${userId}?page=${page}&size=${size}`;
   assertAppointmentsPath(url);
-  const res = await apiClient.get(url, { headers: authHeaders() });
+  const res = await apiClient.get(url);
   return res?.data ?? {};
 }
 
@@ -94,7 +77,14 @@ export async function listAppointmentsByPharmacist(
   if (!pharmacistId) throw new Error("Missing pharmacistId");
   const url = `/api/appointments/pharmacist/${pharmacistId}?page=${page}&size=${size}`;
   assertAppointmentsPath(url);
-  const res = await apiClient.get(url, { headers: authHeaders() });
+  const res = await apiClient.get(url);
+  return res?.data ?? {};
+}
+
+export async function listAppointmentsByCurrentPharmacist(page = 0, size = 10) {
+  const url = `/api/appointments/pharmacist/me?page=${page}&size=${size}`;
+  assertAppointmentsPath(url);
+  const res = await apiClient.get(url);
   return res?.data ?? {};
 }
 
@@ -102,7 +92,7 @@ export async function getAppointment(id) {
   if (!id) throw new Error("Missing appointment id");
   const url = `/api/appointments/${id}`;
   assertAppointmentsPath(url);
-  const res = await apiClient.get(url, { headers: authHeaders() });
+  const res = await apiClient.get(url);
   return res?.data ?? {};
 }
 
@@ -110,24 +100,112 @@ export async function confirmAppointment(id) {
   if (!id) throw new Error("Missing appointment id");
   const url = `/api/appointments/${id}/confirm`;
   assertAppointmentsPath(url);
-  const res = await apiClient.post(url, null, { headers: authHeaders() });
+  const res = await apiClient.post(url);
   return res?.data ?? {};
 }
 
-export async function cancelAppointment(id) {
+export async function cancelAppointment(id, reason) {
   if (!id) throw new Error("Missing appointment id");
   const url = `/api/appointments/${id}/cancel`;
   assertAppointmentsPath(url);
-  const res = await apiClient.post(url, null, { headers: authHeaders() });
+  const payload = {
+    reason:
+      String(reason || "").trim() ||
+      "Dược sĩ từ chối lịch hẹn trong thời điểm hiện tại.",
+  };
+  const res = await apiClient.post(url, payload);
   return res?.data ?? {};
 }
 
-export default {
+export async function getOrCreateSession(appointmentId, type = "VIDEO") {
+  if (!appointmentId) throw new Error("Missing appointmentId");
+  const url = `/api/appointments/${appointmentId}/session`;
+  const res = await apiClient.post(url, { type });
+  return res?.data ?? {};
+}
+
+export async function joinSession(roomId) {
+  if (!roomId) throw new Error("Missing roomId");
+  const url = `/api/consultations/${roomId}/join`;
+  const res = await apiClient.post(url);
+  return res?.data ?? {};
+}
+
+export async function leaveSession(roomId) {
+  if (!roomId) throw new Error("Missing roomId");
+  const url = `/api/consultations/${roomId}/leave`;
+  const res = await apiClient.post(url);
+  return res?.data ?? {};
+}
+
+export async function endSession(roomId, messageIds = []) {
+  if (!roomId) throw new Error("Missing roomId");
+  const url = `/api/consultations/${roomId}/end`;
+  const payload = { messageIds: Array.isArray(messageIds) ? messageIds : [] };
+  const res = await apiClient.post(url, payload);
+  return res?.data ?? {};
+}
+
+export async function updateConsultationNotes(appointmentId, notes) {
+  if (!appointmentId) throw new Error("Missing appointmentId");
+  const url = `/api/consultations/${appointmentId}/notes`;
+  const res = await apiClient.put(url, { notes });
+  return res?.data ?? {};
+}
+
+export async function getChatHistory(appointmentId, limit = 50) {
+  if (!appointmentId) throw new Error("Missing appointmentId");
+  const url = `/api/appointments/${appointmentId}/messages?limit=${limit}`;
+  const res = await apiClient.get(url);
+  return res?.data ?? [];
+}
+
+export async function sendChatMessage(appointmentId, content, note = null) {
+  if (!appointmentId) throw new Error("Missing appointmentId");
+  const body = { content, note };
+  const url = `/api/appointments/${appointmentId}/messages`;
+  const res = await apiClient.post(url, body);
+  return res?.data ?? null;
+}
+
+export async function searchConsultationPrescriptionProducts(
+  appointmentId,
+  params = {},
+) {
+  if (!appointmentId) throw new Error("Missing appointmentId");
+  const url = `/api/consultations/${appointmentId}/prescription/products`;
+  const res = await apiClient.get(url, { params });
+  return res?.data ?? {};
+}
+
+export async function createConsultationPrescriptionOrder(
+  appointmentId,
+  payload,
+) {
+  if (!appointmentId) throw new Error("Missing appointmentId");
+  const url = `/api/consultations/${appointmentId}/prescription/orders`;
+  const res = await apiClient.post(url, payload || {});
+  return res?.data ?? {};
+}
+
+const appointmentApi = {
   pingAppointments,
   createAppointment,
   listAppointmentsByUser,
   listAppointmentsByPharmacist,
+  listAppointmentsByCurrentPharmacist,
   getAppointment,
   confirmAppointment,
   cancelAppointment,
+  getOrCreateSession,
+  joinSession,
+  leaveSession,
+  endSession,
+  updateConsultationNotes,
+  getChatHistory,
+  sendChatMessage,
+  searchConsultationPrescriptionProducts,
+  createConsultationPrescriptionOrder,
 };
+
+export default appointmentApi;

@@ -14,6 +14,8 @@ module.exports = {
         text: "var(--text)",
         muted: "var(--muted)",
         overlay: "var(--overlay)",
+        "background-light": "#f6f8f8",
+        "background-dark": "#102222",
       },
       fontFamily: {
         display: ["Inter", "sans-serif"],
