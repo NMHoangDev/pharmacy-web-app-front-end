@@ -1,5 +1,8 @@
 import React from "react";
 
+const fallbackImage =
+  "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=300&q=80";
+
 const OrderSummary = ({
   items,
   shippingFee,
@@ -9,9 +12,15 @@ const OrderSummary = ({
   onApplyCoupon,
   onSubmit,
   submitting,
+  isLoading,
 }) => {
+  const [promoInput, setPromoInput] = React.useState("");
+
   const formatCurrency = (value) =>
-    value.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
+    (value || 0).toLocaleString("vi-VN", {
+      style: "currency",
+      currency: "VND",
+    });
 
   return (
     <div className="sticky top-24 bg-white dark:bg-[#1A2633] rounded-xl shadow-sm border border-[#e7edf3] dark:border-gray-700 p-6">
@@ -24,8 +33,11 @@ const OrderSummary = ({
           <div key={item.id} className="flex gap-4">
             <div className="w-16 h-16 shrink-0 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border border-[#e7edf3] dark:border-gray-700">
               <img
-                src={item.image}
-                alt={item.alt}
+                src={item.image || fallbackImage}
+                alt={item.alt || item.name || "product"}
+                onError={(e) => {
+                  e.currentTarget.src = fallbackImage;
+                }}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -52,23 +64,27 @@ const OrderSummary = ({
       <div className="flex gap-2 mb-6">
         <input
           type="text"
-          className="form-input flex-1 rounded-lg border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm focus:border-primary focus:ring-primary"
-          placeholder="Mã giảm giá"
+          value={promoInput}
+          onChange={(e) => setPromoInput(e.target.value)}
+          className="form-input flex-1 rounded-lg border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm focus:border-primary focus:ring-primary h-10 px-3"
+          placeholder="Mã giảm giá (ví dụ: PROMO10)"
         />
         <button
           type="button"
           className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-[#0d141b] dark:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          onClick={onApplyCoupon}
+          onClick={() => onApplyCoupon(promoInput)}
         >
           Áp dụng
         </button>
       </div>
 
-      <div className="space-y-3 py-4 border-t border-b border-[#e7edf3] dark:border-gray-700 mb-6 text-sm">
+      <div
+        className={`space-y-3 py-4 border-t border-b border-[#e7edf3] dark:border-gray-700 mb-6 text-sm ${isLoading ? "opacity-50 pointer-events-none" : ""}`}
+      >
         <div className="flex justify-between">
           <span className="text-[#4c739a] dark:text-gray-400">Tạm tính</span>
           <span className="font-medium text-[#0d141b] dark:text-white">
-            {formatCurrency(subtotal)}
+            {isLoading ? "..." : formatCurrency(subtotal)}
           </span>
         </div>
         <div className="flex justify-between">
@@ -76,13 +92,13 @@ const OrderSummary = ({
             Phí vận chuyển
           </span>
           <span className="font-medium text-[#0d141b] dark:text-white">
-            {formatCurrency(shippingFee)}
+            {isLoading ? "..." : formatCurrency(shippingFee)}
           </span>
         </div>
         <div className="flex justify-between">
           <span className="text-[#4c739a] dark:text-gray-400">Giảm giá</span>
           <span className="font-medium text-green-600">
-            -{formatCurrency(discount)}
+            {isLoading ? "..." : `-${formatCurrency(discount)}`}
           </span>
         </div>
       </div>
@@ -92,8 +108,10 @@ const OrderSummary = ({
           Tổng cộng
         </span>
         <div className="text-right">
-          <span className="block text-2xl font-black text-primary">
-            {formatCurrency(total)}
+          <span
+            className={`block text-2xl font-black text-primary ${isLoading ? "animate-pulse" : ""}`}
+          >
+            {isLoading ? "..." : formatCurrency(total)}
           </span>
           <span className="text-xs text-[#4c739a] dark:text-gray-400">
             (Đã bao gồm VAT)

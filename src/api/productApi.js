@@ -1,4 +1,4 @@
-import apiClient from "./apiClient";
+import { publicApi } from "./httpClients";
 
 async function handleFetch(promise) {
   try {
@@ -14,7 +14,13 @@ async function handleFetch(promise) {
 }
 
 export async function getProductById(id) {
-  return handleFetch(apiClient.get(`/api/catalog/public/products/${id}`));
+  return handleFetch(publicApi.get(`/api/catalog/public/products/${id}`));
 }
 
-export default { getProductById };
+export async function getProducts(params = {}) {
+  return handleFetch(publicApi.get("/api/catalog/public/products", { params }));
+}
+
+export const getProductBySlug = getProductById;
+
+export default { getProductById, getProducts, getProductBySlug };

@@ -31,7 +31,7 @@ const PaymentMethods = ({ options, selectedId, onSelect }) => {
                 {opt.icon}
               </span>
               <span className="font-medium text-[#0d141b] dark:text-white">
-                {opt.label}
+                {opt.name}
               </span>
               {opt.badge && (
                 <span className="ml-auto text-xs font-semibold text-primary">

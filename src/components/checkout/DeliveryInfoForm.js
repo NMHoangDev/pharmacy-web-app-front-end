@@ -44,58 +44,13 @@ const DeliveryInfoForm = ({ form, onChange }) => {
           <span className="text-[#0d141b] dark:text-gray-200 text-sm font-medium mb-1.5">
             Địa chỉ nhận hàng
           </span>
-          <input
-            type="text"
+          <textarea
             value={form.address}
             onChange={handleChange("address")}
-            className="form-input w-full rounded-lg border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-[#0d141b] dark:text-white focus:border-primary focus:ring-primary h-12 px-4"
-            placeholder="Số nhà, tên đường..."
+            className="form-textarea w-full rounded-lg border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-[#0d141b] dark:text-white focus:border-primary focus:ring-primary p-4 min-h-[90px]"
+            placeholder="Nhập đầy đủ địa chỉ giao hàng"
           />
         </label>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <label className="flex flex-col">
-            <span className="text-[#0d141b] dark:text-gray-200 text-sm font-medium mb-1.5">
-              Tỉnh / Thành phố
-            </span>
-            <select
-              value={form.city}
-              onChange={handleChange("city")}
-              className="form-select w-full rounded-lg border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-[#0d141b] dark:text-white focus:border-primary focus:ring-primary h-12 px-4"
-            >
-              <option>Hồ Chí Minh</option>
-              <option>Hà Nội</option>
-              <option>Đà Nẵng</option>
-            </select>
-          </label>
-          <label className="flex flex-col">
-            <span className="text-[#0d141b] dark:text-gray-200 text-sm font-medium mb-1.5">
-              Quận / Huyện
-            </span>
-            <select
-              value={form.district}
-              onChange={handleChange("district")}
-              className="form-select w-full rounded-lg border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-[#0d141b] dark:text-white focus:border-primary focus:ring-primary h-12 px-4"
-            >
-              <option>Quận 1</option>
-              <option>Quận 3</option>
-              <option>Thủ Đức</option>
-            </select>
-          </label>
-          <label className="flex flex-col">
-            <span className="text-[#0d141b] dark:text-gray-200 text-sm font-medium mb-1.5">
-              Phường / Xã
-            </span>
-            <select
-              value={form.ward}
-              onChange={handleChange("ward")}
-              className="form-select w-full rounded-lg border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-[#0d141b] dark:text-white focus:border-primary focus:ring-primary h-12 px-4"
-            >
-              <option>Bến Nghé</option>
-              <option>Bến Thành</option>
-            </select>
-          </label>
-        </div>
 
         <label className="flex flex-col">
           <span className="text-[#0d141b] dark:text-gray-200 text-sm font-medium mb-1.5">

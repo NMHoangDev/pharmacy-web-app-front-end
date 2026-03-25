@@ -14,12 +14,24 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import { Button } from "../../../components/ui/button";
+import { getAccessToken } from "../../../utils/auth";
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8087";
 
 const requestJson = async (url, options = {}) => {
-  const response = await fetch(url, {
+  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+  const token = getAccessToken();
+  const response = await fetch(fullUrl, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(token
+        ? {
+            Authorization: token.toLowerCase().startsWith("bearer ")
+              ? token
+              : `Bearer ${token}`,
+          }
+        : {}),
       ...(options.headers || {}),
     },
   });

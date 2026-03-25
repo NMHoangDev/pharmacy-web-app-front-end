@@ -2,11 +2,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Header from "../../../components/Header";
 import Footer from "../../../components/Footer";
-import { useAppContext } from "../../../context/AppContext";
 import { useCart } from "../../../contexts/CartContext";
 import { requireAuthOrRedirect, getUserId } from "../../../utils/auth";
-import * as cartApi from "../../../api/cartApi";
+import * as productApi from "../../../api/productApi";
+import * as reviewApi from "../../../api/reviewApi";
 import ConfirmIncreaseDialog from "../../../components/cart/ConfirmIncreaseDialog";
+import ReviewCard from "../../../components/medicines/ReviewCard";
+import { PriceDisplay } from "../../../components/medicines/MedicineCard";
+import PageTransition from "../../../components/ui/PageTransition";
+import { getAccessToken } from "../../../utils/auth";
+import useNotificationAction from "../../../hooks/useNotificationAction";
 
 const fallbackImage =
   "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=700&q=80";
@@ -28,27 +33,7 @@ const resolveGallery = (attrs, imageUrl) => {
   const images = [imageUrl, ...gallery].filter(Boolean);
   return images.length ? images : [fallbackImage];
 };
-const getAuthFromSession = () => {
-  const token = sessionStorage.getItem("authToken");
-  const authUserRaw = sessionStorage.getItem("authUser");
 
-  let authUser = null;
-  try {
-    authUser = authUserRaw ? JSON.parse(authUserRaw) : null;
-  } catch {
-    authUser = null;
-  }
-
-  const userId = authUser?.id;
-  const hasToken = !!token && String(token).trim().length > 0;
-
-  return {
-    userId,
-    token: token ? String(token).trim() : "",
-    authUser,
-    hasToken,
-  };
-};
 const ProductDetailPage = () => {
   const { idOrSlug } = useParams();
   const navigate = useNavigate();
@@ -63,17 +48,33 @@ const ProductDetailPage = () => {
   const [related, setRelated] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { authUser } = useAppContext();
-  const { upsertItem, refreshCart, cartItems } = useCart();
+  const [reviewSummary, setReviewSummary] = useState({
+    averageRating: 0,
+    totalReviews: 0,
+    ratingCounts: {},
+  });
+  const [reviews, setReviews] = useState([]);
+  const [reviewPage, setReviewPage] = useState(0);
+  const [reviewTotalPages, setReviewTotalPages] = useState(1);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  const [reviewForm, setReviewForm] = useState({
+    rating: 5,
+    title: "",
+    content: "",
+  });
+  const [reviewImages, setReviewImages] = useState([]);
+  const { upsertItem, refreshCart } = useCart();
+  const { notifyAfterSuccess } = useNotificationAction();
   const currentPath = `/medicines/${idOrSlug}`;
   const [existingQtyForPending, setExistingQtyForPending] = useState(0);
   const [actionMessage, setActionMessage] = useState("");
 
   const handleAddToCart = async () => {
-    // require auth
-    const { userId, hasToken } = getAuthFromSession();
+    const token = getAccessToken();
+    const userId = getUserId();
 
-    if (!userId || !hasToken) {
+    if (!token || !userId) {
       setActionMessage("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.");
       requireAuthOrRedirect(navigate, currentPath);
       return;
@@ -86,22 +87,27 @@ const ProductDetailPage = () => {
 
     try {
       setActionMessage("");
-      console.log("[AddToCart] start", {
-        userId,
-        productId: product.id,
-        quantity,
+
+      await notifyAfterSuccess({
+        action: async () => {
+          await upsertItem(product.id, quantity);
+          await refreshCart();
+        },
+        notificationPayload: {
+          category: "CART",
+          title: "Thêm vào giỏ hàng thành công",
+          message: `Bạn đã thêm ${product.name} vào giỏ hàng`,
+          sourceType: "PRODUCT",
+          sourceId: String(product.id),
+          sourceEventType: "CART_ITEM_ADDED",
+          actionUrl: "/cart",
+        },
+        options: {
+          silent: false,
+          errorMessage: "Failed to create notification after add to cart:",
+        },
       });
 
-      // 1) add/update item in cart (CALL API)
-      await cartApi.upsertCartItem(userId, {
-        productId: product.id,
-        quantity,
-      });
-
-      // 2) refresh cart context so cart page updates
-      await refreshCart();
-
-      console.log("[AddToCart] success");
       setActionMessage("Đã thêm vào giỏ hàng.");
     } catch (err) {
       console.error("[AddToCart] failed", err);
@@ -113,8 +119,25 @@ const ProductDetailPage = () => {
     const allowed = requireAuthOrRedirect(navigate, currentPath);
     if (!allowed) return;
     try {
-      await upsertItem(product.id, quantity);
-      await refreshCart();
+      await notifyAfterSuccess({
+        action: async () => {
+          await upsertItem(product.id, quantity);
+          await refreshCart();
+        },
+        notificationPayload: {
+          category: "CART",
+          title: "Thêm vào giỏ hàng thành công",
+          message: `Bạn đã thêm ${product.name} vào giỏ hàng`,
+          sourceType: "PRODUCT",
+          sourceId: String(product.id),
+          sourceEventType: "CART_ITEM_ADDED",
+          actionUrl: "/checkout",
+        },
+        options: {
+          silent: false,
+          errorMessage: "Failed to create notification after buy now:",
+        },
+      });
       navigate("/checkout");
     } catch (err) {
       console.error("Buy now failed", err);
@@ -131,9 +154,26 @@ const ProductDetailPage = () => {
         return;
       }
       const newQty = (existingQtyForPending || 0) + (pendingAddQty || 1);
-      await upsertItem(product.id, newQty);
-      await refreshCart();
-      console.log("Confirmed increase", { productId: product.id, newQty });
+      await notifyAfterSuccess({
+        action: async () => {
+          await upsertItem(product.id, newQty);
+          await refreshCart();
+        },
+        notificationPayload: {
+          category: "CART",
+          title: "Cập nhật giỏ hàng thành công",
+          message: `Số lượng ${product.name} đã được cập nhật trong giỏ hàng`,
+          sourceType: "PRODUCT",
+          sourceId: String(product.id),
+          sourceEventType: "CART_ITEM_ADDED",
+          actionUrl: "/cart",
+        },
+        options: {
+          silent: false,
+          errorMessage:
+            "Failed to create notification after cart quantity update:",
+        },
+      });
       setActionMessage("Số lượng đã được cập nhật trong giỏ hàng.");
     } catch (err) {
       console.error("Confirm increase failed", err);
@@ -146,77 +186,213 @@ const ProductDetailPage = () => {
   };
 
   useEffect(() => {
-    const controller = new AbortController();
+    let isMounted = true;
     const load = async () => {
       setLoading(true);
       setError("");
       try {
-        const response = await fetch(
-          `/api/catalog/public/products/${idOrSlug}`,
-          { signal: controller.signal },
-        );
-        if (!response.ok) {
-          throw new Error("Không thể tải chi tiết sản phẩm");
-        }
-        const payload = await response.json();
+        const payload = await productApi.getProductBySlug(idOrSlug);
+        if (!isMounted) return;
+
         const attrs = parseAttributes(payload.attributes);
         const images = resolveGallery(attrs, payload.imageUrl || fallbackImage);
-        if (!controller.signal.aborted) {
-          setProduct(payload);
-          setAttributes(attrs);
-          setGallery(images);
-          setActiveImage(0);
-        }
 
-        const listResponse = await fetch(
-          "/api/catalog/public/products?size=12&sort=name,asc",
-          { signal: controller.signal },
-        );
-        if (listResponse.ok) {
-          const listPayload = await listResponse.json();
-          const items = (listPayload.content || []).filter(
-            (item) => item.id !== payload.id,
-          );
-          const sameCategory = items.filter(
-            (item) => item.categoryId && item.categoryId === payload.categoryId,
-          );
-          const picks = (sameCategory.length ? sameCategory : items).slice(
-            0,
-            4,
-          );
-          setRelated(picks);
+        setProduct(payload);
+        setAttributes(attrs);
+        setGallery(images);
+        setActiveImage(0);
+
+        // Load related products
+        try {
+          const listPayload = await productApi.getProducts({
+            size: 12,
+            sort: "name,asc",
+          });
+          if (isMounted) {
+            const items = (listPayload.content || []).filter(
+              (item) => item.id !== payload.id,
+            );
+            const sameCategory = items.filter(
+              (item) =>
+                item.categoryId && item.categoryId === payload.categoryId,
+            );
+            const picks = (sameCategory.length ? sameCategory : items).slice(
+              0,
+              4,
+            );
+            setRelated(picks);
+          }
+        } catch (err) {
+          console.warn("Could not load related products", err);
         }
       } catch (err) {
-        if (err.name !== "AbortError") {
+        if (isMounted) {
           setError(err.message || "Không thể tải chi tiết sản phẩm");
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (isMounted) {
           setLoading(false);
         }
       }
     };
 
     load();
-    return () => controller.abort();
+    return () => {
+      isMounted = false;
+    };
   }, [idOrSlug]);
 
-  const priceLabel = useMemo(() => {
+  useEffect(() => {
+    if (!product?.id) return;
+    let active = true;
+
+    const loadSummary = async () => {
+      try {
+        const payload = await reviewApi.getProductReviewSummary(product.id);
+        if (!active) return;
+        setReviewSummary({
+          averageRating: payload.averageRating || 0,
+          totalReviews: payload.totalReviews || 0,
+          ratingCounts: payload.ratingCounts || {},
+        });
+      } catch (err) {
+        if (active) setReviewError(err.message || "Không thể tải đánh giá");
+      }
+    };
+
+    loadSummary();
+    return () => {
+      active = false;
+    };
+  }, [product?.id]);
+
+  useEffect(() => {
+    if (!product?.id) return;
+    let active = true;
+
+    const loadReviews = async () => {
+      setReviewLoading(true);
+      setReviewError("");
+      try {
+        const payload = await reviewApi.listProductReviews(product.id, {
+          page: reviewPage,
+          size: 10,
+        });
+        if (!active) return;
+        setReviews(payload.content || []);
+        setReviewTotalPages(payload.totalPages || 1);
+      } catch (err) {
+        if (active) setReviewError(err.message || "Không thể tải đánh giá");
+      } finally {
+        if (active) setReviewLoading(false);
+      }
+    };
+
+    loadReviews();
+    return () => {
+      active = false;
+    };
+  }, [product?.id, reviewPage]);
+
+  const handleSubmitReview = async () => {
+    const token = getAccessToken();
+    const userId = getUserId();
+    if (!token || !userId) {
+      requireAuthOrRedirect(navigate, currentPath);
+      return;
+    }
+    if (!product?.id) return;
+    if (!reviewForm.content.trim()) {
+      setReviewError("Vui lòng nhập nội dung đánh giá");
+      return;
+    }
+
+    setReviewLoading(true);
+    setReviewError("");
+    try {
+      let uploadedImages = [];
+      if (reviewImages.length) {
+        const uploadResult = await reviewApi.uploadReviewImages(reviewImages);
+        uploadedImages = (uploadResult.items || []).map((item) => ({
+          url: item.presignedUrl || item.url || "",
+          bucket: item.bucket || null,
+          key: item.key || null,
+        }));
+      }
+      await reviewApi.createReview({
+        productId: product.id,
+        userId,
+        rating: reviewForm.rating,
+        title: reviewForm.title.trim() || null,
+        content: reviewForm.content.trim(),
+        images: uploadedImages,
+      });
+      setReviewForm({ rating: 5, title: "", content: "" });
+      setReviewImages([]);
+      setReviewPage(0);
+      const summary = await reviewApi.getProductReviewSummary(product.id);
+      setReviewSummary({
+        averageRating: summary.averageRating || 0,
+        totalReviews: summary.totalReviews || 0,
+        ratingCounts: summary.ratingCounts || {},
+      });
+      const pagePayload = await reviewApi.listProductReviews(product.id, {
+        page: 0,
+        size: 10,
+      });
+      setReviews(pagePayload.content || []);
+      setReviewTotalPages(pagePayload.totalPages || 1);
+    } catch (err) {
+      setReviewError(err.message || "Không thể gửi đánh giá");
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  const renderStars = (value) => {
+    const stars = [];
+    const filled = Math.round(value);
+    for (let i = 1; i <= 5; i += 1) {
+      stars.push(
+        <span
+          key={`star-${i}`}
+          className={`material-symbols-outlined text-[18px] ${
+            i <= filled ? "text-amber-400" : "text-slate-300"
+          }`}
+        >
+          star
+        </span>,
+      );
+    }
+    return stars;
+  };
+
+  const handleSelectReviewImages = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    setReviewImages((prev) => [...prev, ...files]);
+    event.target.value = "";
+  };
+
+  const handleRemoveReviewImage = (index) => {
+    setReviewImages((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const productPriceLabel = useMemo(() => {
     if (!product) return "";
     return formatPrice(product.price);
   }, [product]);
 
-  const categoryLabel = attributes.categoryLabel || "Sản phẩm";
-  const dosageForm =
-    attributes.dosageForm || attributes.form || "Chưa cập nhật";
-  const packing = attributes.packing || attributes.packaging || "Chưa cập nhật";
-  const ingredient = attributes.ingredient || attributes.activeIngredient || "";
-  const usage = attributes.usage || attributes.indications || "";
-  const warning = attributes.warning || attributes.contraindications || "";
-  const extraInfo = attributes.extraInfo || "";
+  const productOriginalPriceLabel = useMemo(() => {
+    if (!product) return "";
+    const raw =
+      product.oldPrice ?? product.originalPrice ?? attributes.oldPrice;
+    if (raw === null || raw === undefined || raw === "") return "";
+    return formatPrice(raw);
+  }, [product, attributes.oldPrice]);
 
   return (
-    <div className="bg-background-light dark:bg-background-dark min-h-screen font-display flex flex-col text-slate-900 dark:text-slate-100 antialiased">
+    <PageTransition className="bg-background-light dark:bg-background-dark min-h-screen font-display flex flex-col text-slate-900 dark:text-slate-100 antialiased">
       <Header />
 
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -308,14 +484,13 @@ const ProductDetailPage = () => {
                 </p>
 
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl mb-8 border border-slate-100 dark:border-slate-800">
-                  <div className="text-3xl font-black text-primary mb-1">
-                    {priceLabel}
-                    {attributes.unitLabel ? (
-                      <span className="text-sm font-normal text-slate-500">
-                        {` / ${attributes.unitLabel}`}
-                      </span>
-                    ) : null}
-                  </div>
+                  <PriceDisplay
+                    size="detail"
+                    price={productPriceLabel}
+                    originalPrice={productOriginalPriceLabel}
+                    unitLabel={attributes.unitLabel}
+                    showSavings
+                  />
 
                   <p className="text-xs text-slate-400 mb-6 font-medium italic">
                     *Giá có thể thay đổi tùy vào thời điểm và chương trình
@@ -600,7 +775,7 @@ const ProductDetailPage = () => {
                       </div>
                       <div className="p-5">
                         <p className="text-xs text-slate-500 font-bold mb-1">
-                          {attributes.categoryLabel || "Sản phẩm"}
+                          {item.attributes?.categoryLabel || "Sản phẩm"}
                         </p>
                         <h3 className="font-bold text-slate-900 dark:text-white text-sm mb-3 line-clamp-2 group-hover:text-primary transition-colors">
                           {item.name}
@@ -614,12 +789,192 @@ const ProductDetailPage = () => {
                 </div>
               </div>
             ) : null}
+
+            {/* Reviews */}
+            <div className="mt-20">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+                <div>
+                  <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">
+                    Đánh giá sản phẩm
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    {reviewSummary.totalReviews || 0} đánh giá
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="text-3xl font-black text-amber-500">
+                    {Number(reviewSummary.averageRating || 0).toFixed(1)}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {renderStars(reviewSummary.averageRating || 0)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
+                    Gửi đánh giá của bạn
+                  </h3>
+                  <div className="flex items-center gap-2 mb-4">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={`rate-${star}`}
+                        type="button"
+                        onClick={() =>
+                          setReviewForm((prev) => ({ ...prev, rating: star }))
+                        }
+                        className="focus:outline-none"
+                      >
+                        <span
+                          className={`material-symbols-outlined text-[22px] ${
+                            star <= reviewForm.rating
+                              ? "text-amber-400"
+                              : "text-slate-300"
+                          }`}
+                        >
+                          star
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={reviewForm.title}
+                    onChange={(e) =>
+                      setReviewForm((prev) => ({
+                        ...prev,
+                        title: e.target.value,
+                      }))
+                    }
+                    placeholder="Tiêu đề (tùy chọn)"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm mb-3
+                             dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                  />
+                  <textarea
+                    rows={4}
+                    value={reviewForm.content}
+                    onChange={(e) =>
+                      setReviewForm((prev) => ({
+                        ...prev,
+                        content: e.target.value,
+                      }))
+                    }
+                    placeholder="Chia sẻ cảm nhận của bạn..."
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm
+                             dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                  />
+                  {reviewError ? (
+                    <p className="mt-2 text-xs text-rose-500">{reviewError}</p>
+                  ) : null}
+                  {reviewImages.length ? (
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {reviewImages.map((file, idx) => (
+                        <div
+                          key={`${file.name}-${idx}`}
+                          className="relative h-20 w-full overflow-hidden rounded-lg border border-slate-200"
+                        >
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt={file.name}
+                            className="h-full w-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveReviewImage(idx)}
+                            className="absolute right-1 top-1 rounded-full bg-white/80 p-1 text-slate-700 hover:bg-white"
+                            aria-label="Xóa ảnh"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">
+                              close
+                            </span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <label className="mt-3 inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                    <span className="material-symbols-outlined text-[16px]">
+                      add_photo_alternate
+                    </span>
+                    Thêm ảnh
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleSelectReviewImages}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleSubmitReview}
+                    disabled={reviewLoading}
+                    className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-white
+                             hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {reviewLoading ? "Đang gửi..." : "Gửi đánh giá"}
+                  </button>
+                </div>
+
+                <div className="lg:col-span-7">
+                  {reviewLoading && !reviews.length ? (
+                    <div className="text-sm text-slate-500">
+                      Đang tải đánh giá...
+                    </div>
+                  ) : reviews.length ? (
+                    <div className="space-y-4">
+                      {reviews.map((review) => (
+                        <ReviewCard
+                          key={review.id}
+                          review={review}
+                          renderStars={renderStars}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-500">
+                      Chưa có đánh giá nào.
+                    </div>
+                  )}
+
+                  {reviewTotalPages > 1 ? (
+                    <div className="mt-4 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReviewPage((prev) => Math.max(0, prev - 1))
+                        }
+                        disabled={reviewPage === 0}
+                        className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600
+                                 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
+                      >
+                        Trước
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReviewPage((prev) =>
+                            Math.min(reviewTotalPages - 1, prev + 1),
+                          )
+                        }
+                        disabled={reviewPage + 1 >= reviewTotalPages}
+                        className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600
+                                 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
+                      >
+                        Sau
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </>
         )}
       </main>
 
       <Footer />
-    </div>
+    </PageTransition>
   );
 };
 

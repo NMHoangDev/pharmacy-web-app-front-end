@@ -8,6 +8,7 @@ import OnlineNowSection from "../../../components/pharmacists/OnlineNowSection";
 import SortBar from "../../../components/pharmacists/SortBar";
 import PharmacistsGrid from "../../../components/pharmacists/PharmacistsGrid";
 import PharmacistsPagination from "../../../components/pharmacists/PharmacistsPagination";
+import { authApi as api } from "../../../api/httpClients";
 
 const specialtyLabels = {
   clinical: "Dược lâm sàng",
@@ -25,11 +26,15 @@ const defaultAvatar =
   "https://images.unsplash.com/photo-1526256262350-7da7584cf5eb?auto=format&fit=crop&w=300&q=80";
 
 const PharmacistsPage = () => {
-  const [filters, setFilters] = useState({
+  const defaultFilters = {
     specialty: "all",
     mode: "all",
     experience: "all",
-  });
+    ratingGte: null,
+  };
+
+  const [draftFilters, setDraftFilters] = useState(defaultFilters);
+  const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
   const [list, setList] = useState([]);
   const [online, setOnline] = useState([]);
   const [total, setTotal] = useState(0);
@@ -43,37 +48,37 @@ const PharmacistsPage = () => {
       setLoading(true);
       setError("");
       try {
-        const params = new URLSearchParams();
-        if (filters.specialty !== "all") {
-          params.append("specialty", filters.specialty);
+        const queryParams = {
+          verified: "true",
+        };
+        if (appliedFilters.specialty !== "all") {
+          queryParams.specialty = appliedFilters.specialty;
         }
-        if (filters.mode !== "all") {
-          params.append("mode", filters.mode);
+        if (appliedFilters.mode !== "all") {
+          queryParams.mode = appliedFilters.mode;
         }
-        if (filters.experience !== "all") {
-          params.append("experience", filters.experience);
+        if (appliedFilters.experience !== "all") {
+          queryParams.experience = appliedFilters.experience;
         }
-        params.append("verified", "true");
+        if (appliedFilters.ratingGte != null) {
+          queryParams.ratingGte = String(appliedFilters.ratingGte);
+        }
 
-        const response = await fetch(`/api/pharmacists?${params.toString()}`, {
+        const response = await api.get("/api/pharmacists", {
+          params: queryParams,
           signal,
         });
-        if (!response.ok) {
-          throw new Error("Không thể tải danh sách dược sĩ");
-        }
-        const payload = await response.json();
+
+        const payload = response.data;
         setTotal(payload?.totalElements ?? 0);
         setList(payload?.content ?? []);
 
-        const onlineResponse = await fetch("/api/pharmacists/online?limit=4", {
+        const onlineResponse = await api.get("/api/pharmacists/online", {
+          params: { limit: 4 },
           signal,
         });
-        if (onlineResponse.ok) {
-          const onlinePayload = await onlineResponse.json();
-          setOnline(onlinePayload ?? []);
-        } else {
-          setOnline([]);
-        }
+        const onlinePayload = onlineResponse.data;
+        setOnline(onlinePayload ?? []);
       } catch (err) {
         if (err.name !== "AbortError") {
           setError(err.message || "Không thể tải dược sĩ");
@@ -82,7 +87,7 @@ const PharmacistsPage = () => {
         setLoading(false);
       }
     },
-    [filters],
+    [appliedFilters],
   );
 
   useEffect(() => {
@@ -92,6 +97,16 @@ const PharmacistsPage = () => {
   }, [loadPharmacists, reloadKey]);
 
   const handleReload = useCallback(() => setReloadKey((v) => v + 1), []);
+
+  const handleApply = useCallback(
+    () => setAppliedFilters(draftFilters),
+    [draftFilters],
+  );
+
+  const handleReset = useCallback(() => {
+    setDraftFilters(defaultFilters);
+    setAppliedFilters(defaultFilters);
+  }, []);
 
   const mappedList = useMemo(
     () =>
@@ -134,37 +149,32 @@ const PharmacistsPage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#f4f7fb] dark:bg-slate-950 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <Header />
 
-      <main className="flex-1 pt-4 pb-10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+      <main className="flex-1 pt-3 pb-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-3">
           <PharmacistsBreadcrumbs />
 
-          <section className="flex flex-col lg:flex-row gap-6 mt-2">
-            <div className="w-full lg:w-1/4">
+          <section className="flex flex-col lg:flex-row gap-5 mt-1">
+            <div className="w-full lg:w-72">
               <PharmacistsFilters
-                filters={filters}
-                onChange={setFilters}
-                onReset={() =>
-                  setFilters({
-                    specialty: "all",
-                    mode: "all",
-                    experience: "all",
-                  })
-                }
+                filters={draftFilters}
+                onChange={setDraftFilters}
+                onApply={handleApply}
+                onReset={handleReset}
               />
             </div>
-            <div className="w-full lg:w-3/4 flex flex-col gap-5">
+            <div className="w-full flex-1 flex flex-col gap-4">
               {error ? (
-                <div className="rounded-lg bg-red-50 text-red-600 text-sm px-4 py-3">
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                   {error}
                 </div>
               ) : null}
               <OnlineNowSection pharmacists={mappedOnline} />
               <SortBar total={total} />
               {loading ? (
-                <div className="text-sm text-slate-500">
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
                   Đang tải dược sĩ...
                 </div>
               ) : mappedList.length === 0 ? (
@@ -177,7 +187,10 @@ const PharmacistsPage = () => {
               ) : (
                 <PharmacistsGrid pharmacists={mappedList} />
               )}
-              <PharmacistsPagination />
+              <PharmacistsPagination
+                total={total}
+                showing={mappedList.length}
+              />
             </div>
           </section>
         </div>

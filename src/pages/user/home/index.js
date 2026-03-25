@@ -5,10 +5,11 @@ import QuickCategories from "../../../components/home/QuickCategories";
 import FeaturedProducts from "../../../components/home/FeaturedProducts";
 import TrustSection from "../../../components/home/TrustSection";
 import Footer from "../../../components/Footer";
+import PageTransition from "../../../components/ui/PageTransition";
 
 const HomePage = () => {
   return (
-    <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col font-display">
+    <PageTransition className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col font-display">
       <Header />
       <main className="flex-grow">
         <HeroSection />
@@ -17,7 +18,7 @@ const HomePage = () => {
         <TrustSection />
       </main>
       <Footer />
-    </div>
+    </PageTransition>
   );
 };
 

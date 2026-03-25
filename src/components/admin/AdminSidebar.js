@@ -17,6 +17,12 @@ const AdminSidebar = ({ activeKey = "users" }) => {
       to: "/admin/drugs",
     },
     {
+      key: "discounts",
+      label: "Khuyến mãi",
+      icon: "sell",
+      to: "/admin/discounts",
+    },
+    {
       key: "categories",
       label: "Danh mục",
       icon: "category",
@@ -39,6 +45,12 @@ const AdminSidebar = ({ activeKey = "users" }) => {
       label: "Lịch tư vấn",
       icon: "event_upcoming",
       to: "/admin/schedule",
+    },
+    {
+      key: "branches",
+      label: "Chi nhánh",
+      icon: "store",
+      to: "/admin/branches",
     },
     {
       key: "inventory",

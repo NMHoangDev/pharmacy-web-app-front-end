@@ -9,8 +9,8 @@ const ReviewsToolbar = ({
   onStatusChange,
 }) => (
   <div className="p-4 border-b border-[#e7edf3] dark:border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-    <div className="flex flex-1 items-center gap-3">
-      <div className="relative flex-1 max-w-sm">
+    <div className="flex flex-1 flex-wrap items-center gap-3">
+      <div className="relative w-full md:max-w-sm">
         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#4c739a] text-[20px]">
           search
         </span>
@@ -22,7 +22,7 @@ const ReviewsToolbar = ({
           type="text"
         />
       </div>
-      <div className="relative min-w-[140px]">
+      <div className="relative w-full sm:w-[160px]">
         <select
           value={rating}
           onChange={(e) => onRatingChange(e.target.value)}
@@ -39,7 +39,7 @@ const ReviewsToolbar = ({
           arrow_drop_down
         </span>
       </div>
-      <div className="relative min-w-[140px]">
+      <div className="relative w-full sm:w-[180px]">
         <select
           value={status}
           onChange={(e) => onStatusChange(e.target.value)}

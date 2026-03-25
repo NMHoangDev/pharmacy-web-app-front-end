@@ -90,16 +90,18 @@ const CartPage = () => {
   const [cartItems, setCartItems] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const productCacheRef = useRef({});
+  const didInitialRefreshRef = useRef(false);
 
   // Build display cart items from ctxCartItems + product cache
   // Ensure we refresh on mount if context is empty
   useEffect(() => {
-    if (
-      !loading &&
-      (!Array.isArray(ctxCartItems) || ctxCartItems.length === 0)
-    ) {
-      // eslint-disable-next-line no-console
-      console.log("CartPage mounted -> ctx empty calling refreshCart");
+    didInitialRefreshRef.current = false;
+  }, [authUser?.id]);
+
+  useEffect(() => {
+    if (loading || didInitialRefreshRef.current) return;
+    if (!Array.isArray(ctxCartItems) || ctxCartItems.length === 0) {
+      didInitialRefreshRef.current = true;
       refreshCart().catch((e) => {
         // eslint-disable-next-line no-console
         console.warn("refreshCart error", e);
@@ -231,6 +233,12 @@ const CartPage = () => {
       alert("Vui lòng chọn ít nhất 1 sản phẩm để thanh toán.");
       return;
     }
+    try {
+      sessionStorage.setItem(
+        "checkoutSelectedIds",
+        JSON.stringify(selectedIds),
+      );
+    } catch (e) {}
     // tuỳ hệ thống của bạn: dùng /checkout hoặc /payment
     navigate("/checkout");
   }, [navigate, selectedIds]);

@@ -1,4 +1,5 @@
 import React from "react";
+import AdminTableWrapper from "../../common/AdminTableWrapper";
 
 const statusBadge = (status) => {
   const map = {
@@ -6,13 +7,13 @@ const statusBadge = (status) => {
     processing: {
       bg: "bg-blue-100",
       text: "text-blue-800",
-      label: "Processing",
+      label: "Đang xử lý",
     },
-    shipped: { bg: "bg-purple-100", text: "text-purple-800", label: "Shipped" },
+    shipped: { bg: "bg-blue-100", text: "text-blue-800", label: "Processing" },
     completed: {
       bg: "bg-green-100",
       text: "text-green-800",
-      label: "Completed",
+      label: "Hoàn thành",
     },
     cancelled: { bg: "bg-red-100", text: "text-red-800", label: "Cancelled" },
   };
@@ -28,9 +29,21 @@ const statusBadge = (status) => {
 
 const paymentBadge = (payment) => {
   const map = {
-    paid: { bg: "bg-green-100", text: "text-green-800", label: "Paid" },
-    unpaid: { bg: "bg-yellow-100", text: "text-yellow-800", label: "Unpaid" },
-    refunded: { bg: "bg-slate-100", text: "text-slate-800", label: "Refunded" },
+    paid: {
+      bg: "bg-green-100",
+      text: "text-green-800",
+      label: "Đã thanh toán",
+    },
+    unpaid: {
+      bg: "bg-yellow-100",
+      text: "text-yellow-800",
+      label: "Chưa thanh toán",
+    },
+    refunded: {
+      bg: "bg-slate-100",
+      text: "text-slate-800",
+      label: "Đã hoàn tiền",
+    },
   };
   const cfg = map[payment] || map.unpaid;
   return (
@@ -42,87 +55,191 @@ const paymentBadge = (payment) => {
   );
 };
 
-const OrdersTable = ({ orders, selectedId, onSelect }) => {
+const clampStyle = (lines) => ({
+  display: "-webkit-box",
+  WebkitLineClamp: lines,
+  WebkitBoxOrient: "vertical",
+  overflow: "hidden",
+  wordBreak: "break-word",
+  overflowWrap: "anywhere",
+});
+
+const OrdersTable = ({ orders, onView, onComplete, onCancel }) => {
   return (
-    <div className="flex-1 flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden h-full">
-      <div className="overflow-auto flex-1 custom-scrollbar">
-        <table className="w-full text-left border-collapse">
-          <thead className="bg-slate-50 dark:bg-slate-700/50 sticky top-0 z-10 backdrop-blur-sm">
+    <AdminTableWrapper className="overflow-hidden" padded={false}>
+      <div className="overflow-hidden">
+        <table className="w-full text-left border-collapse table-fixed">
+          <colgroup>
+            <col style={{ width: "160px" }} />
+            <col style={{ width: "200px" }} />
+            <col style={{ width: "140px" }} />
+            <col style={{ width: "120px" }} />
+            <col style={{ width: "120px" }} />
+            <col style={{ width: "120px" }} />
+            <col style={{ width: "100px" }} />
+          </colgroup>
+          <thead className="bg-slate-50 text-[11px] uppercase text-slate-500 sm:text-xs">
             <tr>
-              <th className="p-4 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+              <th className="px-2 py-2.5 font-semibold sm:px-3 sm:py-3">
                 Mã đơn
               </th>
-              <th className="p-4 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+              <th className="px-2 py-2.5 font-semibold sm:px-3 sm:py-3">
                 Khách hàng
               </th>
-              <th className="p-4 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider hidden md:table-cell">
+              <th className="px-2 py-2.5 font-semibold sm:px-3 sm:py-3">
                 Ngày đặt
               </th>
-              <th className="p-4 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider text-right">
+              <th className="px-2 py-2.5 text-right font-semibold sm:px-3 sm:py-3">
                 Tổng tiền
               </th>
-              <th className="p-4 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider text-center">
+              <th className="px-2 py-2.5 text-center font-semibold sm:px-3 sm:py-3">
                 Thanh toán
               </th>
-              <th className="p-4 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider text-center">
+              <th className="px-2 py-2.5 text-center font-semibold sm:px-3 sm:py-3">
                 Trạng thái
+              </th>
+              <th className="px-2 py-2.5 text-center font-semibold sm:px-3 sm:py-3">
+                Hành động
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+          <tbody className="divide-y divide-slate-100">
             {orders.map((order) => {
-              const isActive = order.id === selectedId;
+              const dateObj =
+                order.dateObj || new Date(order.createdAt || Date.now());
+              const datePart = dateObj.toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              });
+              const timePart = dateObj.toLocaleTimeString("en-GB", {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
               return (
                 <tr
                   key={order.id}
-                  onClick={() => onSelect(order.id)}
-                  className={`cursor-pointer transition-colors border-l-4 ${
-                    isActive
-                      ? "bg-primary/5 dark:bg-primary/10 border-l-primary"
-                      : "border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-700/30"
-                  }`}
+                  className="group transition-colors hover:bg-[#fafafa]"
                 >
-                  <td
-                    className={`p-4 text-sm font-medium ${
-                      isActive
-                        ? "text-primary"
-                        : "text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    {order.id}
-                  </td>
-                  <td className="p-4 text-sm text-slate-900 dark:text-white font-medium">
-                    <div className="flex flex-col">
-                      <span>{order.customer}</span>
-                      <span className="text-xs text-slate-500 font-normal md:hidden">
-                        {order.dateLabel}
+                  <td className="px-2 py-2.5 align-middle sm:px-3 sm:py-3">
+                    <div className="flex min-w-0 flex-col justify-center">
+                      <span
+                        className="text-[12px] font-semibold leading-5 text-slate-900 sm:text-sm"
+                        style={clampStyle(2)}
+                        title={String(order.id || "")}
+                      >
+                        {String(order.id || "")}
                       </span>
                     </div>
                   </td>
-                  <td className="p-4 text-sm text-slate-500 dark:text-slate-400 hidden md:table-cell">
-                    {order.dateLabel}
+
+                  <td className="px-2 py-2.5 align-middle sm:px-3 sm:py-3">
+                    <div className="flex min-w-0 flex-col justify-center gap-0.5">
+                      <span
+                        className="text-[12px] font-semibold leading-5 text-slate-900 sm:text-sm"
+                        style={clampStyle(2)}
+                        title={order.customer || "-"}
+                      >
+                        {order.customer || "-"}
+                      </span>
+                      <span
+                        className="text-[11px] leading-4 text-slate-500 sm:text-xs"
+                        style={clampStyle(2)}
+                        title={order.userId || order.phone || "-"}
+                      >
+                        {order.userId || order.phone || "-"}
+                      </span>
+                    </div>
                   </td>
-                  <td className="p-4 text-sm font-semibold text-slate-900 dark:text-white text-right">
-                    {order.totalLabel}
+
+                  <td className="px-2 py-2.5 align-middle sm:px-3 sm:py-3">
+                    <div className="flex min-w-0 flex-col justify-center gap-0.5">
+                      <span
+                        className="text-[12px] leading-5 text-slate-700 sm:text-sm"
+                        style={clampStyle(1)}
+                        title={datePart}
+                      >
+                        {datePart}
+                      </span>
+                      <span
+                        className="text-[11px] leading-4 text-slate-500 sm:text-xs"
+                        style={clampStyle(1)}
+                        title={timePart}
+                      >
+                        {timePart}
+                      </span>
+                    </div>
                   </td>
-                  <td className="p-4 text-center">
+
+                  <td className="px-2 py-2.5 text-right align-middle sm:px-3 sm:py-3">
+                    <div className="flex min-w-0 flex-col justify-center">
+                      <span
+                        className="text-[12px] font-semibold leading-5 text-slate-900 sm:text-sm"
+                        style={clampStyle(1)}
+                        title={order.totalLabel}
+                      >
+                        {order.totalLabel}
+                      </span>
+                    </div>
+                  </td>
+
+                  <td className="px-2 py-2.5 text-center align-middle sm:px-3 sm:py-3">
                     {paymentBadge(order.payment)}
                   </td>
-                  <td className="p-4 text-center">
+
+                  <td className="px-2 py-2.5 text-center align-middle sm:px-3 sm:py-3">
                     {statusBadge(order.status)}
+                  </td>
+
+                  <td className="px-2 py-2.5 text-center align-middle sm:px-3 sm:py-3">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => onView?.(order.id)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 sm:h-8 sm:w-8"
+                        title="Xem chi tiết"
+                        aria-label="Xem chi tiết"
+                      >
+                        <span className="material-symbols-outlined text-[17px] sm:text-[18px]">
+                          visibility
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onComplete?.(order.id)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600 sm:h-8 sm:w-8"
+                        title="Hoàn tất"
+                        aria-label="Hoàn tất"
+                      >
+                        <span className="material-symbols-outlined text-[17px] sm:text-[18px]">
+                          check_circle
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onCancel?.(order.id)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600 sm:h-8 sm:w-8"
+                        title="Hủy đơn"
+                        aria-label="Hủy đơn"
+                      >
+                        <span className="material-symbols-outlined text-[17px] sm:text-[18px]">
+                          cancel
+                        </span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        {orders.length === 0 && (
+          <div className="py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+            Chưa có đơn hàng nào.
+          </div>
+        )}
       </div>
-      <div className="border-t border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between bg-white dark:bg-slate-800">
-        <span className="text-sm text-slate-500 dark:text-slate-400">
-          Đang hiển thị {orders.length} đơn hàng
-        </span>
-      </div>
-    </div>
+    </AdminTableWrapper>
   );
 };
 

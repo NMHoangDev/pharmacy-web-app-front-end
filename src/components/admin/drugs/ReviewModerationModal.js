@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { authApi as api } from "../../../api/httpClients";
 
 const statusStyles = {
   PUBLISHED: "bg-emerald-50 text-emerald-700",
@@ -28,23 +29,23 @@ const ReviewModerationModal = ({
     setError("");
 
     try {
-      const params = new URLSearchParams({
+      const queryParams = {
         page: String(page),
         size: "5",
-      });
+      };
       if (statusFilter) {
-        params.set("status", statusFilter);
+        queryParams.status = statusFilter;
       }
 
-      const response = await fetch(
-        `/api/reviews/internal/product/${product.id}?${params.toString()}`,
-        { signal }
+      const response = await api.get(
+        `/api/reviews/internal/product/${product.id}`,
+        {
+          params: queryParams,
+          signal,
+        },
       );
-      if (!response.ok) {
-        throw new Error("Không thể tải đánh giá");
-      }
 
-      const payload = await response.json();
+      const payload = response.data;
       setReviews(payload.content ?? []);
       setTotalPages(payload.totalPages ?? 1);
     } catch (err) {
@@ -72,14 +73,10 @@ const ReviewModerationModal = ({
 
   const updateStatus = async (reviewId, nextStatus) => {
     try {
-      const response = await fetch(`/api/reviews/internal/${reviewId}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
+      await api.put(`/api/reviews/internal/${reviewId}/status`, {
+        status: nextStatus,
       });
-      if (!response.ok) {
-        throw new Error("Không thể cập nhật trạng thái");
-      }
+
       setReviews((prev) =>
         prev.map((item) =>
           item.id === reviewId ? { ...item, status: nextStatus } : item

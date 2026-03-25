@@ -33,7 +33,7 @@ const ShippingMethods = ({ options, selectedId, onSelect }) => {
                     {opt.name}
                   </p>
                   <p className="text-sm text-[#4c739a] dark:text-gray-400">
-                    {opt.desc}
+                    {opt.description}
                   </p>
                 </div>
               </div>

@@ -1,77 +1,138 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
-const LoginForm = ({ onSubmit, loading }) => {
+const GoogleIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+    <path
+      fill="#EA4335"
+      d="M12 10.2v3.9h5.5c-.2 1.3-1.5 3.9-5.5 3.9-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.2.8 3.9 1.5l2.7-2.6C17 3.3 14.7 2.3 12 2.3a9.7 9.7 0 0 0 0 19.4c5.6 0 9.3-3.9 9.3-9.4 0-.6-.1-1.1-.2-1.6H12z"
+    />
+  </svg>
+);
+
+const FacebookIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+    <path
+      fill="#1877F2"
+      d="M24 12a12 12 0 1 0-13.9 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.6 4.5-4.6 1.3 0 2.7.2 2.7.2V8h-1.5c-1.5 0-2 .9-2 1.9V12h3.4l-.6 3.5h-2.8v8.4A12 12 0 0 0 24 12z"
+    />
+  </svg>
+);
+
+const LoginForm = ({ onSubmit, loading, error }) => {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({
+    identifier: "",
+    password: "",
+  });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!identifier.trim() || !password.trim()) {
-      alert("Vui lòng nhập đầy đủ thông tin đăng nhập.");
+
+    const nextErrors = {
+      identifier: identifier.trim()
+        ? ""
+        : "Vui lòng nhập email hoặc số điện thoại.",
+      password: password.trim() ? "" : "Vui lòng nhập mật khẩu.",
+    };
+
+    setFieldErrors(nextErrors);
+
+    if (nextErrors.identifier || nextErrors.password) {
       return;
     }
+
     onSubmit?.({ identifier, password, remember });
   };
 
+  const inputClassName =
+    "w-full h-11 rounded-[10px] border border-[#E5E7EB] bg-white/95 px-3 text-sm text-[#111827] placeholder:text-[#9CA3AF] outline-none transition-all duration-200 focus:border-blue-500 focus:shadow-[0_0_0_3px_rgba(37,99,235,0.10)]";
+
   return (
-    <form className="flex flex-col gap-5 mt-4" onSubmit={handleSubmit}>
-      <label className="flex flex-col w-full">
-        <span className="text-slate-900 dark:text-white text-sm font-medium pb-2">
-          Email hoặc Số điện thoại
-        </span>
-        <input
-          className="form-input w-full rounded-lg border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white h-12 px-4 placeholder:text-slate-400 focus:border-primary focus:ring-primary focus:ring-1"
-          placeholder="Nhập email hoặc số điện thoại"
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          required
-          type="text"
-        />
-      </label>
-
-      <label className="flex flex-col w-full">
-        <div className="flex justify-between items-center pb-2">
-          <span className="text-slate-900 dark:text-white text-sm font-medium">
-            Mật khẩu
+    <form
+      className="mt-6 flex flex-col gap-6"
+      onSubmit={handleSubmit}
+      noValidate
+    >
+      <div className="flex flex-col gap-4">
+        <label className="flex flex-col w-full">
+          <span className="pb-2 text-[13px] font-medium text-[#111827]">
+            Email hoặc Số điện thoại
           </span>
-        </div>
-        <div className="relative flex w-full items-center rounded-lg">
           <input
-            className="form-input w-full rounded-lg border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white h-12 px-4 pr-12 placeholder:text-slate-400 focus:border-primary focus:ring-primary focus:ring-1"
-            placeholder="Nhập mật khẩu"
-            required
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            className={`${inputClassName} ${fieldErrors.identifier ? "border-red-300 focus:border-red-400 focus:shadow-[0_0_0_3px_rgba(239,68,68,0.12)]" : ""}`}
+            placeholder="Nhập email hoặc số điện thoại"
+            value={identifier}
+            onChange={(e) => {
+              setIdentifier(e.target.value);
+              if (fieldErrors.identifier) {
+                setFieldErrors((prev) => ({ ...prev, identifier: "" }));
+              }
+            }}
+            type="text"
+            aria-invalid={Boolean(fieldErrors.identifier)}
           />
-          <button
-            className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-            type="button"
-            onClick={() => setShowPassword((prev) => !prev)}
-            aria-label="Toggle password visibility"
-          >
-            <span className="material-symbols-outlined">visibility</span>
-          </button>
-        </div>
-      </label>
+          {fieldErrors.identifier && (
+            <span className="mt-1 text-xs text-red-600">
+              {fieldErrors.identifier}
+            </span>
+          )}
+        </label>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+        <label className="flex flex-col w-full">
+          <div className="flex justify-between items-center pb-2">
+            <span className="text-[13px] font-medium text-[#111827]">
+              Mật khẩu
+            </span>
+          </div>
+          <div className="relative flex w-full items-center rounded-lg">
+            <input
+              className={`${inputClassName} pr-10 ${fieldErrors.password || error ? "border-red-300 focus:border-red-400 focus:shadow-[0_0_0_3px_rgba(239,68,68,0.12)]" : ""}`}
+              placeholder="Nhập mật khẩu"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (fieldErrors.password) {
+                  setFieldErrors((prev) => ({ ...prev, password: "" }));
+                }
+              }}
+              aria-invalid={Boolean(fieldErrors.password || error)}
+            />
+            <button
+              className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center text-[#9CA3AF] hover:text-[#6B7280] transition-colors"
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label="Toggle password visibility"
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                visibility
+              </span>
+            </button>
+          </div>
+          {(fieldErrors.password || error) && (
+            <span className="mt-1 text-xs text-red-600">
+              {fieldErrors.password || error}
+            </span>
+          )}
+        </label>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 text-xs">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
-            className="h-4 w-4 rounded border-slate-300 bg-white text-primary focus:ring-primary/20 transition-all"
+            className="h-4 w-4 rounded border-[#E5E7EB] bg-white text-[#2563EB] focus:ring-[#2563EB]/20"
             type="checkbox"
             checked={remember}
             onChange={(e) => setRemember(e.target.checked)}
           />
-          <span className="text-slate-700 dark:text-slate-300 text-sm font-medium select-none">
-            Ghi nhớ đăng nhập
-          </span>
+          <span className="text-[#6B7280] select-none">Ghi nhớ đăng nhập</span>
         </label>
         <Link
-          className="text-primary hover:text-primary-hover text-sm font-bold hover:underline"
+          className="text-[#2563EB] hover:text-blue-700 font-medium"
           to="/forgot-password"
         >
           Quên mật khẩu?
@@ -79,65 +140,52 @@ const LoginForm = ({ onSubmit, loading }) => {
       </div>
 
       <button
-        className="group flex w-full items-center justify-center gap-2 rounded-lg bg-primary hover:bg-primary-hover active:bg-primary-hover text-white h-12 px-6 text-sm font-bold tracking-wide transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex w-full items-center justify-center gap-2 rounded-[10px] text-white h-11 px-6 text-sm font-medium shadow-[0_8px_18px_rgba(37,99,235,0.26)] transition-all duration-200 hover:-translate-y-[1px] hover:scale-[1.02] hover:shadow-[0_12px_22px_rgba(37,99,235,0.28)] disabled:cursor-not-allowed disabled:from-blue-300 disabled:to-blue-400 disabled:shadow-none"
+        style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #2563eb)" }}
         type="submit"
         disabled={loading}
       >
+        {loading && (
+          <span className="h-4 w-4 rounded-full border-2 border-white/70 border-t-transparent animate-spin" />
+        )}
         <span>{loading ? "Đang đăng nhập..." : "Đăng nhập"}</span>
-        <span className="material-symbols-outlined text-[18px] group-hover:translate-x-0.5 transition-transform">
-          arrow_forward
-        </span>
       </button>
 
-      <div className="relative flex py-2 items-center">
-        <div className="flex-grow border-t border-slate-200 dark:border-slate-700" />
-        <span className="flex-shrink-0 mx-4 text-slate-400 text-xs font-medium uppercase tracking-wider">
+      <div className="relative flex items-center py-1">
+        <div className="flex-grow border-t border-[#E5E7EB]" />
+        <span className="mx-3 text-[11px] uppercase tracking-wide text-[#9CA3AF]">
           Hoặc tiếp tục với
         </span>
-        <div className="flex-grow border-t border-slate-200 dark:border-slate-700" />
+        <div className="flex-grow border-t border-[#E5E7EB]" />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         <button
-          className="flex items-center justify-center gap-2 h-11 px-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          className="flex items-center justify-center gap-2 h-11 px-4 rounded-[10px] border border-[#E5E7EB] bg-white hover:border-blue-200 hover:bg-[#F8FAFF] hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)] transition-all duration-200"
           type="button"
           onClick={() => alert("Đăng nhập bằng Google")}
         >
-          <img
-            alt="Google"
-            className="w-5 h-5"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCGMCi3DBFwXEqBPOjbaS-qeDWcmyN1ETB64Qp7N6bpVJgtxHWsKKKKPU27WqOb_eCGwIsWVrZPWRAmtX9fQ3IDepRtGMByGMLJ8_g_GVnJYyihD5gArfEz-2HoP5YH6DJziWqLBcJiBAGLXm9bSJBgugjl9hLINtqFjSfw8BiO45Vty0_HGxotDfAXeXQTKzNt72ORlkBGn5sRLjl-uKPJ4BhZG9yYCRKcLgJKN56rB57Y4e7zpzdiSub0pMLD55vT89x1dD_z_9wF"
-          />
-          <span className="text-slate-700 dark:text-slate-200 text-sm font-semibold">
-            Google
-          </span>
+          <GoogleIcon />
+          <span className="text-[#111827] text-sm font-medium">Google</span>
         </button>
         <button
-          className="flex items-center justify-center gap-2 h-11 px-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          className="flex items-center justify-center gap-2 h-11 px-4 rounded-[10px] border border-[#E5E7EB] bg-white hover:border-blue-200 hover:bg-[#F8FAFF] hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)] transition-all duration-200"
           type="button"
           onClick={() => alert("Đăng nhập bằng Facebook")}
         >
-          <img
-            alt="Facebook"
-            className="w-5 h-5"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBX96PyHlQ5eQRnMuY0bFOjvYtj43vz8bCf9Qhtzh6kYLXqLxa_ADampRJZDk62ksQOs9XT-uSvz4bpwWZncPbVy7lEoRvR5__AKquulbL5jq6vjb-3No_PeLZJjSe8nc8zTvuYVTt1t3yVOEKdXziKHxJgacZABlKs6KgZJS5yFbMF9QDUzPmwnRYD1fuw8b5o3eC30GLoiEqFQvmzYVPthJuVzTqvk37LTud-lQaGXpT1YEFtwgkx9OuehfuF_UIt93-0y2pr1Cdk"
-          />
-          <span className="text-slate-700 dark:text-slate-200 text-sm font-semibold">
-            Facebook
-          </span>
+          <FacebookIcon />
+          <span className="text-[#111827] text-sm font-medium">Facebook</span>
         </button>
       </div>
 
-      <div className="text-center mt-2">
-        <p className="text-slate-600 dark:text-slate-400 text-sm">
-          Chưa có tài khoản?
-          <Link
-            className="text-primary hover:text-primary-hover font-bold hover:underline ml-1"
-            to="/signup"
-          >
-            Đăng ký ngay
-          </Link>
-        </p>
+      <div className="text-center text-sm text-[#6B7280]">
+        Chưa có tài khoản?
+        <Link
+          className="text-[#2563EB] hover:text-blue-700 font-medium ml-1"
+          to="/signup"
+        >
+          Đăng ký ngay
+        </Link>
       </div>
     </form>
   );

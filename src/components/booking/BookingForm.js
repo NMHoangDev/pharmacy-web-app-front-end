@@ -2,24 +2,16 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as appointmentApi from "../../api/appointmentApi";
+import useNotificationAction from "../../hooks/useNotificationAction";
 import "./scrollbar.css";
-
-const DAYS = [
-  { key: "t2", dow: "T2", day: 23, disabled: false },
-  { key: "t3", dow: "T3", day: 24, disabled: false },
-  { key: "t4", dow: "T4", day: 25, disabled: false },
-  { key: "t5", dow: "T5", day: 26, disabled: false },
-  { key: "t6", dow: "T6", day: 27, disabled: false },
-  { key: "t7", dow: "T7", day: 28, disabled: true },
-];
 
 const MORNING_SLOTS = [
   { time: "08:00", disabled: false },
   { time: "08:30", disabled: false },
   { time: "09:00", disabled: false },
   { time: "09:30", disabled: false },
-  { time: "10:00", disabled: true },
-  { time: "10:30", disabled: true },
+  { time: "10:00", disabled: false },
+  { time: "10:30", disabled: false },
 ];
 
 const AFTERNOON_SLOTS = [
@@ -34,33 +26,28 @@ const AFTERNOON_SLOTS = [
 const METHOD_OPTIONS = [
   {
     id: "video_call",
-    title: "Video Call",
-    desc: "Gặp mặt trực tuyến qua video",
+    title: "Video call",
+    desc: "Tư vấn qua video trực tuyến",
     icon: "videocam",
-    iconBg: "bg-blue-100 dark:bg-blue-500/15",
-    iconText: "text-primary",
   },
   {
     id: "voice_call",
-    title: "Voice Call",
-    desc: "Trao đổi qua cuộc gọi thoại",
+    title: "Voice call",
+    desc: "Tư vấn qua cuộc gọi thoại",
     icon: "call",
-    iconBg: "bg-green-100 dark:bg-green-500/15",
-    iconText: "text-green-600 dark:text-green-400",
   },
   {
     id: "chat",
     title: "Chat",
-    desc: "Nhắn tin trực tiếp với dược sĩ",
+    desc: "Tư vấn qua nhắn tin",
     icon: "chat",
-    iconBg: "bg-purple-100 dark:bg-purple-500/15",
-    iconText: "text-purple-600 dark:text-purple-400",
   },
 ];
 
 function pad(n) {
   return String(n).padStart(2, "0");
 }
+
 function formatLocalDateTime(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
     d.getHours(),
@@ -70,14 +57,54 @@ function formatLocalDateTime(d) {
 function isEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
 }
+
 function isPhone(v) {
-  // đơn giản: nhận số VN 9–11 digits (bạn có thể siết chặt hơn tuỳ dự án)
   return /^[0-9]{9,11}$/.test(
     String(v || "")
       .trim()
       .replace(/\s/g, ""),
   );
 }
+
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d, n) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+function isSameDay(a, b) {
+  return startOfDay(a).getTime() === startOfDay(b).getTime();
+}
+
+function formatDow(d) {
+  const map = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+  return map[d.getDay()];
+}
+
+function formatMonthYear(d) {
+  return d.toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
+}
+
+function toMinutes(hhmm) {
+  const [h, m] = String(hhmm).split(":").map(Number);
+  return h * 60 + m;
+}
+
+const Section = ({ step, title, children }) => (
+  <section className="space-y-4">
+    <div className="flex items-center gap-2">
+      <span className="grid h-6 w-6 place-items-center rounded-full bg-blue-600 text-xs font-semibold text-white">
+        {step}
+      </span>
+      <h4 className="text-base font-semibold text-slate-900">{title}</h4>
+    </div>
+    {children}
+  </section>
+);
 
 const Field = ({
   label,
@@ -87,97 +114,59 @@ const Field = ({
   error,
   type = "text",
 }) => {
-  const hasValue = String(value || "").length > 0;
-
   return (
-    <label className="group relative block">
+    <label className="block">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-sm font-medium text-slate-700">{label}</span>
+        {error ? <span className="text-xs text-rose-600">{error}</span> : null}
+      </div>
       <input
         type={type}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
         className={[
-          "peer w-full h-12 rounded-xl border bg-white/70 dark:bg-slate-900/60",
-          "border-slate-200 dark:border-slate-700",
-          "px-4 pt-4 text-slate-900 dark:text-white",
-          "placeholder:opacity-0",
-          "outline-none transition-all",
-          "focus:border-primary focus:ring-4 focus:ring-primary/15",
+          "h-11 w-full rounded-lg border px-3 text-sm",
+          "bg-white text-slate-900 placeholder:text-slate-400",
+          "outline-none focus:ring-2 focus:ring-blue-100",
           error
-            ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
-            : "",
+            ? "border-rose-300 focus:border-rose-400"
+            : "border-slate-200 focus:border-blue-400",
         ].join(" ")}
       />
-      <span
-        className={[
-          "pointer-events-none absolute left-4 top-1/2 -translate-y-1/2",
-          "text-slate-500 dark:text-slate-400 transition-all",
-          "peer-focus:top-3 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary",
-          hasValue
-            ? "top-3 -translate-y-0 text-xs text-slate-600 dark:text-slate-300"
-            : "",
-        ].join(" ")}
-      >
-        {label}
-      </span>
-
-      {error ? (
-        <p className="mt-1 text-xs text-red-500">{error}</p>
-      ) : (
-        <p className="mt-1 text-xs text-slate-400/0 select-none">.</p>
-      )}
     </label>
   );
 };
 
 const TextareaField = ({ label, value, onChange, placeholder, error }) => {
-  const hasValue = String(value || "").length > 0;
-
   return (
-    <label className="group relative block">
+    <label className="block">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-sm font-medium text-slate-700">{label}</span>
+        {error ? <span className="text-xs text-rose-600">{error}</span> : null}
+      </div>
       <textarea
         value={value}
         onChange={onChange}
         placeholder={placeholder}
         className={[
-          "peer w-full min-h-[120px] rounded-xl border bg-white/70 dark:bg-slate-900/60",
-          "border-slate-200 dark:border-slate-700",
-          "px-4 pt-6 pb-3 text-slate-900 dark:text-white",
-          "placeholder:opacity-0",
-          "outline-none transition-all resize-none",
-          "focus:border-primary focus:ring-4 focus:ring-primary/15",
+          "min-h-[120px] w-full rounded-lg border px-3 py-2.5 text-sm",
+          "bg-white text-slate-900 placeholder:text-slate-400",
+          "outline-none focus:ring-2 focus:ring-blue-100 resize-none",
           error
-            ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
-            : "",
+            ? "border-rose-300 focus:border-rose-400"
+            : "border-slate-200 focus:border-blue-400",
         ].join(" ")}
       />
-      <span
-        className={[
-          "pointer-events-none absolute left-4 top-5",
-          "text-slate-500 dark:text-slate-400 transition-all",
-          "peer-focus:text-xs peer-focus:text-primary peer-focus:-translate-y-2",
-          hasValue
-            ? "text-xs text-slate-600 dark:text-slate-300 -translate-y-2"
-            : "",
-        ].join(" ")}
-      >
-        {label}
-      </span>
-
-      {error ? (
-        <p className="mt-1 text-xs text-red-500">{error}</p>
-      ) : (
-        <p className="mt-1 text-xs text-slate-400/0 select-none">.</p>
-      )}
     </label>
   );
 };
 
 const MethodCard = ({ option, checked, onChange }) => {
   return (
-    <label className="relative cursor-pointer">
+    <label className="cursor-pointer">
       <input
-        className="peer sr-only"
+        className="sr-only"
         name="method"
         type="radio"
         checked={checked}
@@ -185,34 +174,26 @@ const MethodCard = ({ option, checked, onChange }) => {
       />
       <div
         className={[
-          "h-full rounded-2xl border p-4 transition-all",
-          "border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60",
-          "hover:-translate-y-[1px] hover:shadow-md hover:shadow-slate-200/40 dark:hover:shadow-slate-950/40",
-          "peer-checked:border-primary peer-checked:ring-4 peer-checked:ring-primary/10 peer-checked:bg-primary/5",
+          "h-full rounded-lg border p-3 transition-colors",
+          checked
+            ? "border-blue-300 bg-blue-50"
+            : "border-slate-200 bg-white hover:bg-slate-50",
         ].join(" ")}
       >
-        <div className="flex items-start gap-3">
-          <div
+        <div className="flex items-start gap-2.5">
+          <span
             className={[
-              "size-11 rounded-2xl flex items-center justify-center",
-              option.iconBg,
-              option.iconText,
+              "material-symbols-outlined text-[18px] mt-0.5",
+              checked ? "text-blue-700" : "text-slate-500",
             ].join(" ")}
           >
-            <span className="material-symbols-outlined">{option.icon}</span>
-          </div>
-
-          <div className="flex-1">
-            <p className="font-bold text-slate-900 dark:text-white">
+            {option.icon}
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-slate-900">
               {option.title}
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {option.desc}
-            </p>
-          </div>
-
-          <div className="text-primary opacity-0 peer-checked:opacity-100 transition-opacity">
-            <span className="material-symbols-outlined">check_circle</span>
+            <p className="mt-0.5 text-xs text-slate-500">{option.desc}</p>
           </div>
         </div>
       </div>
@@ -221,14 +202,20 @@ const MethodCard = ({ option, checked, onChange }) => {
 };
 
 const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
+  const navigate = useNavigate();
+  const { notifyAfterSuccess } = useNotificationAction();
+
   const [fullName, setFullName] = useState("");
   const [contact, setContact] = useState("");
-  const [selectedDayKey, setSelectedDayKey] = useState(DAYS[0].key);
+
+  const today = useMemo(() => startOfDay(new Date()), []);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDateISO, setSelectedDateISO] = useState(
+    today.toISOString().slice(0, 10),
+  );
+
   const [selectedTime, setSelectedTime] = useState("09:00");
-
-  // FIX: default phải khớp option.id
   const [method, setMethod] = useState("video_call");
-
   const [description, setDescription] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -240,23 +227,45 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
 
   const [dialog, setDialog] = useState({
     open: false,
-    type: "success", // success | error | busy
+    type: "success",
     title: "",
     message: "",
   });
 
-  const selectedDay = useMemo(
-    () => DAYS.find((d) => d.key === selectedDayKey) ?? DAYS[0],
-    [selectedDayKey],
-  );
+  const days = useMemo(() => {
+    const base = addDays(today, weekOffset * 7);
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = addDays(base, i);
+      const iso = date.toISOString().slice(0, 10);
+      const disabled = date < today;
+      return {
+        key: iso,
+        iso,
+        date,
+        dow: formatDow(date),
+        day: date.getDate(),
+        disabled,
+      };
+    });
+  }, [today, weekOffset]);
 
-  const navigate = useNavigate();
+  const selectedDay = useMemo(() => {
+    return days.find((d) => d.iso === selectedDateISO) ?? days[0];
+  }, [days, selectedDateISO]);
+
+  const monthLabel = useMemo(() => {
+    return formatMonthYear(days[0]?.date ?? today);
+  }, [days, today]);
+
+  const canGoPrev = weekOffset > 0;
 
   const validate = () => {
     const next = { fullName: "", contact: "", description: "" };
 
-    if (!String(fullName || "").trim())
+    if (!String(fullName || "").trim()) {
       next.fullName = "Vui lòng nhập họ và tên.";
+    }
+
     if (!String(contact || "").trim()) {
       next.contact = "Vui lòng nhập số điện thoại hoặc email.";
     } else if (!isEmail(contact) && !isPhone(contact)) {
@@ -264,7 +273,6 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
         "Thông tin liên hệ không hợp lệ (email hoặc số điện thoại).";
     }
 
-    // mô tả không bắt buộc, nhưng nếu nhập thì nên tối thiểu vài ký tự cho “xịn”
     if (
       String(description || "").trim() &&
       String(description || "").trim().length < 10
@@ -278,39 +286,25 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
   };
 
   const renderSlotButton = (slot, isSelected) => {
-    const base =
-      "py-2 px-1 rounded-xl text-sm font-semibold transition-all select-none";
+    const now = new Date();
+    const bufferMinutes = 10;
 
-    if (slot.disabled) {
+    const isToday = isSameDay(selectedDay.date, now);
+    const slotIsPast =
+      isToday &&
+      toMinutes(slot.time) <=
+        now.getHours() * 60 + now.getMinutes() + bufferMinutes;
+
+    const disabled = Boolean(slot.disabled) || slotIsPast;
+
+    if (disabled) {
       return (
         <button
           key={slot.time}
           type="button"
           disabled
-          className={[
-            base,
-            "border border-slate-100 dark:border-slate-800",
-            "bg-slate-50 dark:bg-slate-800/50",
-            "text-slate-300 dark:text-slate-600 cursor-not-allowed",
-          ].join(" ")}
-        >
-          {slot.time}
-        </button>
-      );
-    }
-
-    if (isSelected) {
-      return (
-        <button
-          key={slot.time}
-          type="button"
-          onClick={() => setSelectedTime(slot.time)}
-          className={[
-            base,
-            "bg-primary text-white shadow-sm",
-            "ring-4 ring-primary/20",
-            "hover:brightness-[0.98]",
-          ].join(" ")}
+          className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-sm font-medium text-slate-300"
+          title={slotIsPast ? "Giờ này đã qua" : "Không khả dụng"}
         >
           {slot.time}
         </button>
@@ -323,12 +317,10 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
         type="button"
         onClick={() => setSelectedTime(slot.time)}
         className={[
-          base,
-          "border border-slate-200 dark:border-slate-700",
-          "text-slate-700 dark:text-slate-200",
-          "bg-white/60 dark:bg-slate-900/40",
-          "hover:border-primary hover:text-primary hover:bg-primary/5",
-          "hover:-translate-y-[1px]",
+          "rounded-md border px-2 py-2 text-sm font-medium transition-colors",
+          isSelected
+            ? "border-blue-300 bg-blue-50 text-blue-700"
+            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
         ].join(" ")}
       >
         {slot.time}
@@ -354,25 +346,16 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
       const authUser = JSON.parse(rawUser || "{}");
       const userId = authUser?.id;
       if (!userId) throw new Error("Không tìm thấy userId trong session");
+      if (!pharmacistId) throw new Error("Không xác định dược sĩ để đặt lịch");
 
-      if (!pharmacistId) {
-        throw new Error("Không xác định dược sĩ để đặt lịch");
+      const [hourStr, minuteStr] = selectedTime.split(":");
+      const startDate = new Date(selectedDay.date);
+      startDate.setHours(parseInt(hourStr, 10), parseInt(minuteStr, 10), 0, 0);
+
+      if (startDate.getTime() < Date.now()) {
+        throw new Error("Bạn không thể chọn thời gian trong quá khứ.");
       }
 
-      // build startAt using selectedDay.day and current month/year
-      const now = new Date();
-      const year = now.getFullYear();
-      const monthIndex = now.getMonth();
-      const dayOfMonth = selectedDay.day;
-      const [hourStr, minuteStr] = selectedTime.split(":");
-      const startDate = new Date(
-        year,
-        monthIndex,
-        dayOfMonth,
-        parseInt(hourStr, 10),
-        parseInt(minuteStr, 10),
-        0,
-      );
       const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
 
       const payload = {
@@ -384,7 +367,23 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
         notes: description || undefined,
       };
 
-      await appointmentApi.createAppointment(payload);
+      await notifyAfterSuccess({
+        action: () => appointmentApi.createAppointment(payload),
+        notificationPayload: (createdAppointment) => ({
+          category: "APPOINTMENT",
+          title: "Đặt cuộc hẹn thành công",
+          message: "Bạn đã đặt cuộc hẹn thành công",
+          sourceType: "APPOINTMENT",
+          sourceId: String(createdAppointment?.id || ""),
+          sourceEventType: "APPOINTMENT_CREATED",
+          actionUrl: "/appointments",
+        }),
+        options: {
+          silent: false,
+          errorMessage:
+            "Failed to create notification after create appointment:",
+        },
+      });
 
       setDialog({
         open: true,
@@ -394,11 +393,9 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
           "Bạn có thể quay lại danh sách dược sĩ hoặc tiếp tục đặt lịch khác.",
       });
     } catch (err) {
-      const status = err?.status || (err?.response && err.response.status);
+      const status = err?.status || err?.response?.status;
       const message =
-        err?.message ||
-        (err?.response && err.response.data?.message) ||
-        "Lỗi khi đặt lịch";
+        err?.message || err?.response?.data?.message || "Lỗi khi đặt lịch";
 
       if (Number(status) === 409) {
         setDialog({
@@ -427,23 +424,27 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
     String(contact || "").trim();
 
   const DialogIcon = ({ type }) => {
-    if (type === "success")
+    if (type === "success") {
       return (
-        <div className="size-12 rounded-2xl bg-green-500/10 text-green-600 dark:text-green-400 flex items-center justify-center">
-          <span className="material-symbols-outlined text-[28px]">
+        <div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-50 text-emerald-600">
+          <span className="material-symbols-outlined text-[22px]">
             check_circle
           </span>
         </div>
       );
-    if (type === "error")
+    }
+
+    if (type === "error") {
       return (
-        <div className="size-12 rounded-2xl bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center">
-          <span className="material-symbols-outlined text-[28px]">error</span>
+        <div className="grid h-10 w-10 place-items-center rounded-lg bg-rose-50 text-rose-600">
+          <span className="material-symbols-outlined text-[22px]">error</span>
         </div>
       );
+    }
+
     return (
-      <div className="size-12 rounded-2xl bg-slate-500/10 text-slate-700 dark:text-slate-200 flex items-center justify-center">
-        <span className="material-symbols-outlined text-[28px]">
+      <div className="grid h-10 w-10 place-items-center rounded-lg bg-slate-100 text-slate-600">
+        <span className="material-symbols-outlined text-[22px]">
           hourglass_top
         </span>
       </div>
@@ -454,31 +455,25 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
     <>
       <form
         onSubmit={handleSubmit}
-        className={[
-          "rounded-2xl overflow-hidden",
-          "border border-slate-100 dark:border-slate-800",
-          "bg-white dark:bg-slate-950",
-          "shadow-sm",
-        ].join(" ")}
+        className="rounded-xl border border-slate-200 bg-white shadow-sm"
       >
-        {/* header gradient */}
-        <div className="px-6 md:px-8 py-6 bg-gradient-to-r from-primary/10 via-sky-500/5 to-purple-500/10 dark:from-primary/10 dark:via-sky-500/10 dark:to-purple-500/10 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center justify-between gap-4">
+        <div className="border-b border-slate-200 px-5 py-4 md:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
-                Đặt lịch tư vấn với dược sĩ
+              <h3 className="text-lg font-semibold text-slate-900">
+                Đặt lịch tư vấn
               </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                Chọn thời gian phù hợp và hình thức tư vấn bạn mong muốn.
+              <p className="mt-1 text-sm text-slate-500">
+                Hoàn tất thông tin bên dưới để gửi yêu cầu đặt lịch.
               </p>
             </div>
 
             <button
               type="button"
               onClick={onBackToPharmacists}
-              className="text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-primary transition-colors inline-flex items-center gap-1"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
-              <span className="material-symbols-outlined text-[18px]">
+              <span className="material-symbols-outlined text-[17px]">
                 arrow_back
               </span>
               Quay lại
@@ -486,19 +481,9 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
           </div>
         </div>
 
-        <div className="p-6 md:p-8 flex flex-col gap-8">
-          {/* 1) Info */}
-          <section>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="size-7 rounded-full bg-primary text-white text-xs font-bold grid place-items-center">
-                1
-              </span>
-              <h4 className="text-slate-900 dark:text-white text-lg font-extrabold">
-                Thông tin cá nhân
-              </h4>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-6 px-5 py-5 md:px-6 md:py-6">
+          <Section step={1} title="Thông tin cá nhân">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field
                 label="Họ và tên"
                 value={fullName}
@@ -514,157 +499,102 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
                 error={errors.contact}
               />
             </div>
-          </section>
+          </Section>
 
-          <div className="h-px bg-slate-100 dark:bg-slate-800" />
+          <div className="h-px bg-slate-200" />
 
-          {/* 2) Date & time */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="size-7 rounded-full bg-primary text-white text-xs font-bold grid place-items-center">
-                  2
-                </span>
-                <h4 className="text-slate-900 dark:text-white text-lg font-extrabold">
-                  Thời gian tư vấn
-                </h4>
-              </div>
-
-              {/* giữ UI điều hướng tháng cho đẹp (logic bạn có thể làm sau) */}
-              <div className="flex items-center gap-2">
+          <Section step={2} title="Chọn ngày và giờ">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-700">{monthLabel}</p>
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  className="size-9 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
-                  aria-label="Previous month"
+                  onClick={() => {
+                    if (canGoPrev) setWeekOffset((x) => x - 1);
+                  }}
+                  disabled={!canGoPrev}
+                  className={[
+                    "grid h-8 w-8 place-items-center rounded-md border transition-colors",
+                    canGoPrev
+                      ? "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      : "border-slate-200 text-slate-300 cursor-not-allowed",
+                  ].join(" ")}
+                  aria-label="Previous week"
                 >
-                  <span className="material-symbols-outlined">
+                  <span className="material-symbols-outlined text-[18px]">
                     chevron_left
                   </span>
                 </button>
-                <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Tháng 10, 2023
-                </span>
                 <button
                   type="button"
-                  className="size-9 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
-                  aria-label="Next month"
+                  onClick={() => setWeekOffset((x) => x + 1)}
+                  className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                  aria-label="Next week"
                 >
-                  <span className="material-symbols-outlined">
+                  <span className="material-symbols-outlined text-[18px]">
                     chevron_right
                   </span>
                 </button>
               </div>
             </div>
 
-            {/* day pills */}
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide mb-6 pb-2">
-              {DAYS.map((day) => {
-                const isSelected = day.key === selectedDayKey;
-
-                const base =
-                  "flex-none w-16 h-20 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all";
-
-                if (day.disabled) {
-                  return (
-                    <button
-                      key={day.key}
-                      type="button"
-                      disabled
-                      className={[
-                        base,
-                        "border border-slate-100 dark:border-slate-800",
-                        "bg-slate-50 dark:bg-slate-900/40",
-                        "text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-70",
-                      ].join(" ")}
-                    >
-                      <span className="text-xs font-semibold">{day.dow}</span>
-                      <span className="text-xl font-extrabold">{day.day}</span>
-                    </button>
-                  );
-                }
-
-                if (isSelected) {
-                  return (
-                    <button
-                      key={day.key}
-                      type="button"
-                      onClick={() => setSelectedDayKey(day.key)}
-                      className={[
-                        base,
-                        "border border-primary bg-primary/5",
-                        "ring-4 ring-primary/15",
-                        "shadow-sm",
-                      ].join(" ")}
-                    >
-                      <span className="text-xs font-semibold text-primary">
-                        {day.dow}
-                      </span>
-                      <span className="text-xl font-extrabold text-primary">
-                        {day.day}
-                      </span>
-                    </button>
-                  );
-                }
+            <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
+              {days.map((day) => {
+                const isSelected = day.iso === selectedDateISO;
 
                 return (
                   <button
                     key={day.key}
                     type="button"
-                    onClick={() => setSelectedDayKey(day.key)}
+                    disabled={day.disabled}
+                    onClick={() => !day.disabled && setSelectedDateISO(day.iso)}
                     className={[
-                      base,
-                      "border border-slate-200 dark:border-slate-700",
-                      "bg-white/60 dark:bg-slate-900/40",
-                      "hover:border-primary/50 hover:-translate-y-[1px]",
-                      "text-slate-500 dark:text-slate-400",
+                      "flex-none rounded-lg border px-3 py-2 text-center min-w-[64px]",
+                      day.disabled
+                        ? "border-slate-200 bg-slate-50 text-slate-300"
+                        : isSelected
+                          ? "border-blue-300 bg-blue-50 text-blue-700"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
                     ].join(" ")}
                   >
-                    <span className="text-xs font-semibold hover:text-primary">
-                      {day.dow}
-                    </span>
-                    <span className="text-xl font-extrabold text-slate-900 dark:text-white">
+                    <p className="text-[11px] font-medium">{day.dow}</p>
+                    <p className="text-base font-semibold leading-5">
                       {day.day}
-                    </span>
+                    </p>
                   </button>
                 );
               })}
             </div>
 
-            <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/30 p-4">
-              <p className="text-sm text-slate-600 dark:text-slate-300 mb-3 font-bold">
-                Buổi sáng
-              </p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 mb-5">
-                {MORNING_SLOTS.map((slot) =>
-                  renderSlotButton(slot, selectedTime === slot.time),
-                )}
+            <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-3.5">
+              <div>
+                <p className="mb-2 text-sm font-medium text-slate-700">
+                  Buổi sáng
+                </p>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                  {MORNING_SLOTS.map((slot) =>
+                    renderSlotButton(slot, selectedTime === slot.time),
+                  )}
+                </div>
               </div>
 
-              <p className="text-sm text-slate-600 dark:text-slate-300 mb-3 font-bold">
-                Buổi chiều
-              </p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {AFTERNOON_SLOTS.map((slot) =>
-                  renderSlotButton(slot, selectedTime === slot.time),
-                )}
+              <div>
+                <p className="mb-2 text-sm font-medium text-slate-700">
+                  Buổi chiều
+                </p>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                  {AFTERNOON_SLOTS.map((slot) =>
+                    renderSlotButton(slot, selectedTime === slot.time),
+                  )}
+                </div>
               </div>
             </div>
-          </section>
+          </Section>
 
-          <div className="h-px bg-slate-100 dark:bg-slate-800" />
+          <div className="h-px bg-slate-200" />
 
-          {/* 3) Method */}
-          <section>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="size-7 rounded-full bg-primary text-white text-xs font-bold grid place-items-center">
-                3
-              </span>
-              <h4 className="text-slate-900 dark:text-white text-lg font-extrabold">
-                Hình thức tư vấn
-              </h4>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Section step={3} title="Hình thức tư vấn">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {METHOD_OPTIONS.map((option) => (
                 <MethodCard
                   key={option.id}
@@ -674,63 +604,44 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
                 />
               ))}
             </div>
-          </section>
+          </Section>
 
-          <div className="h-px bg-slate-100 dark:bg-slate-800" />
+          <div className="h-px bg-slate-200" />
 
-          {/* 4) Description */}
-          <section>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="size-7 rounded-full bg-primary text-white text-xs font-bold grid place-items-center">
-                4
-              </span>
-              <h4 className="text-slate-900 dark:text-white text-lg font-extrabold">
-                Vấn đề sức khoẻ
-              </h4>
-            </div>
-
+          <Section step={4} title="Mô tả vấn đề sức khỏe">
             <TextareaField
-              label="Mô tả triệu chứng hoặc vấn đề cần hỗ trợ"
+              label="Nội dung cần tư vấn"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ví dụ: Tôi bị đau đầu và sốt nhẹ từ tối hôm qua..."
+              placeholder="Ví dụ: Tôi đang đau đầu và sốt nhẹ từ tối qua..."
               error={errors.description}
             />
-          </section>
+          </Section>
 
-          {/* CTA */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-5 border-t border-slate-100 dark:border-slate-800">
-            <div className="flex-1 text-center sm:text-left">
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Bằng việc đặt lịch, bạn đồng ý với{" "}
-                <a className="text-primary hover:underline" href="#">
-                  Điều khoản dịch vụ
-                </a>
-              </p>
-            </div>
+          <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-slate-500">
+              Bằng việc đặt lịch, bạn đồng ý với điều khoản dịch vụ của hệ
+              thống.
+            </p>
 
             <button
               type="submit"
               disabled={!canSubmit}
               className={[
-                "w-full sm:w-auto h-12 min-w-[220px] rounded-xl px-6",
-                "font-extrabold text-white",
-                "bg-primary hover:brightness-[0.96] active:brightness-[0.94]",
-                "transition-all",
-                "shadow-lg shadow-primary/20",
-                "disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:brightness-100",
-                "inline-flex items-center justify-center gap-2",
+                "inline-flex h-11 min-w-[220px] items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold",
+                "bg-blue-600 text-white hover:bg-blue-700 transition-colors",
+                "disabled:cursor-not-allowed disabled:opacity-60",
               ].join(" ")}
             >
               {isSubmitting ? (
                 <>
-                  <span className="size-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
-                  <span>Đang đặt lịch...</span>
+                  <span className="h-4 w-4 rounded-full border-2 border-white/50 border-t-white animate-spin" />
+                  <span>Đang xử lý...</span>
                 </>
               ) : (
                 <>
                   <span>Xác nhận đặt lịch</span>
-                  <span className="material-symbols-outlined text-[20px]">
+                  <span className="material-symbols-outlined text-[18px]">
                     arrow_forward
                   </span>
                 </>
@@ -740,54 +651,27 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
         </div>
       </form>
 
-      {/* Radix Dialog Popup */}
       <Dialog.Root
         open={dialog.open}
         onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
       >
         <Dialog.Portal>
-          <Dialog.Overlay
-            className={[
-              "fixed inset-0 z-50",
-              "bg-slate-950/40 backdrop-blur-[2px]",
-              "data-[state=open]:animate-in data-[state=open]:fade-in-0",
-              "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
-            ].join(" ")}
-          />
-          <Dialog.Content
-            className={[
-              "fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
-              "w-[92vw] max-w-md rounded-2xl",
-              "border border-slate-200 dark:border-slate-800",
-              "bg-white dark:bg-slate-950",
-              "shadow-2xl shadow-slate-950/20",
-              "p-5",
-              "data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0",
-              "data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 data-[state=closed]:fade-out-0",
-            ].join(" ")}
-          >
-            <div className="flex items-start gap-4">
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-900/35" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
+            <div className="flex items-start gap-3.5">
               <DialogIcon type={dialog.type} />
 
               <div className="flex-1">
-                <Dialog.Title className="text-lg font-extrabold text-slate-900 dark:text-white">
+                <Dialog.Title className="text-base font-semibold text-slate-900">
                   {dialog.title}
                 </Dialog.Title>
-                <Dialog.Description className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                <Dialog.Description className="mt-1 text-sm leading-6 text-slate-600">
                   {dialog.message}
                 </Dialog.Description>
 
-                <div className="mt-5 flex gap-3 justify-end">
+                <div className="mt-4 flex justify-end gap-2">
                   <Dialog.Close asChild>
-                    <button
-                      className={[
-                        "h-10 px-4 rounded-xl font-bold",
-                        "border border-slate-200 dark:border-slate-800",
-                        "text-slate-700 dark:text-slate-200",
-                        "hover:bg-slate-50 dark:hover:bg-slate-900",
-                        "transition-colors",
-                      ].join(" ")}
-                    >
+                    <button className="h-9 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
                       Đóng
                     </button>
                   </Dialog.Close>
@@ -798,10 +682,7 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
                         setDialog((d) => ({ ...d, open: false }));
                         navigate("/pharmacists");
                       }}
-                      className={[
-                        "h-10 px-4 rounded-xl font-extrabold text-white",
-                        "bg-primary hover:brightness-[0.96] transition-all",
-                      ].join(" ")}
+                      className="h-9 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"
                     >
                       Về danh sách
                     </button>
@@ -812,7 +693,7 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
               <Dialog.Close asChild>
                 <button
                   aria-label="Close"
-                  className="text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+                  className="text-slate-400 hover:text-slate-700"
                 >
                   <span className="material-symbols-outlined">close</span>
                 </button>

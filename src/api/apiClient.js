@@ -1,135 +1,136 @@
 import axios from "axios";
+import { getAccessToken, clearAccessToken } from "../utils/auth";
+import { clearAuthUser } from "../auth/authStorage";
 
-let inMemoryToken = null;
-
-// Persist token to sessionStorage and keep in-memory copy for immediate use
-export function setAccessToken(token) {
-  if (token == null) {
-    sessionStorage.removeItem("authToken");
-    inMemoryToken = null;
-  } else {
-    sessionStorage.setItem("authToken", String(token));
-    inMemoryToken = String(token);
-  }
-}
-
-export function clearAccessToken() {
-  sessionStorage.removeItem("authToken");
-  inMemoryToken = null;
-}
-
-const apiClient = axios.create({
-  baseURL: "http://localhost:8087",
+/**
+ * Centralized API client using axios.
+ * Configured with baseURL from environment or default gateway port.
+ * Includes interceptors for Authorization header and handling common errors.
+ */
+const instance = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || "http://localhost:8087",
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: 10000,
 });
 
-apiClient.interceptors.request.use(
+const STARTUP_RETRY_DELAY_MS = 250;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isTransientStartupError = (error) => {
+  const status = Number(error?.response?.status || 0);
+  const code = String(error?.code || "");
+  return (
+    [502, 503, 504].includes(status) ||
+    ["ECONNABORTED", "ERR_NETWORK", "ERR_BAD_RESPONSE"].includes(code)
+  );
+};
+
+const retryOnceIfTransient = async (error, clientName) => {
+  const config = error?.config;
+  if (!config) return Promise.reject(error);
+
+  const method = String(config.method || "get").toLowerCase();
+  const canRetryMethod = ["get", "head", "options"].includes(method);
+  if (!canRetryMethod || !isTransientStartupError(error)) {
+    return Promise.reject(error);
+  }
+
+  const retryCount = Number(config.__startupRetryCount || 0);
+  if (retryCount >= 1) {
+    return Promise.reject(error);
+  }
+
+  config.__startupRetryCount = retryCount + 1;
+  await sleep(STARTUP_RETRY_DELAY_MS);
+
+  if (process.env.NODE_ENV !== "production") {
+    console.debug(
+      `[${clientName}] transient startup error -> retry #${config.__startupRetryCount}: ${method.toUpperCase()} ${config.url}`,
+    );
+  }
+
+  return (clientName === "publicApi" ? publicApi : authApi).request(config);
+};
+
+/**
+ * publicApi: No Authorization header, for public endpoints.
+ */
+export const publicApi = axios.create({
+  baseURL: instance.defaults.baseURL,
+  headers: { ...instance.defaults.headers },
+  timeout: instance.defaults.timeout,
+});
+
+/**
+ * authApi: Attaches Bearer token and handles 401/403.
+ */
+export const authApi = axios.create({
+  baseURL: instance.defaults.baseURL,
+  headers: { ...instance.defaults.headers },
+  timeout: instance.defaults.timeout,
+});
+
+publicApi.interceptors.response.use(
+  (response) => response,
+  (error) => retryOnceIfTransient(error, "publicApi"),
+);
+
+// Request interceptor for authApi: Attach Bearer token
+authApi.interceptors.request.use(
   (config) => {
-    // Determine token: in-memory (set from auth context) or sessionStorage
-    const stored = inMemoryToken || sessionStorage.getItem("authToken");
-    const token = stored && String(stored).trim().length ? stored : null;
-
-    // Attach Authorization only when token is a non-empty string
+    const token = getAccessToken();
     if (token) {
-      config.headers = config.headers || {};
-      // do not overwrite an explicit header set by caller (check case-insensitively)
-      const hasAuthHeader = Object.keys(config.headers || {}).some(
-        (k) => k.toLowerCase() === "authorization",
-      );
-      if (!hasAuthHeader) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+      const trimmedToken = token.trim();
+      config.headers.Authorization = trimmedToken
+        .toLowerCase()
+        .startsWith("bearer ")
+        ? trimmedToken
+        : `Bearer ${trimmedToken}`;
     }
-
-    // Dev-mode debug: log URL and whether auth header exists (never log token)
-    if (process.env.NODE_ENV !== "production") {
-      try {
-        const method = (config.method || "get").toUpperCase();
-        const url = config.url || config.baseURL || "";
-        const hdrs = config.headers || {};
-        const hasAuth = Object.keys(hdrs).some(
-          (k) => k.toLowerCase() === "authorization",
-        );
-        // eslint-disable-next-line no-console
-        console.debug(`[api] ${method} ${url} auth:${hasAuth}`);
-      } catch (e) {
-        // ignore logging errors
-      }
-    }
-
     return config;
   },
   (error) => Promise.reject(error),
 );
 
-// Response interceptor: log status and request auth presence in dev
-apiClient.interceptors.response.use(
-  (response) => {
-    if (process.env.NODE_ENV !== "production") {
-      try {
-        const method = (response.config.method || "get").toUpperCase();
-        const url = response.config.url || response.config.baseURL || "";
-        const hasAuth = !!(
-          response.config.headers && response.config.headers.Authorization
-        );
-        // eslint-disable-next-line no-console
-        console.debug(
-          `[api] RESP ${method} ${url} status:${response.status} auth:${hasAuth}`,
-        );
-      } catch (e) {
-        // ignore
-      }
-    }
-    return response;
-  },
-  (error) => {
-    const cfg = error?.config || {};
-    const method = (cfg.method || "get").toUpperCase();
-    const url = cfg.url || cfg.baseURL || "";
-    const status = error?.response?.status;
-
-    // determine auth presence case-insensitively
-    const headers = cfg.headers || {};
-    const hasAuth = Object.keys(headers).some(
-      (k) => k.toLowerCase() === "authorization",
+// Response interceptor for authApi: Handle global error cases (401, 403)
+authApi.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const retried = await retryOnceIfTransient(error, "authApi").catch(
+      () => null,
     );
-
-    // Log on specific statuses and debug in dev (never log token)
-    if ([401, 403, 404, 405].includes(Number(status))) {
-      // eslint-disable-next-line no-console
-      console.warn(`[api] ${status} ${method} ${url} auth:${hasAuth}`);
-      return Promise.reject(error);
+    if (retried) {
+      return retried;
     }
 
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.debug(
-        `[api] RESP ${method} ${url} status:${status || "ERR"} auth:${hasAuth}`,
+    const status = error?.response?.status;
+    const errorMsg = error?.response?.data?.message || "";
+
+    // Check for 401 or Jwt expired message
+    if (status === 401 || errorMsg.toLowerCase().includes("jwt expired")) {
+      console.warn(
+        "Unauthorized access or expired token - clearing and redirecting to login",
       );
-    }
+      clearAccessToken();
+      clearAuthUser();
 
-    // Retry logic for transient failures (network errors or 502/503/504)
-    const shouldRetry = !status || [502, 503, 504].includes(Number(status));
-    const maxRetries = 2;
-    if (shouldRetry && cfg && !cfg.__isRetryRequest) {
-      cfg.__retryCount = cfg.__retryCount || 0;
-      if (cfg.__retryCount >= maxRetries) {
-        return Promise.reject(error);
+      if (!window.location.pathname.includes("/login")) {
+        window.location.assign("/login?expired=true");
       }
-      cfg.__retryCount += 1;
-      const backoffs = [300, 600];
-      const delay =
-        backoffs[Math.min(cfg.__retryCount - 1, backoffs.length - 1)];
-      cfg.__isRetryRequest = true;
-      return new Promise((resolve) => setTimeout(resolve, delay)).then(() =>
-        apiClient(cfg),
-      );
+    } else if (status === 403) {
+      console.error("Forbidden access - insufficient permissions");
+      const forbiddenError = new Error("Forbidden");
+      forbiddenError.status = 403;
+      forbiddenError.message = "Bạn không có quyền thực hiện hành động này";
+      return Promise.reject(forbiddenError);
     }
-
     return Promise.reject(error);
   },
 );
 
-export default apiClient;
+// Default export kept for backward compatibility (points to authApi for safety or instance)
+export const api = authApi;
+export default authApi;

@@ -9,178 +9,144 @@ const specialties = [
   { value: "obstetric", label: "Dược thai sản" },
 ];
 
-const PharmacistsFilters = ({ filters, onChange, onReset }) => {
+const modes = [
+  { value: "all", label: "Tất cả" },
+  { value: "ONLINE", label: "Online (Video/Chat)" },
+  { value: "IN_PERSON", label: "Tại quầy thuốc" },
+];
+
+const experiences = [
+  { value: "all", label: "Tất cả" },
+  { value: "junior", label: "Dưới 3 năm" },
+  { value: "mid", label: "3 - 5 năm" },
+  { value: "senior", label: "Trên 5 năm" },
+];
+
+const Section = ({ title, children }) => (
+  <section className="border-b border-slate-200 pb-4 last:border-b-0 last:pb-0">
+    <h4 className="mb-3 text-sm font-semibold text-slate-800">{title}</h4>
+    <div className="space-y-2.5">{children}</div>
+  </section>
+);
+
+const RadioField = ({ checked, onChange, label, name, value }) => (
+  <label className="flex items-center gap-2.5 text-sm text-slate-600">
+    <input
+      type="radio"
+      name={name}
+      value={value}
+      checked={checked}
+      onChange={onChange}
+      className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+    />
+    <span>{label}</span>
+  </label>
+);
+
+const PharmacistsFilters = ({ filters, onChange, onReset, onApply }) => {
   return (
-    <aside className="hidden lg:flex flex-col gap-4 sticky top-24 bg-white dark:bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
-      <div className="flex items-center justify-between border-b pb-3 border-slate-100 dark:border-slate-700">
-        <span className="font-bold text-lg flex items-center gap-2 text-slate-900 dark:text-white">
-          <span className="material-symbols-outlined text-primary">
-            filter_list
-          </span>
-          Bộ lọc
-        </span>
+    <aside className="hidden lg:flex lg:flex-col gap-4 sticky top-24 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-semibold text-slate-900">Bộ lọc</h3>
         <button
           type="button"
           onClick={onReset}
-          className="text-sm text-slate-500 hover:text-primary"
+          className="text-xs font-medium text-slate-500 hover:text-slate-700"
         >
           Xóa tất cả
         </button>
       </div>
 
-      <details
-        className="group py-2 border-b border-slate-100 dark:border-slate-700"
-        open
-      >
-        <summary className="flex justify-between items-center font-medium cursor-pointer list-none text-slate-900 dark:text-white">
-          <span>Chuyên môn</span>
-          <span className="transition group-open:rotate-180">
-            <span className="material-symbols-outlined text-xl">
-              expand_more
-            </span>
-          </span>
-        </summary>
-        <div className="text-slate-500 mt-3 flex flex-col gap-2">
-          {specialties.map((item) => (
-            <label
-              key={item.value}
-              className="flex items-center gap-3 cursor-pointer hover:text-primary"
-            >
-              <input
-                type="radio"
-                name="specialty"
-                value={item.value}
-                checked={filters.specialty === item.value}
-                onChange={(e) =>
-                  onChange({ ...filters, specialty: e.target.value })
-                }
-                className="form-radio border-gray-300 text-primary focus:ring-primary h-4 w-4"
-              />
-              <span className="text-sm">{item.label}</span>
-            </label>
-          ))}
-        </div>
-      </details>
+      <Section title="Chuyên môn">
+        {specialties.map((item) => (
+          <RadioField
+            key={item.value}
+            name="specialty"
+            value={item.value}
+            label={item.label}
+            checked={filters.specialty === item.value}
+            onChange={(e) =>
+              onChange({ ...filters, specialty: e.target.value })
+            }
+          />
+        ))}
+      </Section>
 
-      <details
-        className="group py-2 border-b border-slate-100 dark:border-slate-700"
-        open
-      >
-        <summary className="flex justify-between items-center font-medium cursor-pointer list-none text-slate-900 dark:text-white">
-          <span>Hình thức tư vấn</span>
-          <span className="transition group-open:rotate-180">
-            <span className="material-symbols-outlined text-xl">
-              expand_more
-            </span>
-          </span>
-        </summary>
-        <div className="text-slate-500 mt-3 flex flex-col gap-2">
-          {[
-            { value: "all", label: "Tất cả" },
-            { value: "ONLINE", label: "Online (Video/Chat)" },
-            { value: "IN_PERSON", label: "Tại quầy thuốc" },
-          ].map((item) => (
-            <label
-              key={item.value}
-              className="flex items-center gap-3 cursor-pointer hover:text-primary"
-            >
-              <input
-                type="radio"
-                name="mode"
-                value={item.value}
-                checked={filters.mode === item.value}
-                onChange={(e) => onChange({ ...filters, mode: e.target.value })}
-                className="form-radio border-gray-300 text-primary focus:ring-primary h-4 w-4"
-              />
-              <span className="text-sm">{item.label}</span>
-            </label>
-          ))}
-        </div>
-      </details>
+      <Section title="Hình thức tư vấn">
+        {modes.map((item) => (
+          <RadioField
+            key={item.value}
+            name="mode"
+            value={item.value}
+            label={item.label}
+            checked={filters.mode === item.value}
+            onChange={(e) => onChange({ ...filters, mode: e.target.value })}
+          />
+        ))}
+      </Section>
 
-      <details
-        className="group py-2 border-b border-slate-100 dark:border-slate-700"
-        open
-      >
-        <summary className="flex justify-between items-center font-medium cursor-pointer list-none text-slate-900 dark:text-white">
-          <span>Kinh nghiệm</span>
-          <span className="transition group-open:rotate-180">
-            <span className="material-symbols-outlined text-xl">
-              expand_more
-            </span>
-          </span>
-        </summary>
-        <div className="text-slate-500 mt-3 flex flex-col gap-2">
-          {[
-            { value: "all", label: "Tất cả" },
-            { value: "junior", label: "Dưới 3 năm" },
-            { value: "mid", label: "3 - 5 năm" },
-            { value: "senior", label: "Trên 5 năm" },
-          ].map((item) => (
-            <label
-              key={item.value}
-              className="flex items-center gap-3 cursor-pointer hover:text-primary"
-            >
-              <input
-                type="radio"
-                name="experience"
-                value={item.value}
-                checked={filters.experience === item.value}
-                onChange={(e) =>
-                  onChange({ ...filters, experience: e.target.value })
-                }
-                className="form-radio border-gray-300 text-primary focus:ring-primary h-4 w-4"
-              />
-              <span className="text-sm">{item.label}</span>
-            </label>
-          ))}
-        </div>
-      </details>
+      <Section title="Kinh nghiệm">
+        {experiences.map((item) => (
+          <RadioField
+            key={item.value}
+            name="experience"
+            value={item.value}
+            label={item.label}
+            checked={filters.experience === item.value}
+            onChange={(e) =>
+              onChange({ ...filters, experience: e.target.value })
+            }
+          />
+        ))}
+      </Section>
 
-      <details
-        className="group py-2 border-b border-slate-100 dark:border-slate-700"
-        open
-      >
-        <summary className="flex justify-between items-center font-medium cursor-pointer list-none text-slate-900 dark:text-white">
-          <span>Đánh giá</span>
-          <span className="transition group-open:rotate-180">
-            <span className="material-symbols-outlined text-xl">
-              expand_more
+      <Section title="Đánh giá">
+        <label className="flex items-center gap-2.5 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            checked={filters.ratingGte === 4}
+            onChange={() =>
+              onChange({
+                ...filters,
+                ratingGte: filters.ratingGte === 4 ? null : 4,
+              })
+            }
+          />
+          <span className="inline-flex items-center gap-1">
+            4
+            <span className="material-symbols-outlined text-[15px] text-amber-500">
+              star
+            </span>
+            trở lên
+          </span>
+        </label>
+
+        <label className="flex items-center gap-2.5 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            checked={filters.ratingGte === 5}
+            onChange={() =>
+              onChange({
+                ...filters,
+                ratingGte: filters.ratingGte === 5 ? null : 5,
+              })
+            }
+          />
+          <span className="inline-flex items-center gap-1">
+            5
+            <span className="material-symbols-outlined text-[15px] text-amber-500">
+              star
             </span>
           </span>
-        </summary>
-        <div className="text-slate-500 mt-3 flex flex-col gap-2">
-          <label className="flex items-center gap-3 cursor-pointer hover:text-primary">
-            <input
-              type="checkbox"
-              className="form-checkbox rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
-            />
-            <span className="flex items-center gap-1 text-sm">
-              4
-              <span className="material-symbols-outlined text-yellow-500 text-[16px]">
-                star
-              </span>
-              trở lên
-            </span>
-          </label>
-          <label className="flex items-center gap-3 cursor-pointer hover:text-primary">
-            <input
-              type="checkbox"
-              className="form-checkbox rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
-            />
-            <span className="flex items-center gap-1 text-sm">
-              5
-              <span className="material-symbols-outlined text-yellow-500 text-[16px]">
-                star
-              </span>
-            </span>
-          </label>
-        </div>
-      </details>
+        </label>
+      </Section>
 
       <button
         type="button"
-        className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-white shadow hover:bg-primary-dark transition-colors"
+        onClick={onApply}
+        className="mt-1 h-10 rounded-lg bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
       >
         Áp dụng
       </button>

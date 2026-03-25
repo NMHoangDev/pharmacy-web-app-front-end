@@ -3,6 +3,7 @@ import AdminLayout from "../../../components/admin/AdminLayout";
 import CategoryToolbar from "../../../components/admin/categories/CategoryToolbar";
 import CategoryTree from "../../../components/admin/categories/CategoryTree";
 import CategoryEditor from "../../../components/admin/categories/CategoryEditor";
+import { authApi as api } from "../../../api/httpClients";
 
 const slugify = (value) =>
   value
@@ -99,15 +100,8 @@ const AdminCategoriesPage = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/catalog/internal/categories");
-      if (!response.ok) {
-        const message = await readErrorMessage(
-          response,
-          "Không thể tải danh mục",
-        );
-        throw new Error(message);
-      }
-      const payload = await response.json();
+      const response = await api.get("/api/catalog/internal/categories");
+      const payload = response.data;
       setCategories(payload || []);
       const fallback = payload?.[0]?.id || null;
       setSelectedId((prev) => {
@@ -173,23 +167,14 @@ const AdminCategoriesPage = () => {
     };
 
     try {
-      const endpoint =
+      const response =
         mode === "create"
-          ? "/api/catalog/internal/categories"
-          : `/api/catalog/internal/categories/${draft.id}`;
-      const response = await fetch(endpoint, {
-        method: mode === "create" ? "POST" : "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        const message = await readErrorMessage(
-          response,
-          `Không thể ${mode === "create" ? "tạo" : "cập nhật"} danh mục`,
-        );
-        throw new Error(message);
-      }
-      const saved = await response.json();
+          ? await api.post("/api/catalog/internal/categories", payload)
+          : await api.put(
+              `/api/catalog/internal/categories/${draft.id}`,
+              payload,
+            );
+      const saved = response.data;
       await loadCategories();
       setSelectedId(saved?.id || null);
       setMode("edit");
@@ -222,17 +207,9 @@ const AdminCategoriesPage = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(
+      await api.delete(
         `/api/catalog/internal/categories/${selectedCategory.id}`,
-        { method: "DELETE" },
       );
-      if (!response.ok) {
-        const message = await readErrorMessage(
-          response,
-          "Không thể xóa danh mục",
-        );
-        throw new Error(message);
-      }
       await loadCategories();
       setSelectedId(null);
       setDraft(null);

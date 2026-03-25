@@ -1,93 +1,588 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import AdminLayout from "../../../components/admin/AdminLayout";
 import ContentToolbar from "../../../components/admin/content/ContentToolbar";
 import ContentTable from "../../../components/admin/content/ContentTable";
 import ContentQuickDraft from "../../../components/admin/content/ContentQuickDraft";
 import ContentStats from "../../../components/admin/content/ContentStats";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../../components/ui/dialog";
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Placeholder from "@tiptap/extension-placeholder";
+import Underline from "@tiptap/extension-underline";
+import Link from "@tiptap/extension-link";
+import FigureImage from "../../../tiptap/FigureImage";
+import {
+  approveModeration,
+  createPost,
+  deletePost,
+  getPostBySlug,
+  getAdminPosts,
+  getAdminQuestions,
+  hideModeration,
+  publishPost,
+  rejectModeration,
+  updatePost,
+  unpublishPost,
+  uploadMediaImage,
+} from "../../../api/contentApi";
+import {
+  fetchMediaImageAsDataUrl,
+  fileToDataUrl,
+  resolveHtmlImagesToDataUrls,
+  resolveJsonImagesToDataUrls,
+} from "../../../utils/media";
 
-const articlesSeed = [
-  {
-    id: "c-1",
-    title: "5 mẹo phòng tránh cúm mùa hiệu quả",
-    category: "Sức khỏe chung",
-    readTime: "5 phút đọc",
-    status: "published",
-    author: "Dr. Minh",
-    authorInitials: "DM",
-    updatedAt: "2 giờ trước",
-    thumbnail:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDmGqV-2YcLtcd12F2p6fIdFCk8iIf_vBcwj3Lw4S3IKVGfRgGt1fzFYVrIKF_mR9_U7R7m5MAB-5jNo4zQSgrdm2fnVCUN4iBVBrsKNbAfn5KMVlv9MAQ7uvXwy59vwi35VZzGZIdoY3rnmWLjsB1RiyiRQ1xKz6k11pj9ZyhUft8Fqq_zzioDrgazq0_yxO9pwdjkUAo1M3jv2sF6cV-69uOVnZeD7VmcP0jKn0Jl78SySofxwOSc0CfRHmg_r5v_uY4K13Z3GCez",
-  },
-  {
-    id: "c-2",
-    title: "Top 10 thực phẩm giàu Vitamin C",
-    category: "Dinh dưỡng",
-    readTime: "Đang soạn thảo",
-    status: "draft",
-    author: "DS. Lan",
-    authorInitials: "DL",
-    updatedAt: "14/10/2023",
-    thumbnail:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDJaLHzH-zEFUomc0_Z3LyT40CnGnTI8phapZcwzpfr-VNeVMiYBwpqWBSlorPWHGrcS3e5SJvmup4ThTXjvaeY-fo-fOj43O6Bk0j2xtd5WdGJsvRBYCNe0J1PCUI2StBqUdv-nhBLwpELoApe_IzXk72x3dfEKFMoEgWHWQNVFoXbJz5Evprl_A6RdbhtDcahsdfS6ijTblIoJVAaVBActBquOtId3H_QLa6Gy1MyZWcK4UlUIWMHQVyk2u5wkHZvE_DHKme6pnfm",
-  },
-  {
-    id: "c-3",
-    title: "Lịch tiêm chủng mở rộng cho trẻ em 2024",
-    category: "Tin tức y tế",
-    readTime: "8 phút đọc",
-    status: "scheduled",
-    author: "Admin",
-    authorInitials: "AD",
-    updatedAt: "12/10/2023",
-    thumbnail:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBtjT18FKJwdN8Qm9XShAN62BbXM-aAc0zKUPJvRjGbSIwdI0XNlL7bQV7fGMXFjC4FqPd2NcBnCWUt1vrbOUZ8JHI9uKt-mla8jxGksJbAW7DKAKPqNxB5v-9Qe2lhJbGXclT9jEt04zwVLWTy4PxNj8tw6pmV7APEsCQCr0BNhVlDq2YHSXtYTBgeZw-EV-HP3qybsbikGDJVfXFueiyj9KVFUNdU7-5oMnWsMLcKjV9Kiugg6BqX-uJ_yLJcDbTC_vahjhCHDGff",
-  },
-  {
-    id: "c-4",
-    title: "Khuyến mãi tháng 11: Mua 1 tặng 1",
-    category: "Sự kiện • Banner",
-    readTime: "Banner",
-    status: "published",
-    author: "Marketing",
-    authorInitials: "MK",
-    updatedAt: "01/10/2023",
-    thumbnail:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDHM_tzRr52qEICgnS42c--VKbzcItXymil-rQfX5J-bV6vV8Axq8sPQRNOqS6a6QWk32EJ_fmqzf6t8DAMwO3JwHskU1BAb3ykiGF-nFULbRDIg23CXniSqqkPb73DNekPq6U3RNRkoEeMv_xlEcaFFa8pgj535OAjcRBwpAZOKraVMGWZ25_R-SWHNO2HkNTdKg37iWSyra5jd_4f10tYhCXiE-yllh9cVm_533Z6MIuKW2-bjEyVI3C01OUlEliTnqPZkAMDLqDE",
-  },
-];
+const resolveImagesToBase64 = async (images = []) => {
+  if (!images.length) return [];
+  const results = [];
+  for (let index = 0; index < images.length; index += 1) {
+    const item = images[index];
+    if (!item?.url) continue;
+    let base64Url = item.url;
+    try {
+      base64Url = await fetchMediaImageAsDataUrl(item.url);
+    } catch (err) {
+      base64Url = item.url;
+    }
+    results.push({
+      ...item,
+      url: base64Url,
+      position: Number.isFinite(item.position) ? item.position : index,
+    });
+  }
+  return results;
+};
 
 const AdminContentPage = () => {
-  const [articles, setArticles] = useState(articlesSeed);
+  const [activeTab, setActiveTab] = useState("posts");
+  const [posts, setPosts] = useState([]);
+  const [postsPagination, setPostsPagination] = useState({
+    page: 1,
+    pageSize: 10,
+    total: 0,
+  });
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [postsError, setPostsError] = useState("");
+  const [postsRefresh, setPostsRefresh] = useState(0);
+  const [questions, setQuestions] = useState([]);
+  const [questionsPagination, setQuestionsPagination] = useState({
+    page: 1,
+    pageSize: 10,
+    total: 0,
+  });
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [questionsError, setQuestionsError] = useState("");
+  const [questionsRefresh, setQuestionsRefresh] = useState(0);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [author, setAuthor] = useState("all");
+  const [fullEditorOpen, setFullEditorOpen] = useState(false);
+  const [fullTitle, setFullTitle] = useState("");
+  const [fullPostId, setFullPostId] = useState(null);
+  const [fullSaving, setFullSaving] = useState(false);
+  const [fullError, setFullError] = useState("");
+  const [fullInitialHtml, setFullInitialHtml] = useState("");
+  const [fullInitialJson, setFullInitialJson] = useState(null);
+  const [fullImages, setFullImages] = useState([]);
+  const [fullUploading, setFullUploading] = useState(false);
+  const [fullUploadError, setFullUploadError] = useState("");
+  const [fullAlbumId, setFullAlbumId] = useState(null);
+  const [fullCoverImageUrl, setFullCoverImageUrl] = useState("");
+  const [fullCoverPreviewUrl, setFullCoverPreviewUrl] = useState("");
+  const [fullCoverUploading, setFullCoverUploading] = useState(false);
+  const [fullCoverError, setFullCoverError] = useState("");
+  const fullFileInputRef = useRef(null);
+  const fullCoverInputRef = useRef(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return articles.filter((item) => {
-      const matchQuery =
-        !q ||
-        item.title.toLowerCase().includes(q) ||
-        item.author.toLowerCase().includes(q);
-      const matchStatus = status === "all" || item.status === status;
-      const matchAuthor =
-        author === "all" || item.author.toLowerCase().includes(author);
-      return matchQuery && matchStatus && matchAuthor;
-    });
-  }, [articles, query, status, author]);
+  const fullEditor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+      }),
+      Underline,
+      FigureImage,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        linkOnPaste: true,
+      }),
+      Placeholder.configure({
+        placeholder: "Soạn thảo nội dung đầy đủ...",
+      }),
+    ],
+    content: "",
+  });
+
+  const currentHeading = () => {
+    if (fullEditor?.isActive("heading", { level: 1 })) return "h1";
+    if (fullEditor?.isActive("heading", { level: 2 })) return "h2";
+    if (fullEditor?.isActive("heading", { level: 3 })) return "h3";
+    return "paragraph";
+  };
+
+  const setHeading = (value) => {
+    if (!fullEditor) return;
+    if (value === "paragraph") {
+      fullEditor.chain().focus().setParagraph().run();
+      return;
+    }
+    const level = Number(value.replace("h", ""));
+    fullEditor.chain().focus().toggleHeading({ level }).run();
+  };
+
+  const handleLink = () => {
+    if (!fullEditor) return;
+    const previousUrl = fullEditor.getAttributes("link").href;
+    const url = window.prompt("Nhập URL", previousUrl || "https://");
+    if (url === null) return;
+    if (url === "") {
+      fullEditor.chain().focus().extendMarkRange("link").unsetLink().run();
+      return;
+    }
+    fullEditor
+      .chain()
+      .focus()
+      .extendMarkRange("link")
+      .setLink({ href: url })
+      .run();
+  };
+
+  const handleInsertImage = () => {
+    if (!fullEditor) return;
+    fullFileInputRef.current?.click();
+  };
+
+  const handleFullImageSelected = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !fullEditor) return;
+    setFullUploading(true);
+    setFullUploadError("");
+    try {
+      const localPreview = await fileToDataUrl(file);
+      const { albumId, url } = await uploadMediaImage(file, fullAlbumId);
+      if (!url) throw new Error("Không thể tải ảnh lên.");
+      if (albumId) setFullAlbumId(albumId);
+      const altText = window.prompt("Mô tả hình ảnh", "") || "";
+      let displayUrl = localPreview || url;
+      if (!localPreview) {
+        try {
+          displayUrl = await fetchMediaImageAsDataUrl(url);
+        } catch (err) {
+          displayUrl = url;
+        }
+      }
+      const captionText = altText.trim();
+      fullEditor
+        .chain()
+        .focus()
+        .insertFigureImage({
+          src: displayUrl,
+          alt: altText,
+          caption: captionText,
+        })
+        .run();
+      setFullImages((prev) => [
+        ...prev,
+        { url, altText, position: prev.length },
+      ]);
+    } catch (err) {
+      setFullUploadError(err?.message || "Không thể tải ảnh.");
+    } finally {
+      setFullUploading(false);
+    }
+  };
+
+  const handleCoverPick = () => {
+    fullCoverInputRef.current?.click();
+  };
+
+  const handleCoverSelected = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setFullCoverUploading(true);
+    setFullCoverError("");
+    try {
+      const localPreview = await fileToDataUrl(file);
+      const { url } = await uploadMediaImage(file, fullAlbumId);
+      if (!url) throw new Error("Không thể tải ảnh bìa.");
+      let displayUrl = localPreview || url;
+      if (!localPreview) {
+        try {
+          displayUrl = await fetchMediaImageAsDataUrl(url);
+        } catch (err) {
+          displayUrl = url;
+        }
+      }
+      setFullCoverImageUrl(displayUrl);
+      setFullCoverPreviewUrl(displayUrl);
+    } catch (err) {
+      setFullCoverError(err?.message || "Không thể tải ảnh bìa.");
+    } finally {
+      setFullCoverUploading(false);
+    }
+  };
+
+  const formatDate = (value) =>
+    value ? new Date(value).toLocaleString("vi-VN") : "";
+
+  const toInitials = (name) => {
+    if (!name) return "AD";
+    const parts = name.trim().split(/\s+/).slice(0, 2);
+    return parts
+      .map((p) => p[0])
+      .join("")
+      .toUpperCase();
+  };
+
+  const mapStatus = (statusValue) => {
+    switch ((statusValue || "").toUpperCase()) {
+      case "PUBLISHED":
+        return "published";
+      case "DRAFT":
+        return "draft";
+      case "PENDING":
+        return "pending";
+      case "REJECTED":
+        return "rejected";
+      case "HIDDEN":
+        return "hidden";
+      case "ARCHIVED":
+        return "archived";
+      default:
+        return "draft";
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== "posts") return;
+    const loadPosts = async () => {
+      setPostsLoading(true);
+      setPostsError("");
+      try {
+        const params = {
+          page: postsPagination.page,
+          pageSize: postsPagination.pageSize,
+          sortBy: "publishedAt",
+          sortDir: "desc",
+        };
+        if (query.trim()) params.q = query.trim();
+        if (status !== "all") params.status = status;
+        const data = await getAdminPosts(params);
+        setPosts(data.items || []);
+        setPostsPagination(
+          data.pagination || { page: 1, pageSize: 10, total: 0 },
+        );
+      } catch (err) {
+        setPostsError(err.message || "Không thể tải bài viết");
+      } finally {
+        setPostsLoading(false);
+      }
+    };
+    loadPosts();
+  }, [
+    activeTab,
+    query,
+    status,
+    postsPagination.page,
+    postsPagination.pageSize,
+    postsRefresh,
+  ]);
+
+  useEffect(() => {
+    if (activeTab === "questions" && status !== "all") {
+      setStatus("all");
+    }
+  }, [activeTab, status]);
+
+  useEffect(() => {
+    if (activeTab !== "questions") return;
+    const loadQuestions = async () => {
+      setQuestionsLoading(true);
+      setQuestionsError("");
+      try {
+        const params = {
+          page: questionsPagination.page,
+          pageSize: questionsPagination.pageSize,
+          sortBy: "createdAt",
+          sortDir: "desc",
+        };
+        if (query.trim()) params.q = query.trim();
+        const data = await getAdminQuestions(params);
+        setQuestions(data.items || []);
+        setQuestionsPagination(
+          data.pagination || { page: 1, pageSize: 10, total: 0 },
+        );
+      } catch (err) {
+        setQuestionsError(err.message || "Không thể tải câu hỏi");
+      } finally {
+        setQuestionsLoading(false);
+      }
+    };
+    loadQuestions();
+  }, [
+    activeTab,
+    query,
+    questionsPagination.page,
+    questionsPagination.pageSize,
+    questionsRefresh,
+  ]);
+
+  const postRows = useMemo(() => {
+    const authorFilter = author === "all" ? "" : author.toLowerCase();
+    return posts
+      .filter((post) => {
+        if (!authorFilter) return true;
+        return post.author?.displayName?.toLowerCase().includes(authorFilter);
+      })
+      .map((post) => ({
+        id: post.id,
+        slug: post.slug,
+        title: post.title,
+        category: post.tags?.[0]?.name || "Bài viết",
+        readTime: post.readingMinutes ? `${post.readingMinutes} phút đọc` : "—",
+        status: mapStatus(post.moderationStatus),
+        author: post.author?.displayName || "Hệ thống",
+        authorInitials: toInitials(post.author?.displayName || "AD"),
+        updatedAt: formatDate(post.publishedAt),
+        thumbnail:
+          post.coverImageUrl || "https://placehold.co/160x120/png?text=Post",
+        raw: post,
+      }));
+  }, [posts, author]);
 
   const stats = useMemo(() => {
-    const published = articles.filter((a) => a.status === "published").length;
-    const scheduled = articles.filter((a) => a.status === "scheduled").length;
-    const draft = articles.filter((a) => a.status === "draft").length;
-    return { published, scheduled, draft };
-  }, [articles]);
+    const published = posts.filter(
+      (p) => (p.moderationStatus || "").toUpperCase() === "PUBLISHED",
+    ).length;
+    const pending = posts.filter(
+      (p) => (p.moderationStatus || "").toUpperCase() === "PENDING",
+    ).length;
+    const draft = posts.filter(
+      (p) => (p.moderationStatus || "").toUpperCase() === "DRAFT",
+    ).length;
+    return { published, pending, draft };
+  }, [posts]);
 
-  const handlePreview = (item) => alert(`Xem trước: ${item.title}`);
-  const handleEdit = (item) => alert(`Chỉnh sửa: ${item.title}`);
-  const handleDelete = (item) => {
-    if (window.confirm(`Xóa bài viết \"${item.title}\"?`)) {
-      setArticles((prev) => prev.filter((a) => a.id !== item.id));
+  const handlePreview = (item) => {
+    if (item.slug) {
+      window.open(`/posts/${item.slug}`, "_blank", "noopener,noreferrer");
+      return;
+    }
+    alert(`Xem trước: ${item.title}`);
+  };
+
+  const handleEdit = async (item) => {
+    if (!item?.slug) {
+      alert("Không tìm thấy bài viết để chỉnh sửa.");
+      return;
+    }
+    try {
+      const data = await getPostBySlug(item.slug);
+      setFullEditorOpen(true);
+      setFullError("");
+      setFullPostId(data?.id || null);
+      setFullTitle(data?.title || "");
+      setFullInitialHtml(data?.contentHtml || "");
+      setFullInitialJson(data?.contentJson || null);
+      setFullImages(data?.images || []);
+      setFullCoverImageUrl(data?.coverImageUrl || "");
+      setFullCoverPreviewUrl(data?.coverImageUrl || "");
+    } catch (err) {
+      alert(err.message || "Không thể tải bài viết.");
+    }
+  };
+
+  const handleDelete = async (item) => {
+    if (!item?.id) return;
+    const confirmDelete = window.confirm(
+      "Xóa bài viết này vĩnh viễn? Hành động không thể hoàn tác.",
+    );
+    if (!confirmDelete) return;
+    try {
+      await deletePost(item.id);
+      setPostsRefresh((v) => v + 1);
+    } catch (err) {
+      alert(err.message || "Không thể xóa bài viết");
+    }
+  };
+
+  const handleTogglePublish = async (item) => {
+    try {
+      if (item.status === "published") {
+        await unpublishPost(item.id);
+      } else {
+        await publishPost(item.id);
+      }
+      setPostsRefresh((v) => v + 1);
+    } catch (err) {
+      alert(err.message || "Không thể cập nhật trạng thái bài viết");
+    }
+  };
+
+  const handleSaveDraft = async ({
+    title,
+    contentHtml,
+    contentJson,
+    images,
+    coverImageUrl,
+  }) => {
+    if (!title.trim()) {
+      alert("Vui lòng nhập tiêu đề");
+      return;
+    }
+    try {
+      const resolvedHtml = await resolveHtmlImagesToDataUrls(contentHtml || "");
+      const resolvedJson = await resolveJsonImagesToDataUrls(
+        contentJson || null,
+      );
+      const resolvedImages = await resolveImagesToBase64(images || []);
+      await createPost({
+        title: title.trim(),
+        contentHtml: resolvedHtml,
+        contentJson: resolvedJson,
+        images: resolvedImages,
+        coverImageUrl: coverImageUrl || null,
+        tags: [],
+      });
+      setPostsPagination((p) => ({ ...p, page: 1 }));
+      setActiveTab("posts");
+      setPostsRefresh((v) => v + 1);
+    } catch (err) {
+      alert(err.message || "Không thể lưu nháp");
+    }
+  };
+
+  const openFullEditor = ({
+    title,
+    contentHtml,
+    contentJson,
+    images,
+    coverImageUrl,
+  }) => {
+    setFullEditorOpen(true);
+    setFullError("");
+    setFullPostId(null);
+    setFullTitle(title || "");
+    setFullInitialHtml(contentHtml || "");
+    setFullInitialJson(contentJson || null);
+    setFullImages(images || []);
+    setFullCoverImageUrl(coverImageUrl || "");
+    setFullCoverPreviewUrl(coverImageUrl || "");
+  };
+
+  useEffect(() => {
+    if (!fullEditor || !fullEditorOpen) return;
+    let active = true;
+
+    const loadContent = async () => {
+      if (fullInitialJson) {
+        const resolvedJson = await resolveJsonImagesToDataUrls(fullInitialJson);
+        if (!active) return;
+        fullEditor.commands.setContent(resolvedJson);
+        return;
+      }
+      if (fullInitialHtml) {
+        const resolvedHtml = await resolveHtmlImagesToDataUrls(fullInitialHtml);
+        if (!active) return;
+        fullEditor.commands.setContent(resolvedHtml, false);
+        return;
+      }
+      fullEditor.commands.setContent("");
+    };
+
+    loadContent();
+    return () => {
+      active = false;
+    };
+  }, [fullEditor, fullEditorOpen, fullInitialHtml, fullInitialJson]);
+
+  const saveFullDraft = async () => {
+    if (!fullTitle.trim()) {
+      setFullError("Vui lòng nhập tiêu đề.");
+      return null;
+    }
+    const contentHtml = fullEditor?.getHTML() || "";
+    const contentJson = fullEditor?.getJSON() || null;
+    setFullSaving(true);
+    setFullError("");
+    try {
+      const resolvedHtml = await resolveHtmlImagesToDataUrls(contentHtml);
+      const resolvedJson = await resolveJsonImagesToDataUrls(contentJson);
+      const resolvedImages = await resolveImagesToBase64(fullImages || []);
+      if (fullPostId) {
+        await updatePost(fullPostId, {
+          title: fullTitle.trim(),
+          contentHtml: resolvedHtml,
+          contentJson: resolvedJson,
+          images: resolvedImages,
+          coverImageUrl: fullCoverImageUrl || null,
+          tags: [],
+        });
+        return fullPostId;
+      }
+      const created = await createPost({
+        title: fullTitle.trim(),
+        contentHtml: resolvedHtml,
+        contentJson: resolvedJson,
+        images: resolvedImages,
+        coverImageUrl: fullCoverImageUrl || null,
+        tags: [],
+      });
+      const createdId = created?.id || null;
+      setFullPostId(createdId);
+      setPostsRefresh((v) => v + 1);
+      return createdId;
+    } catch (err) {
+      setFullError(err.message || "Không thể lưu nháp.");
+      return null;
+    } finally {
+      setFullSaving(false);
+    }
+  };
+
+  const publishFullPost = async () => {
+    const savedId = await saveFullDraft();
+    const targetId = savedId || fullPostId;
+    if (!targetId) return;
+    try {
+      await publishPost(targetId);
+      setPostsRefresh((v) => v + 1);
+      setFullEditorOpen(false);
+    } catch (err) {
+      setFullError(err.message || "Không thể xuất bản.");
+    }
+  };
+
+  const handleModerateQuestion = async (action, question) => {
+    const targetType = "THREAD";
+    if (!question?.id) return;
+    try {
+      if (action === "approve") {
+        await approveModeration(targetType, question.id);
+      } else if (action === "reject") {
+        const reason = window.prompt(
+          "Lý do từ chối:",
+          "Nội dung không phù hợp",
+        );
+        if (!reason) return;
+        await rejectModeration(targetType, question.id, reason);
+      } else if (action === "hide") {
+        const reason = window.prompt("Lý do ẩn:", "Nội dung không phù hợp");
+        if (!reason) return;
+        await hideModeration(targetType, question.id, reason);
+      }
+      setQuestionsRefresh((v) => v + 1);
+    } catch (err) {
+      alert(err.message || "Không thể cập nhật câu hỏi");
     }
   };
 
@@ -106,43 +601,35 @@ const AdminContentPage = () => {
                   tin tĩnh trên website nhà thuốc.
                 </p>
               </div>
-              <button
-                type="button"
-                className="flex items-center justify-center gap-2 h-10 px-5 bg-primary hover:bg-blue-600 text-white text-sm font-bold rounded-lg shadow-lg shadow-blue-500/20 transition-all transform hover:-translate-y-0.5"
-                onClick={() => alert("Tạo mới bài viết (mock)")}
-              >
-                <span className="material-symbols-outlined text-[20px]">
-                  add
-                </span>
-                <span>Tạo mới</span>
-              </button>
             </div>
 
             <div className="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-[#e7edf3] dark:border-gray-800 overflow-hidden">
               <div className="border-b border-[#e7edf3] dark:border-gray-700 px-6">
                 <div className="flex gap-8 overflow-x-auto">
                   <button
-                    className="flex items-center justify-center border-b-[3px] border-transparent text-text-secondary dark:text-gray-400 hover:text-primary py-4 px-2 transition-colors whitespace-nowrap"
+                    className={`flex items-center justify-center border-b-[3px] py-4 px-2 transition-colors whitespace-nowrap ${
+                      activeTab === "posts"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-text-secondary dark:text-gray-400 hover:text-primary"
+                    }`}
                     type="button"
-                  >
-                    <p className="text-sm font-bold tracking-[0.015em]">
-                      Banner
-                    </p>
-                  </button>
-                  <button
-                    className="flex items-center justify-center border-b-[3px] border-primary text-primary py-4 px-2 transition-colors whitespace-nowrap"
-                    type="button"
+                    onClick={() => setActiveTab("posts")}
                   >
                     <p className="text-sm font-bold tracking-[0.015em]">
                       Bài viết
                     </p>
                   </button>
                   <button
-                    className="flex items-center justify-center border-b-[3px] border-transparent text-text-secondary dark:text-gray-400 hover:text-primary py-4 px-2 transition-colors whitespace-nowrap"
+                    className={`flex items-center justify-center border-b-[3px] py-4 px-2 transition-colors whitespace-nowrap ${
+                      activeTab === "questions"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-text-secondary dark:text-gray-400 hover:text-primary"
+                    }`}
                     type="button"
+                    onClick={() => setActiveTab("questions")}
                   >
                     <p className="text-sm font-bold tracking-[0.015em]">
-                      Trang tĩnh
+                      Câu hỏi
                     </p>
                   </button>
                 </div>
@@ -157,28 +644,145 @@ const AdminContentPage = () => {
                 onAuthorChange={setAuthor}
               />
 
-              <ContentTable
-                articles={filtered}
-                onPreview={handlePreview}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-              />
+              {activeTab === "posts" ? (
+                <>
+                  {postsError && (
+                    <div className="px-6 py-3 text-sm text-rose-500">
+                      {postsError}
+                    </div>
+                  )}
+                  {postsLoading ? (
+                    <div className="px-6 py-6 text-sm text-text-secondary">
+                      Đang tải bài viết...
+                    </div>
+                  ) : (
+                    <ContentTable
+                      articles={postRows}
+                      onPreview={handlePreview}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      onTogglePublish={handleTogglePublish}
+                    />
+                  )}
+                </>
+              ) : (
+                <div className="overflow-x-auto">
+                  {questionsError && (
+                    <div className="px-6 py-3 text-sm text-rose-500">
+                      {questionsError}
+                    </div>
+                  )}
+                  {questionsLoading ? (
+                    <div className="px-6 py-6 text-sm text-text-secondary">
+                      Đang tải câu hỏi...
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50/80 dark:bg-gray-800/80 border-y border-gray-200 dark:border-gray-700">
+                          <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-text-secondary dark:text-gray-400">
+                            Câu hỏi
+                          </th>
+                          <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-text-secondary dark:text-gray-400">
+                            Người hỏi
+                          </th>
+                          <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-text-secondary dark:text-gray-400">
+                            Trạng thái
+                          </th>
+                          <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-text-secondary dark:text-gray-400 text-right">
+                            Hành động
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-surface-light dark:bg-surface-dark">
+                        {questions.map((q) => (
+                          <tr
+                            key={q.id}
+                            className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                          >
+                            <td className="py-4 px-6">
+                              <p className="text-sm font-semibold text-text-main dark:text-white">
+                                {q.title}
+                              </p>
+                              <p className="text-xs text-text-secondary dark:text-gray-400 mt-1">
+                                {formatDate(q.createdAt)} · {q.answerCount} trả
+                                lời
+                              </p>
+                            </td>
+                            <td className="py-4 px-6">
+                              <p className="text-sm text-text-main dark:text-gray-300">
+                                {q.asker?.displayName || "Ẩn danh"}
+                              </p>
+                            </td>
+                            <td className="py-4 px-6">
+                              <span className="text-xs font-semibold text-text-secondary dark:text-gray-400">
+                                {q.moderationStatus}
+                              </span>
+                            </td>
+                            <td className="py-4 px-6 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {q.moderationStatus === "PENDING" && (
+                                  <button
+                                    type="button"
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-600"
+                                    onClick={() =>
+                                      handleModerateQuestion("approve", q)
+                                    }
+                                  >
+                                    Duyệt
+                                  </button>
+                                )}
+                                {q.moderationStatus === "PENDING" && (
+                                  <button
+                                    type="button"
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-600"
+                                    onClick={() =>
+                                      handleModerateQuestion("reject", q)
+                                    }
+                                  >
+                                    Từ chối
+                                  </button>
+                                )}
+                                {q.moderationStatus === "PUBLISHED" && (
+                                  <button
+                                    type="button"
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-slate-100 text-slate-600"
+                                    onClick={() =>
+                                      handleModerateQuestion("hide", q)
+                                    }
+                                  >
+                                    Ẩn
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
 
               <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 px-6 py-4">
                 <p className="text-sm text-text-secondary dark:text-gray-400">
                   Hiển thị{" "}
                   <span className="font-medium text-text-main dark:text-white">
-                    1
+                    {activeTab === "posts"
+                      ? postsPagination.page
+                      : questionsPagination.page}
                   </span>{" "}
                   đến
                   <span className="font-medium text-text-main dark:text-white">
                     {" "}
-                    {filtered.length}
+                    {activeTab === "posts" ? postRows.length : questions.length}
                   </span>{" "}
                   trong số
                   <span className="font-medium text-text-main dark:text-white">
                     {" "}
-                    {articles.length}
+                    {activeTab === "posts"
+                      ? postsPagination.total
+                      : questionsPagination.total}
                   </span>{" "}
                   kết quả
                 </p>
@@ -186,7 +790,22 @@ const AdminContentPage = () => {
                   <button
                     className="px-3 py-1 text-sm font-medium rounded-md border border-gray-200 dark:border-gray-700 text-text-secondary dark:text-gray-400 disabled:opacity-50"
                     type="button"
-                    disabled
+                    disabled={
+                      (activeTab === "posts"
+                        ? postsPagination.page
+                        : questionsPagination.page) <= 1
+                    }
+                    onClick={() =>
+                      activeTab === "posts"
+                        ? setPostsPagination((p) => ({
+                            ...p,
+                            page: Math.max(1, p.page - 1),
+                          }))
+                        : setQuestionsPagination((p) => ({
+                            ...p,
+                            page: Math.max(1, p.page - 1),
+                          }))
+                    }
                   >
                     Trước
                   </button>
@@ -194,17 +813,29 @@ const AdminContentPage = () => {
                     className="px-3 py-1 text-sm font-medium rounded-md bg-primary text-white"
                     type="button"
                   >
-                    1
+                    {activeTab === "posts"
+                      ? postsPagination.page
+                      : questionsPagination.page}
                   </button>
                   <button
                     className="px-3 py-1 text-sm font-medium rounded-md border border-gray-200 dark:border-gray-700 text-text-main dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800"
                     type="button"
-                  >
-                    2
-                  </button>
-                  <button
-                    className="px-3 py-1 text-sm font-medium rounded-md border border-gray-200 dark:border-gray-700 text-text-main dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800"
-                    type="button"
+                    disabled={
+                      activeTab === "posts"
+                        ? postRows.length < postsPagination.pageSize
+                        : questions.length < questionsPagination.pageSize
+                    }
+                    onClick={() =>
+                      activeTab === "posts"
+                        ? setPostsPagination((p) => ({
+                            ...p,
+                            page: p.page + 1,
+                          }))
+                        : setQuestionsPagination((p) => ({
+                            ...p,
+                            page: p.page + 1,
+                          }))
+                    }
                   >
                     Tiếp
                   </button>
@@ -213,10 +844,13 @@ const AdminContentPage = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <ContentQuickDraft />
+              <ContentQuickDraft
+                onSave={handleSaveDraft}
+                onOpenFullEditor={openFullEditor}
+              />
               <ContentStats
                 published={stats.published}
-                pending={stats.scheduled}
+                pending={stats.pending}
                 drafts={stats.draft}
               />
             </div>
@@ -229,6 +863,354 @@ const AdminContentPage = () => {
           </div>
         </div>
       </div>
+
+      <Dialog open={fullEditorOpen} onOpenChange={setFullEditorOpen}>
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Soạn thảo bài viết</DialogTitle>
+            <DialogDescription>
+              Chỉnh sửa nội dung đầy đủ trước khi xuất bản.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <input
+              value={fullTitle}
+              onChange={(e) => setFullTitle(e.target.value)}
+              className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
+              placeholder="Tiêu đề bài viết..."
+              type="text"
+            />
+
+            <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 p-3 bg-gray-50/60 dark:bg-gray-900/40">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-text-main dark:text-white">
+                    Ảnh bìa bài viết
+                  </p>
+                  <p className="text-xs text-text-secondary dark:text-gray-400">
+                    Ảnh đại diện khi hiển thị danh sách và trang chi tiết.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {fullCoverImageUrl ? (
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 dark:border-gray-700 text-text-secondary dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => {
+                        setFullCoverImageUrl("");
+                        setFullCoverPreviewUrl("");
+                      }}
+                      disabled={fullCoverUploading}
+                    >
+                      Xóa ảnh
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-white hover:bg-primary/90"
+                    onClick={handleCoverPick}
+                    disabled={fullCoverUploading}
+                  >
+                    {fullCoverUploading ? "Đang tải..." : "Chọn ảnh"}
+                  </button>
+                </div>
+              </div>
+              {fullCoverPreviewUrl ? (
+                <div className="mt-3 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                  <img
+                    src={fullCoverPreviewUrl}
+                    alt="Ảnh bìa"
+                    className="w-full h-48 object-cover"
+                  />
+                </div>
+              ) : null}
+              {fullCoverError ? (
+                <p className="text-xs text-rose-500 mt-2">{fullCoverError}</p>
+              ) : null}
+            </div>
+
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <div className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 py-2 flex gap-1 items-center flex-wrap">
+                <div className="flex items-center gap-1 mr-2">
+                  {[1, 2, 3].map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      className={`px-2 py-1 text-xs font-semibold rounded-md ${
+                        fullEditor?.isActive("heading", { level })
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                      }`}
+                      onClick={() => setHeading(`h${level}`)}
+                      disabled={!fullEditor}
+                    >
+                      H{level}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className={`px-2 py-1 text-xs font-semibold rounded-md ${
+                      currentHeading() === "paragraph"
+                        ? "bg-primary/10 text-primary"
+                        : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                    }`}
+                    onClick={() => setHeading("paragraph")}
+                    disabled={!fullEditor}
+                  >
+                    Normal
+                  </button>
+                </div>
+                <button
+                  className={`p-1 rounded ${
+                    fullEditor?.isActive("bold")
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  }`}
+                  type="button"
+                  onClick={() => fullEditor?.chain().focus().toggleBold().run()}
+                  disabled={
+                    !fullEditor?.can().chain().focus().toggleBold().run()
+                  }
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    format_bold
+                  </span>
+                </button>
+                <button
+                  className={`p-1 rounded ${
+                    fullEditor?.isActive("italic")
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  }`}
+                  type="button"
+                  onClick={() =>
+                    fullEditor?.chain().focus().toggleItalic().run()
+                  }
+                  disabled={
+                    !fullEditor?.can().chain().focus().toggleItalic().run()
+                  }
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    format_italic
+                  </span>
+                </button>
+                <button
+                  className={`p-1 rounded ${
+                    fullEditor?.isActive("underline")
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  }`}
+                  type="button"
+                  onClick={() =>
+                    fullEditor?.chain().focus().toggleUnderline().run()
+                  }
+                  disabled={
+                    !fullEditor?.can().chain().focus().toggleUnderline().run()
+                  }
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    format_underlined
+                  </span>
+                </button>
+                <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
+                <button
+                  className={`p-1 rounded ${
+                    fullEditor?.isActive("bulletList")
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  }`}
+                  type="button"
+                  onClick={() =>
+                    fullEditor?.chain().focus().toggleBulletList().run()
+                  }
+                  disabled={
+                    !fullEditor?.can().chain().focus().toggleBulletList().run()
+                  }
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    format_list_bulleted
+                  </span>
+                </button>
+                <button
+                  className={`p-1 rounded ${
+                    fullEditor?.isActive("orderedList")
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  }`}
+                  type="button"
+                  onClick={() =>
+                    fullEditor?.chain().focus().toggleOrderedList().run()
+                  }
+                  disabled={
+                    !fullEditor?.can().chain().focus().toggleOrderedList().run()
+                  }
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    format_list_numbered
+                  </span>
+                </button>
+                <button
+                  className={`p-1 rounded ${
+                    fullEditor?.isActive("blockquote")
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  }`}
+                  type="button"
+                  onClick={() =>
+                    fullEditor?.chain().focus().toggleBlockquote().run()
+                  }
+                  disabled={
+                    !fullEditor?.can().chain().focus().toggleBlockquote().run()
+                  }
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    format_quote
+                  </span>
+                </button>
+                <button
+                  className={`p-1 rounded ${
+                    fullEditor?.isActive("codeBlock")
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  }`}
+                  type="button"
+                  onClick={() =>
+                    fullEditor?.chain().focus().toggleCodeBlock().run()
+                  }
+                  disabled={
+                    !fullEditor?.can().chain().focus().toggleCodeBlock().run()
+                  }
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    code
+                  </span>
+                </button>
+                <button
+                  className={`p-1 rounded ${
+                    fullEditor?.isActive("link")
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  }`}
+                  type="button"
+                  onClick={handleLink}
+                  disabled={!fullEditor}
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    link
+                  </span>
+                </button>
+                <button
+                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300"
+                  type="button"
+                  onClick={handleInsertImage}
+                  disabled={!fullEditor || fullUploading}
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    image
+                  </span>
+                </button>
+                <button
+                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300"
+                  type="button"
+                  onClick={() =>
+                    fullEditor
+                      ?.chain()
+                      .focus()
+                      .unsetAllMarks()
+                      .clearNodes()
+                      .run()
+                  }
+                  disabled={
+                    !fullEditor
+                      ?.can()
+                      .chain()
+                      .focus()
+                      .unsetAllMarks()
+                      .clearNodes()
+                      .run()
+                  }
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    format_clear
+                  </span>
+                </button>
+                <button
+                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300"
+                  type="button"
+                  onClick={() => fullEditor?.chain().focus().undo().run()}
+                  disabled={!fullEditor?.can().chain().focus().undo().run()}
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    undo
+                  </span>
+                </button>
+                <button
+                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300"
+                  type="button"
+                  onClick={() => fullEditor?.chain().focus().redo().run()}
+                  disabled={!fullEditor?.can().chain().focus().redo().run()}
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    redo
+                  </span>
+                </button>
+              </div>
+              <EditorContent
+                editor={fullEditor}
+                className="tiptap content-editor w-full px-4 py-3 bg-white dark:bg-gray-900 text-sm border-none focus:ring-0 resize-none text-text-main dark:text-white min-h-[260px]"
+              />
+            </div>
+            <input
+              ref={fullCoverInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleCoverSelected}
+            />
+            <input
+              ref={fullFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFullImageSelected}
+            />
+            {fullUploadError ? (
+              <p className="text-xs text-red-500">{fullUploadError}</p>
+            ) : null}
+
+            {fullError ? (
+              <p className="text-sm text-rose-500">{fullError}</p>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <button
+              type="button"
+              className="px-4 py-2 text-sm font-medium text-text-secondary dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+              onClick={() => setFullEditorOpen(false)}
+            >
+              Đóng
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 text-sm font-medium text-text-secondary dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+              onClick={saveFullDraft}
+              disabled={fullSaving}
+            >
+              {fullSaving ? "Đang lưu..." : "Lưu nháp"}
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 text-sm font-bold text-white bg-primary hover:bg-blue-600 rounded-lg shadow-sm"
+              onClick={publishFullPost}
+              disabled={fullSaving}
+            >
+              Xuất bản
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
