@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../../components/admin/AdminLayout";
 import InventoryToolbar from "../../../components/admin/inventory/InventoryToolbar";
 import InventoryTable from "../../../components/admin/inventory/InventoryTable";
+import AdminPageHeader from "../../../components/admin/shared/AdminPageHeader";
 import BranchSelect from "../../../components/admin/shared/BranchSelect";
+import StatsSection from "../../../components/admin/shared/StatsSection";
 import AdminPageContainer from "../../../components/common/AdminPageContainer";
 import AdminTableWrapper from "../../../components/common/AdminTableWrapper";
 import {
@@ -110,6 +112,26 @@ const slugify = (value) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "") || `drug-${Date.now()}`;
 
+const buildMedicineAttributes = (modal) => ({
+  unit: modal.unit || "Hộp",
+  threshold: Number(modal.threshold || 0) || 20,
+  dosageForm: modal.dosageForm || "",
+  packaging: modal.packaging || "",
+  activeIngredient: modal.activeIngredient || "",
+  indications: modal.indications || "",
+  usageDosage: modal.usageDosage || "",
+  contraindicationsWarning: modal.contraindicationsWarning || "",
+  otherInformation: modal.otherInformation || "",
+  form: modal.dosageForm || "",
+  packing: modal.packaging || "",
+  ingredient: modal.activeIngredient || "",
+  usage: modal.indications || "",
+  dosage: modal.usageDosage || "",
+  warning: modal.contraindicationsWarning || "",
+  contraindications: modal.contraindicationsWarning || "",
+  extraInfo: modal.otherInformation || "",
+});
+
 const AdminInventoryPage = () => {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -153,6 +175,14 @@ const AdminInventoryPage = () => {
     status: "ACTIVE",
     rx: false,
     imageUrl: "",
+    description: "",
+    dosageForm: "",
+    packaging: "",
+    activeIngredient: "",
+    indications: "",
+    usageDosage: "",
+    contraindicationsWarning: "",
+    otherInformation: "",
     newStock: 0,
     reason: "",
     batchNo: "",
@@ -171,6 +201,13 @@ const AdminInventoryPage = () => {
     rx: false,
     imageUrl: "",
     description: "",
+    dosageForm: "",
+    packaging: "",
+    activeIngredient: "",
+    indications: "",
+    usageDosage: "",
+    contraindicationsWarning: "",
+    otherInformation: "",
     initialStock: 0,
     reason: "",
     batchNo: "",
@@ -318,6 +355,28 @@ const AdminInventoryPage = () => {
             catalogStatus: p.effectiveStatus || p.globalStatus || "ACTIVE",
             prescriptionRequired: !!p.prescriptionRequired,
             description: p.description || "",
+            dosageForm: p.dosageForm || attrs.dosageForm || attrs.form || "",
+            packaging: p.packaging || attrs.packaging || attrs.packing || "",
+            activeIngredient:
+              p.activeIngredient ||
+              attrs.activeIngredient ||
+              attrs.ingredient ||
+              "",
+            indications:
+              p.indications || attrs.indications || attrs.usage || "",
+            usageDosage:
+              p.usageDosage || attrs.usageDosage || attrs.dosage || "",
+            contraindicationsWarning:
+              p.contraindicationsWarning ||
+              attrs.contraindicationsWarning ||
+              attrs.warning ||
+              attrs.contraindications ||
+              "",
+            otherInformation:
+              p.otherInformation ||
+              attrs.otherInformation ||
+              attrs.extraInfo ||
+              "",
             imageUrl: p.imageUrl || "",
             attributes: attrs,
           };
@@ -473,6 +532,52 @@ const AdminInventoryPage = () => {
       total: list.length,
     };
   }, [enrichedItems]);
+
+  const inventoryStats = useMemo(() => {
+    const totalProducts = enrichedItems.length;
+    const totalOnHand = enrichedItems.reduce(
+      (sum, item) => sum + Number(item.stock || 0),
+      0,
+    );
+    const totalValue = enrichedItems.reduce(
+      (sum, item) => sum + Number(item.stock || 0) * Number(item.price || 0),
+      0,
+    );
+    const warningCount = warnings.total;
+    const outCount = warnings.outCount;
+
+    return [
+      {
+        key: "products",
+        label: "Sản phẩm trong kho",
+        value: totalProducts.toLocaleString("vi-VN"),
+        description: "SKU đang theo dõi theo chi nhánh hiện tại",
+        icon: "inventory_2",
+      },
+      {
+        key: "onhand",
+        label: "Tổng tồn on-hand",
+        value: totalOnHand.toLocaleString("vi-VN"),
+        description: "Số lượng vật lý hiện có",
+        icon: "warehouse",
+      },
+      {
+        key: "warning",
+        label: "Mức cảnh báo",
+        value: warningCount.toLocaleString("vi-VN"),
+        description: `Hết hàng: ${outCount.toLocaleString("vi-VN")}`,
+        icon: "warning",
+        tone: outCount > 0 ? "down" : warningCount > 0 ? "neutral" : "up",
+      },
+      {
+        key: "value",
+        label: "Giá trị tồn kho",
+        value: formatCurrency(totalValue),
+        description: "Ước tính theo giá bán hiện tại",
+        icon: "payments",
+      },
+    ];
+  }, [enrichedItems, warnings.outCount, warnings.total]);
 
   const resolveDownloadName = (contentDisposition) => {
     if (!contentDisposition) return "inventory-report.xlsx";
@@ -690,6 +795,14 @@ const AdminInventoryPage = () => {
       status: item.catalogStatus || item.status || "ACTIVE",
       rx: !!item.prescriptionRequired,
       imageUrl: item.imageUrl || "",
+      description: item.description || "",
+      dosageForm: item.dosageForm || "",
+      packaging: item.packaging || "",
+      activeIngredient: item.activeIngredient || "",
+      indications: item.indications || "",
+      usageDosage: item.usageDosage || "",
+      contraindicationsWarning: item.contraindicationsWarning || "",
+      otherInformation: item.otherInformation || "",
       newStock: item.stock,
       reason: "Điều chỉnh tồn kho",
       batchNo: "",
@@ -722,6 +835,7 @@ const AdminInventoryPage = () => {
         unit: addModal.unit || "Hộp",
         threshold: Number(addModal.threshold || 0) || 20,
       });
+      void attributes;
       const payload = {
         sku: addModal.sku,
         name: addModal.name,
@@ -732,8 +846,15 @@ const AdminInventoryPage = () => {
         status: addModal.status || "ACTIVE",
         prescriptionRequired: !!addModal.rx,
         description: addModal.description || "",
+        dosageForm: addModal.dosageForm || "",
+        packaging: addModal.packaging || "",
+        activeIngredient: addModal.activeIngredient || "",
+        indications: addModal.indications || "",
+        usageDosage: addModal.usageDosage || "",
+        contraindicationsWarning: addModal.contraindicationsWarning || "",
+        otherInformation: addModal.otherInformation || "",
         imageUrl: addModal.imageUrl || "",
-        attributes,
+        attributes: JSON.stringify(buildMedicineAttributes(addModal)),
       };
       const created = await createCatalogProduct(payload);
 
@@ -768,8 +889,15 @@ const AdminInventoryPage = () => {
         catalogStatus: addModal.status || "ACTIVE",
         prescriptionRequired: !!addModal.rx,
         description: addModal.description || "",
+        dosageForm: addModal.dosageForm || "",
+        packaging: addModal.packaging || "",
+        activeIngredient: addModal.activeIngredient || "",
+        indications: addModal.indications || "",
+        usageDosage: addModal.usageDosage || "",
+        contraindicationsWarning: addModal.contraindicationsWarning || "",
+        otherInformation: addModal.otherInformation || "",
         imageUrl: addModal.imageUrl || "",
-        attributes: JSON.parse(attributes),
+        attributes: buildMedicineAttributes(addModal),
       };
       setItems((prev) => [newItem, ...prev]);
 
@@ -810,6 +938,13 @@ const AdminInventoryPage = () => {
         rx: false,
         imageUrl: "",
         description: "",
+        dosageForm: "",
+        packaging: "",
+        activeIngredient: "",
+        indications: "",
+        usageDosage: "",
+        contraindicationsWarning: "",
+        otherInformation: "",
         initialStock: 0,
         reason: "",
         batchNo: "",
@@ -827,8 +962,7 @@ const AdminInventoryPage = () => {
     const nextSlug = target.slug || slugify(editModal.name || target.name);
     const nextAttributes = {
       ...(target.attributes || {}),
-      unit: editModal.unit || target.unit,
-      threshold: Number(editModal.threshold || 0) || target.threshold || 20,
+      ...buildMedicineAttributes(editModal),
     };
     await updateCatalogProduct(target.id, {
       sku: editModal.sku || target.sku,
@@ -839,7 +973,19 @@ const AdminInventoryPage = () => {
       salePrice: Number(editModal.salePrice || 0),
       status: editModal.status || target.status || "ACTIVE",
       prescriptionRequired: !!editModal.rx,
-      description: target.description || "",
+      description: editModal.description || target.description || "",
+      dosageForm: editModal.dosageForm || target.dosageForm || "",
+      packaging: editModal.packaging || target.packaging || "",
+      activeIngredient:
+        editModal.activeIngredient || target.activeIngredient || "",
+      indications: editModal.indications || target.indications || "",
+      usageDosage: editModal.usageDosage || target.usageDosage || "",
+      contraindicationsWarning:
+        editModal.contraindicationsWarning ||
+        target.contraindicationsWarning ||
+        "",
+      otherInformation:
+        editModal.otherInformation || target.otherInformation || "",
       imageUrl: editModal.imageUrl || target.imageUrl || "",
       attributes: JSON.stringify(nextAttributes),
     });
@@ -880,6 +1026,18 @@ const AdminInventoryPage = () => {
               catalogStatus:
                 editModal.status || item.catalogStatus || item.status,
               prescriptionRequired: !!editModal.rx,
+              description: editModal.description || item.description,
+              dosageForm: editModal.dosageForm || item.dosageForm,
+              packaging: editModal.packaging || item.packaging,
+              activeIngredient:
+                editModal.activeIngredient || item.activeIngredient,
+              indications: editModal.indications || item.indications,
+              usageDosage: editModal.usageDosage || item.usageDosage,
+              contraindicationsWarning:
+                editModal.contraindicationsWarning ||
+                item.contraindicationsWarning,
+              otherInformation:
+                editModal.otherInformation || item.otherInformation,
               imageUrl: editModal.imageUrl || item.imageUrl,
               attributes: nextAttributes,
             }
@@ -900,6 +1058,14 @@ const AdminInventoryPage = () => {
       status: "ACTIVE",
       rx: false,
       imageUrl: "",
+      description: "",
+      dosageForm: "",
+      packaging: "",
+      activeIngredient: "",
+      indications: "",
+      usageDosage: "",
+      contraindicationsWarning: "",
+      otherInformation: "",
       newStock: 0,
       reason: "",
       batchNo: "",
@@ -913,40 +1079,41 @@ const AdminInventoryPage = () => {
   return (
     <AdminLayout activeKey="inventory">
       <AdminPageContainer>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">
-              Quản lý kho hàng
-            </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Giám sát tồn kho, giá trị và nhập/xuất sản phẩm
-            </p>
-          </div>
+        <AdminPageHeader
+          title="Quản lý kho hàng"
+          subtitle="Giám sát tồn kho, giá trị và nhập/xuất sản phẩm"
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => handleQuickAdjust("in")}
+                className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  download
+                </span>
+                Nhập kho
+              </button>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickAdjust("in")}
-              className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            >
-              <span className="material-symbols-outlined text-[20px]">
-                download
-              </span>
-              Nhập kho
-            </button>
+              <button
+                type="button"
+                onClick={() => handleQuickAdjust("out")}
+                className="flex h-10 items-center justify-center gap-2 rounded-lg border border-primary bg-white px-4 text-sm font-medium text-primary shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  upload
+                </span>
+                Xuất kho
+              </button>
+            </>
+          }
+        />
 
-            <button
-              type="button"
-              onClick={() => handleQuickAdjust("out")}
-              className="flex h-10 items-center justify-center gap-2 rounded-lg border border-primary bg-white px-4 text-sm font-medium text-primary shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            >
-              <span className="material-symbols-outlined text-[20px]">
-                upload
-              </span>
-              Xuất kho
-            </button>
-          </div>
-        </div>
+        <StatsSection
+          items={inventoryStats}
+          loading={loading && !items.length}
+          emptyText="Chưa có dữ liệu tổng quan kho"
+        />
 
         <InventoryToolbar
           filters={filters}
@@ -1098,6 +1265,13 @@ const AdminInventoryPage = () => {
                 rx: false,
                 imageUrl: "",
                 description: "",
+                dosageForm: "",
+                packaging: "",
+                activeIngredient: "",
+                indications: "",
+                usageDosage: "",
+                contraindicationsWarning: "",
+                otherInformation: "",
                 initialStock: 0,
                 reason: "",
                 batchNo: "",
@@ -1336,6 +1510,108 @@ const AdminInventoryPage = () => {
                   }
                 />
               </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <label className="text-xs text-slate-500">Dạng bào chế</label>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    value={addModal.dosageForm}
+                    onChange={(e) =>
+                      setAddModal((prev) => ({
+                        ...prev,
+                        dosageForm: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Quy cách</label>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    value={addModal.packaging}
+                    onChange={(e) =>
+                      setAddModal((prev) => ({
+                        ...prev,
+                        packaging: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Thành phần chính</label>
+                <textarea
+                  rows={2}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  value={addModal.activeIngredient}
+                  onChange={(e) =>
+                    setAddModal((prev) => ({
+                      ...prev,
+                      activeIngredient: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Công dụng</label>
+                <textarea
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  value={addModal.indications}
+                  onChange={(e) =>
+                    setAddModal((prev) => ({
+                      ...prev,
+                      indications: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">
+                  Cách dùng &amp; liều dùng
+                </label>
+                <textarea
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  value={addModal.usageDosage}
+                  onChange={(e) =>
+                    setAddModal((prev) => ({
+                      ...prev,
+                      usageDosage: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">
+                  Chống chỉ định &amp; cảnh báo
+                </label>
+                <textarea
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  value={addModal.contraindicationsWarning}
+                  onChange={(e) =>
+                    setAddModal((prev) => ({
+                      ...prev,
+                      contraindicationsWarning: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Thông tin khác</label>
+                <textarea
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  value={addModal.otherInformation}
+                  onChange={(e) =>
+                    setAddModal((prev) => ({
+                      ...prev,
+                      otherInformation: e.target.value,
+                    }))
+                  }
+                />
+              </div>
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -1368,6 +1644,13 @@ const AdminInventoryPage = () => {
                     rx: false,
                     imageUrl: "",
                     description: "",
+                    dosageForm: "",
+                    packaging: "",
+                    activeIngredient: "",
+                    indications: "",
+                    usageDosage: "",
+                    contraindicationsWarning: "",
+                    otherInformation: "",
                     initialStock: 0,
                     reason: "",
                     batchNo: "",
@@ -1505,6 +1788,14 @@ const AdminInventoryPage = () => {
                 status: "ACTIVE",
                 rx: false,
                 imageUrl: "",
+                description: "",
+                dosageForm: "",
+                packaging: "",
+                activeIngredient: "",
+                indications: "",
+                usageDosage: "",
+                contraindicationsWarning: "",
+                otherInformation: "",
                 newStock: 0,
                 reason: "",
                 batchNo: "",
@@ -1744,6 +2035,124 @@ const AdminInventoryPage = () => {
                 </div>
               </div>
             </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-slate-500">Mô tả</label>
+                <textarea
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  value={editModal.description}
+                  onChange={(e) =>
+                    setEditModal((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <label className="text-xs text-slate-500">Dạng bào chế</label>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    value={editModal.dosageForm}
+                    onChange={(e) =>
+                      setEditModal((prev) => ({
+                        ...prev,
+                        dosageForm: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Quy cách</label>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    value={editModal.packaging}
+                    onChange={(e) =>
+                      setEditModal((prev) => ({
+                        ...prev,
+                        packaging: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Thành phần chính</label>
+                <textarea
+                  rows={2}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  value={editModal.activeIngredient}
+                  onChange={(e) =>
+                    setEditModal((prev) => ({
+                      ...prev,
+                      activeIngredient: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Công dụng</label>
+                <textarea
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  value={editModal.indications}
+                  onChange={(e) =>
+                    setEditModal((prev) => ({
+                      ...prev,
+                      indications: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">
+                  Cách dùng &amp; liều dùng
+                </label>
+                <textarea
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  value={editModal.usageDosage}
+                  onChange={(e) =>
+                    setEditModal((prev) => ({
+                      ...prev,
+                      usageDosage: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">
+                  Chống chỉ định &amp; cảnh báo
+                </label>
+                <textarea
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  value={editModal.contraindicationsWarning}
+                  onChange={(e) =>
+                    setEditModal((prev) => ({
+                      ...prev,
+                      contraindicationsWarning: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Thông tin khác</label>
+                <textarea
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  value={editModal.otherInformation}
+                  onChange={(e) =>
+                    setEditModal((prev) => ({
+                      ...prev,
+                      otherInformation: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm dark:border-slate-700"
@@ -1761,6 +2170,14 @@ const AdminInventoryPage = () => {
                     status: "ACTIVE",
                     rx: false,
                     imageUrl: "",
+                    description: "",
+                    dosageForm: "",
+                    packaging: "",
+                    activeIngredient: "",
+                    indications: "",
+                    usageDosage: "",
+                    contraindicationsWarning: "",
+                    otherInformation: "",
                     newStock: 0,
                     reason: "",
                     batchNo: "",

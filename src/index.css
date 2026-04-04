@@ -1,3 +1,7 @@
+/* ============ IMPORT ANIMATIONS AND STYLES ============ */
+@import './styles/animations.css';
+@import './styles/loading.css';
+
 /* Design tokens (dark-first). Use CSS variables so Tailwind/JS can reference them. */
 :root {
     --bg: #0B1220;

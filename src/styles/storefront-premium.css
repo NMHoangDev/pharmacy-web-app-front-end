@@ -1,0 +1,143 @@
+.storefront-shell {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(96, 165, 250, 0.1), transparent 24rem),
+    radial-gradient(circle at top right, rgba(125, 211, 252, 0.08), transparent 26rem),
+    linear-gradient(180deg, #fbfdff 0%, #f7fbff 34%, #f2f8ff 100%);
+}
+
+.storefront-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 92%);
+}
+
+.storefront-container {
+  position: relative;
+  z-index: 1;
+}
+
+.storefront-card {
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 70px -52px rgba(15, 23, 42, 0.3);
+  backdrop-filter: blur(14px);
+}
+
+.storefront-soft-card {
+  border: 1px solid rgba(226, 232, 240, 0.78);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.98));
+  box-shadow: 0 18px 44px -38px rgba(15, 23, 42, 0.24);
+}
+
+.storefront-panel {
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 20px 54px -42px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(12px);
+}
+
+.storefront-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 18rem),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(240, 247, 255, 0.9));
+}
+
+.storefront-hero::after {
+  content: "";
+  position: absolute;
+  right: -4rem;
+  top: -4rem;
+  width: 14rem;
+  height: 14rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(125, 211, 252, 0.3), transparent 70%);
+}
+
+.storefront-pill {
+  border: 1px solid rgba(191, 219, 254, 0.9);
+  background: rgba(239, 246, 255, 0.9);
+  color: #2563eb;
+}
+
+.storefront-input {
+  border-radius: 1rem;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  background: rgba(255, 255, 255, 0.96);
+  transition:
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.22s ease,
+    background-color 0.22s ease;
+}
+
+.storefront-input:focus {
+  border-color: rgba(59, 130, 246, 0.85);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+  outline: none;
+}
+
+.storefront-interactive {
+  transition:
+    transform 0.26s ease,
+    box-shadow 0.26s ease,
+    border-color 0.26s ease,
+    background-color 0.26s ease,
+    color 0.26s ease;
+}
+
+.storefront-interactive:hover {
+  transform: translateY(-2px);
+}
+
+.storefront-fade-up {
+  animation: storefront-fade-up 0.28s ease both;
+}
+
+.storefront-fade-up-delay {
+  animation: storefront-fade-up 0.34s ease both;
+}
+
+.storefront-float {
+  animation: storefront-float 7s ease-in-out infinite;
+}
+
+@keyframes storefront-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes storefront-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .storefront-fade-up,
+  .storefront-fade-up-delay,
+  .storefront-float {
+    animation: none;
+  }
+}

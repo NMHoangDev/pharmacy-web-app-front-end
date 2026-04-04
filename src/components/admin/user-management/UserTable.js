@@ -12,6 +12,22 @@ const roleMap = {
   customer: "Khách hàng",
 };
 
+const UserAvatar = ({ avatar, name }) =>
+  avatar ? (
+    <div
+      className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 bg-center bg-cover"
+      style={{ backgroundImage: `url(${avatar})` }}
+      aria-label={name}
+    />
+  ) : (
+    <div
+      className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 flex items-center justify-center"
+      aria-label={name}
+    >
+      <span className="material-symbols-outlined text-[20px]">person</span>
+    </div>
+  );
+
 const UserTable = ({
   users,
   selectedIds,
@@ -93,11 +109,7 @@ const UserTable = ({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div
-                        className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 bg-center bg-cover"
-                        style={{ backgroundImage: `url(${user.avatar})` }}
-                        aria-label={user.name}
-                      />
+                      <UserAvatar avatar={user.avatar} name={user.name} />
                       <div>
                         <p className="font-semibold text-slate-900 dark:text-white">
                           {user.name}
@@ -132,14 +144,14 @@ const UserTable = ({
                         {user.status === "active"
                           ? "verified"
                           : user.status === "pending"
-                          ? "schedule"
-                          : "block"}
+                            ? "schedule"
+                            : "block"}
                       </span>
                       {user.status === "active"
                         ? "Hoạt động"
                         : user.status === "pending"
-                        ? "Đang xét duyệt"
-                        : "Tạm khóa"}
+                          ? "Đang xét duyệt"
+                          : "Tạm khóa"}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right text-slate-900 dark:text-white font-semibold">

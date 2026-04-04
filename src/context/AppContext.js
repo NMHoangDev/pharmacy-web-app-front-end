@@ -2,7 +2,6 @@ import React, {
   createContext,
   useContext,
   useEffect,
-  useMemo,
   useState,
   useCallback,
 } from "react";
@@ -38,6 +37,8 @@ export const AppProvider = ({ children }) => {
     logout: authLogout,
     hasRole,
   } = auth;
+
+  const shouldSkipNotifications = Boolean(isAdmin);
 
   const [profile, setProfileState] = useState(() => {
     try {
@@ -77,7 +78,7 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   const refreshUnreadCount = useCallback(async () => {
-    if (!isAuthenticated || !accessToken) {
+    if (!isAuthenticated || !accessToken || shouldSkipNotifications) {
       setUnreadCount(0);
       return 0;
     }
@@ -96,12 +97,12 @@ export const AppProvider = ({ children }) => {
       console.warn("[AppContext] Failed to refresh unread count", err);
       return unreadCount;
     }
-  }, [accessToken, isAuthenticated, unreadCount]);
+  }, [accessToken, isAuthenticated, shouldSkipNotifications, unreadCount]);
 
   const refreshNotifications = useCallback(async () => {
     setNotificationRefreshVersion((prev) => prev + 1);
 
-    if (!isAuthenticated || !accessToken) {
+    if (!isAuthenticated || !accessToken || shouldSkipNotifications) {
       resetNotificationState();
       return { items: [], unreadCount: 0 };
     }
@@ -135,11 +136,12 @@ export const AppProvider = ({ children }) => {
     isAuthenticated,
     notifications,
     resetNotificationState,
+    shouldSkipNotifications,
     unreadCount,
   ]);
 
   useEffect(() => {
-    if (!isAuthenticated || !accessToken) {
+    if (!isAuthenticated || !accessToken || shouldSkipNotifications) {
       resetNotificationState();
       return;
     }
@@ -150,6 +152,7 @@ export const AppProvider = ({ children }) => {
     isAuthenticated,
     refreshUnreadCount,
     resetNotificationState,
+    shouldSkipNotifications,
   ]);
 
   const value = {

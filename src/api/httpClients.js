@@ -1,14 +1,77 @@
 import axios from "axios";
 import {
   getAccessToken,
+  getRefreshToken,
   isTokenExpired,
   clearAccessToken,
+  clearRefreshToken,
+  clearAuthUser,
+  setAccessToken,
+  setRefreshToken,
 } from "../utils/auth";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8087";
 const STARTUP_RETRY_DELAY_MS = 250;
 
+const logHttpError = (clientName, error) => {
+  if (process.env.NODE_ENV === "production") return;
+  const status =
+    Number(error?.response?.status || error?.status || 0) || "NO_STATUS";
+  const method = String(error?.config?.method || "get").toUpperCase();
+  const url = error?.config?.url || "UNKNOWN_URL";
+  console.error(
+    `[${clientName}] ${method} ${url} -> ${status}`,
+    error?.response?.data || error?.message || error,
+  );
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let refreshPromise = null;
+
+const refreshAccessTokenIfPossible = async () => {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  const refreshToken = String(getRefreshToken() || "").trim();
+  if (!refreshToken) {
+    return null;
+  }
+
+  refreshPromise = publicApi
+    .post("/api/auth/refresh", { refreshToken })
+    .then(({ data }) => {
+      const nextToken = String(data?.token || "").trim();
+      if (!nextToken) return null;
+
+      setAccessToken(nextToken);
+      const persistedToken = String(getAccessToken() || "").trim();
+      if (!persistedToken) {
+        return null;
+      }
+
+      const nextRefreshToken = String(
+        data?.refreshToken || refreshToken,
+      ).trim();
+      if (nextRefreshToken) {
+        setRefreshToken(nextRefreshToken);
+      }
+      return persistedToken;
+    })
+    .catch((err) => {
+      const status = Number(err?.response?.status || err?.status || 0);
+      if (status === 400 || status === 401) {
+        clearAccessToken();
+        clearRefreshToken();
+      }
+      return null;
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+
+  return refreshPromise;
+};
 
 const isTransientStartupError = (error) => {
   const status = Number(error?.response?.status || 0);
@@ -65,7 +128,8 @@ export const publicApi = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 10000,
+  withCredentials: false,
+  timeout: 20000,
 });
 
 /**
@@ -76,26 +140,69 @@ export const authApi = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 10000,
+  timeout: 20000,
 });
+
+publicApi.interceptors.request.use(
+  (config) => {
+    // Public endpoints must not carry bearer tokens; invalid tokens can trigger 401.
+    if (config?.headers) {
+      if (typeof config.headers.delete === "function") {
+        config.headers.delete("Authorization");
+        config.headers.delete("authorization");
+      } else {
+        delete config.headers.Authorization;
+        delete config.headers.authorization;
+      }
+    }
+    config.withCredentials = false;
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
 
 publicApi.interceptors.response.use(
   (response) => response,
-  (error) => retryOnceIfTransient(error, "publicApi"),
+  async (error) => {
+    const retried = await retryOnceIfTransient(error, "publicApi").catch(
+      () => null,
+    );
+    if (retried) {
+      return retried;
+    }
+    logHttpError("publicApi", error);
+    return Promise.reject(error);
+  },
 );
 
 // Request interceptor: Attach token and handle expiration
 authApi.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Skip attachment for CORS preflight (handled by browser)
     if (config.method === "options") return config;
 
-    const token = getAccessToken();
+    let token = getAccessToken();
+
+    const refreshToken = String(getRefreshToken() || "").trim();
+    const hadRefreshToken = Boolean(refreshToken);
+
+    if (!token || isTokenExpired(token)) {
+      token = await refreshAccessTokenIfPossible();
+    }
 
     if (!token || isTokenExpired(token)) {
       console.warn("[authApi] Token missing or expired. Rejecting request.");
+
+      // If refresh token existed but refresh failed due transient infra issues,
+      // do not force logout. Let caller retry and keep session state.
+      if (hadRefreshToken && String(getRefreshToken() || "").trim()) {
+        const error = new Error("Session refresh temporarily unavailable");
+        error.status = 503;
+        return Promise.reject(error);
+      }
+
       clearAccessToken();
-      // Throw an error that can be caught by the UI to redirect to login
+      clearRefreshToken();
       const error = new Error("Authentication required");
       error.status = 401;
       return Promise.reject(error);
@@ -134,6 +241,12 @@ authApi.interceptors.response.use(
 
     const status = error?.response?.status;
     const errorMsg = error?.response?.data?.message || "";
+    const currentToken = String(getAccessToken() || "").trim();
+    const currentRefreshToken = String(getRefreshToken() || "").trim();
+    const hasRefreshToken = Boolean(currentRefreshToken);
+    const tokenStillValid = Boolean(
+      currentToken && !isTokenExpired(currentToken),
+    );
 
     if (status && !error.status) {
       error.status = status;
@@ -147,9 +260,46 @@ authApi.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    const originalRequest = error?.config;
+    if (
+      status === 401 &&
+      originalRequest &&
+      !originalRequest.__authRetried &&
+      !String(originalRequest.url || "").includes("/api/auth/refresh")
+    ) {
+      originalRequest.__authRetried = true;
+      const refreshedToken = await refreshAccessTokenIfPossible();
+      if (refreshedToken) {
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${refreshedToken}`;
+        return authApi.request(originalRequest);
+      }
+    }
+
     if (status === 401 || errorMsg.toLowerCase().includes("jwt expired")) {
+      // If access token is still valid locally, treat this as a resource-level
+      // unauthorized response instead of forcing a logout.
+      if (status === 401 && tokenStillValid) {
+        return Promise.reject(error);
+      }
+
+      if (hasRefreshToken) {
+        const refreshedToken = await refreshAccessTokenIfPossible();
+        if (refreshedToken) {
+          return Promise.reject(error);
+        }
+
+        // Keep the current session if refresh token still exists but refresh is
+        // temporarily unavailable.
+        if (String(getRefreshToken() || "").trim()) {
+          return Promise.reject(error);
+        }
+      }
+
       console.warn("[authApi] Unauthorized/Expired - Redirecting to login");
       clearAccessToken();
+      clearRefreshToken();
+      clearAuthUser();
 
       // Redirect to login if not already there
       if (!window.location.pathname.includes("/login")) {
@@ -164,4 +314,6 @@ authApi.interceptors.response.use(
   },
 );
 
-export default { publicApi, authApi };
+const httpClients = { publicApi, authApi };
+
+export default httpClients;

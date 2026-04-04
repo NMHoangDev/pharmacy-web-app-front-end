@@ -1,13 +1,25 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import AdminLayout from "../../../components/admin/AdminLayout";
 import DrugFilters from "../../../components/admin/drugs/DrugFilters";
 import DrugTable from "../../../components/admin/drugs/DrugTable";
 import DrugModal from "../../../components/admin/drugs/DrugModal";
 import ReviewModerationModal from "../../../components/admin/drugs/ReviewModerationModal";
 import { authApi as api } from "../../../api/httpClients";
-import axios from "axios";
+import { generateProductPrDraft } from "../../../api/contentApi";
 import AdminPageContainer from "../../../components/common/AdminPageContainer";
 import AdminTableWrapper from "../../../components/common/AdminTableWrapper";
+import AdminPageHeader from "../../../components/admin/shared/AdminPageHeader";
+import StatsSection from "../../../components/admin/shared/StatsSection";
+import useMedicineStats from "../../../hooks/queries/useMedicineStats";
+import { useBranches } from "../../../hooks/useBranches";
 
 const defaultImage =
   "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=300&q=80";
@@ -26,27 +38,78 @@ const parseAttributes = (value) => {
   if (!value) return {};
   try {
     return JSON.parse(value);
-  } catch (error) {
+  } catch {
     return {};
   }
 };
 
-const readErrorMessage = async (response, fallback) => {
-  try {
-    const contentType = response.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      const data = await response.json();
-      return data.message || data.error || fallback;
-    }
-    const text = await response.text();
-    return text || fallback;
-  } catch {
-    return fallback;
+const isPersistedImageRef = (value) => {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.startsWith("data:")) return false;
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("/")
+  ) {
+    return true;
   }
+  return !(trimmed.length > 256 && /^[A-Za-z0-9+/=]+$/.test(trimmed));
 };
+
+const sanitizeImageList = (images = []) =>
+  (Array.isArray(images) ? images : []).filter(isPersistedImageRef);
+
+const sanitizeAttributes = (attributes = {}) => {
+  const next = { ...(attributes || {}) };
+  next.images = sanitizeImageList(next.images);
+  if (!next.images.length) delete next.images;
+  if (!isPersistedImageRef(next.image)) delete next.image;
+  if (!isPersistedImageRef(next.imageUrl)) delete next.imageUrl;
+  return next;
+};
+
+const resolveDrugStatus = (drug) =>
+  drug?.status ||
+  drug?.effectiveStatus ||
+  drug?.globalStatus ||
+  drug?.branchStatus ||
+  "INACTIVE";
 
 const pagerBtn =
   "rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
+
+const REVIEW_COUNT_CONCURRENCY = 4;
+const PRIMARY_TIMEOUT_MS = 15000;
+const SECONDARY_TIMEOUT_MS = 10000;
+
+const buildProductPrRequest = (values, categories) => {
+  const categoryName =
+    categories.find((item) => String(item.id) === String(values.categoryId))
+      ?.name || "";
+
+  return {
+    name: values.name?.trim() || "",
+    categoryName,
+    shortDescription: values.description?.trim() || "",
+    dosageForm: values.dosageForm?.trim() || "",
+    packaging: values.packaging?.trim() || "",
+    activeIngredient: values.activeIngredient?.trim() || "",
+    indications: values.indications?.trim() || "",
+    usageDosage: values.usageDosage?.trim() || "",
+    contraindicationsWarning: values.contraindicationsWarning?.trim() || "",
+    otherInformation: values.otherInformation?.trim() || "",
+    prescriptionRequired: !!values.rx,
+    salePrice: Number(values.salePrice || 0) || 0,
+    toneHint: "tin cậy, tinh tế, không quảng cáo lộ",
+    campaignGoal: "tạo bản nháp bài viết PR để admin review và biên tập tiếp",
+  };
+};
+
+const shouldFallbackStatusMethod = (error) => {
+  const statusCode = Number(error?.response?.status || 0);
+  return [404, 405, 415, 501].includes(statusCode);
+};
 
 const AdminDrugsPage = () => {
   const [products, setProducts] = useState([]);
@@ -65,12 +128,21 @@ const AdminDrugsPage = () => {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [reviewProduct, setReviewProduct] = useState(null);
   const [reviewStatus, setReviewStatus] = useState("");
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [mutationLoading, setMutationLoading] = useState(false);
+  const [togglingProductId, setTogglingProductId] = useState(null);
   const [error, setError] = useState("");
   const [reloadIndex, setReloadIndex] = useState(0);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
+  const { data: medicineStatsData, isLoading: medicineStatsLoading } =
+    useMedicineStats({ range: "7d" });
+  const { branches } = useBranches();
+  const availabilityRef = useRef({});
+  const loadRequestIdRef = useRef(0);
+  const loadAbortControllerRef = useRef(null);
 
   const categoryMap = useMemo(() => {
     const map = new Map();
@@ -81,262 +153,385 @@ const AdminDrugsPage = () => {
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const response = await api.get("/api/catalog/public/categories");
-        setCategories(response.data);
+        const response = await api.get("/api/catalog/public/categories", {
+          timeout: SECONDARY_TIMEOUT_MS,
+        });
+        setCategories(response.data || []);
       } catch (err) {
-        console.warn("Không thể tải danh mục", err);
+        console.warn("Khong the tai danh muc", err);
       }
     };
 
     loadCategories();
   }, []);
 
-  const fetchAvailability = async (items) => {
-    if (!items.length) {
-      setAvailabilityMap({});
-      return;
-    }
+  useEffect(() => {
+    availabilityRef.current = availabilityMap;
+  }, [availabilityMap]);
 
-    const params = {
-      productIds: items.map((item) => item.id).join(","),
-    };
-
-    try {
-      const response = await api.get(
-        "/api/inventory/internal/inventory/availability",
-        { params },
-      );
-      const payload = response.data;
-      const map = {};
-      (payload.items ?? []).forEach((entry) => {
-        map[entry.productId] = entry;
-      });
-
-      const seedTasks = [];
-      items.forEach((item) => {
-        const entry = map[item.id];
-        if (!entry) {
-          return;
-        }
-        const attrs = parseAttributes(item.attributes);
-        const seedStock = Number(attrs.stock);
-        if (
-          Number.isFinite(seedStock) &&
-          seedStock > 0 &&
-          entry.onHand === 0 &&
-          entry.reserved === 0
-        ) {
-          map[item.id] = {
-            ...entry,
-            onHand: seedStock,
-            available: seedStock,
-          };
-          seedTasks.push(syncInventory(item.id, seedStock, entry.onHand));
-        }
-      });
-
-      setAvailabilityMap(map);
-      if (seedTasks.length) {
-        await Promise.allSettled(seedTasks);
+  const syncInventory = useCallback(
+    async (
+      productId,
+      targetStock,
+      currentOnHandOverride,
+      timeoutMs = SECONDARY_TIMEOUT_MS,
+    ) => {
+      const normalizedStock = Number(targetStock);
+      if (!Number.isFinite(normalizedStock)) {
+        return;
       }
-    } catch (err) {
-      console.warn("Lỗi khi tải tồn kho", err);
-      setAvailabilityMap({});
-    }
-  };
 
-  const fetchReviewCounts = async (items) => {
-    if (!items.length) {
-      setReviewCounts({});
-      return;
-    }
+      const current = Number.isFinite(currentOnHandOverride)
+        ? currentOnHandOverride
+        : (availabilityRef.current[productId]?.onHand ??
+          availabilityRef.current[productId]?.available ??
+          0);
 
-    const tasks = items.map(async (item) => {
+      const delta = normalizedStock - current;
+      if (delta === 0) {
+        return;
+      }
+
+      await api.post(
+        "/api/inventory/internal/inventory/adjust",
+        {
+          productId,
+          delta,
+          reason: "Admin sync",
+        },
+        {
+          timeout: timeoutMs,
+        },
+      );
+    },
+    [],
+  );
+
+  const fetchAvailability = useCallback(
+    async (items, { requestId, signal } = {}) => {
+      if (!items.length) {
+        setAvailabilityMap({});
+        return;
+      }
+
       try {
-        const response = await api.get(
-          `/api/reviews/internal/product/${item.id}`,
+        const response = await api.post(
+          "/api/inventory/internal/inventory/availability/batch",
           {
-            params: { page: 0, size: 1 },
+            branchIds: branches.map((branch) => branch.id).filter(Boolean),
+            items: items.map((item) => ({
+              productId: item.id,
+              qty: 1,
+            })),
+          },
+          {
+            signal,
+            timeout: SECONDARY_TIMEOUT_MS,
           },
         );
-        const payload = response.data;
-        return [item.id, payload.totalElements ?? 0];
-      } catch {
-        return [item.id, 0];
+
+        const payload = response.data || {};
+        const map = {};
+        (payload.items ?? []).forEach((entry) => {
+          const current = map[entry.productId] || {
+            productId: entry.productId,
+            onHand: 0,
+            reserved: 0,
+            available: 0,
+          };
+          current.onHand += Number(entry.onHand || 0);
+          current.reserved += Number(entry.reserved || 0);
+          current.available += Number(entry.available || 0);
+          map[entry.productId] = current;
+        });
+
+        const seedTasks = [];
+        items.forEach((item) => {
+          const entry = map[item.id];
+          if (!entry) return;
+          const attrs = parseAttributes(item.attributes);
+          const seedStock = Number(attrs.stock);
+          if (
+            Number.isFinite(seedStock) &&
+            seedStock > 0 &&
+            entry.onHand === 0 &&
+            entry.reserved === 0
+          ) {
+            map[item.id] = {
+              ...entry,
+              onHand: seedStock,
+              available: seedStock,
+            };
+            seedTasks.push(syncInventory(item.id, seedStock, entry.onHand));
+          }
+        });
+
+        if (requestId && requestId !== loadRequestIdRef.current) {
+          return;
+        }
+
+        setAvailabilityMap(map);
+        if (seedTasks.length) {
+          await Promise.allSettled(seedTasks);
+        }
+      } catch (err) {
+        if (axios.isCancel(err) || err?.code === "ERR_CANCELED") {
+          return;
+        }
+        console.warn("Loi khi tai ton kho", err);
+        setAvailabilityMap({});
       }
-    });
+    },
+    [branches, syncInventory],
+  );
 
-    const settled = await Promise.all(tasks);
-    const map = {};
-    settled.forEach(([productId, total]) => {
-      map[productId] = total;
-    });
-    setReviewCounts(map);
-  };
+  const fetchReviewCounts = useCallback(
+    async (items, { requestId, signal } = {}) => {
+      if (!items.length) {
+        setReviewCounts({});
+        return;
+      }
 
-  const loadProducts = async (signal) => {
+      const map = {};
+      for (let i = 0; i < items.length; i += REVIEW_COUNT_CONCURRENCY) {
+        const chunk = items.slice(i, i + REVIEW_COUNT_CONCURRENCY);
+        const settled = await Promise.all(
+          chunk.map(async (item) => {
+            if (signal?.aborted) {
+              return null;
+            }
+            try {
+              const response = await api.get(
+                `/api/reviews/internal/product/${item.id}`,
+                {
+                  params: { page: 0, size: 1 },
+                  signal,
+                  timeout: 8000,
+                },
+              );
+              const payload = response.data || {};
+              return [item.id, payload.totalElements ?? 0];
+            } catch {
+              return [item.id, 0];
+            }
+          }),
+        );
+
+        if (requestId && requestId !== loadRequestIdRef.current) {
+          return;
+        }
+
+        settled.forEach((entry) => {
+          if (!entry) return;
+          const [productId, total] = entry;
+          map[productId] = total;
+        });
+      }
+
+      setReviewCounts(map);
+    },
+    [],
+  );
+
+  const loadProducts = useCallback(async () => {
+    const requestId = loadRequestIdRef.current + 1;
+    loadRequestIdRef.current = requestId;
+    if (loadAbortControllerRef.current) {
+      loadAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    loadAbortControllerRef.current = controller;
+
     setLoading(true);
     setError("");
+
     try {
       const queryParams = {
         page: String(page),
         size: String(pageSize),
         sort,
       };
-      if (search.trim()) {
-        queryParams.q = search.trim();
-      }
-      if (status && status !== "ALL") {
-        queryParams.status = status;
-      }
-      if (categoryId) {
-        queryParams.categoryId = categoryId;
-      }
+      if (search.trim()) queryParams.q = search.trim();
+      if (status && status !== "ALL") queryParams.status = status;
+      if (categoryId) queryParams.categoryId = categoryId;
 
       const response = await api.get("/api/catalog/internal/products", {
         params: queryParams,
-        signal,
+        signal: controller.signal,
+        timeout: PRIMARY_TIMEOUT_MS,
       });
 
-      const payload = response.data;
-      if (signal.aborted) return;
-
+      if (requestId !== loadRequestIdRef.current) return;
+      const payload = response.data || {};
       const items = payload.content ?? [];
       setTotalPages(payload.totalPages ?? 1);
       setTotalElements(payload.totalElements ?? items.length);
       setProducts(items);
-      fetchAvailability(items);
-      fetchReviewCounts(items);
+      fetchAvailability(items, {
+        requestId,
+        signal: controller.signal,
+      });
+      fetchReviewCounts(items.slice(0, 8), {
+        requestId,
+        signal: controller.signal,
+      });
     } catch (err) {
-      if (err.name !== "AbortError" && !axios.isCancel(err)) {
-        setError(err.response?.data?.message || err.message);
+      if (
+        err.name !== "AbortError" &&
+        !axios.isCancel(err) &&
+        err?.code !== "ERR_CANCELED"
+      ) {
+        if (err?.code === "ECONNABORTED") {
+          setError(
+            "Tải danh sách thuốc quá thời gian chờ. Vui lòng thử lại hoặc thu hẹp bộ lọc.",
+          );
+        } else {
+          setError(err.response?.data?.message || err.message);
+        }
       }
     } finally {
-      if (!signal.aborted) {
+      if (requestId === loadRequestIdRef.current) {
         setLoading(false);
       }
     }
-  };
+  }, [
+    page,
+    pageSize,
+    sort,
+    search,
+    status,
+    categoryId,
+    fetchAvailability,
+    fetchReviewCounts,
+  ]);
 
   useEffect(() => {
     setPage(0);
-  }, [search, filter, categoryId, status, sort, pageSize]);
+  }, [search, categoryId, status, sort, pageSize]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => loadProducts(controller.signal), 300);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [search, filter, categoryId, status, sort, pageSize, page, reloadIndex]);
+    const timer = setTimeout(() => loadProducts(), 300);
+    return () => clearTimeout(timer);
+  }, [
+    search,
+    categoryId,
+    status,
+    sort,
+    pageSize,
+    page,
+    reloadIndex,
+    loadProducts,
+  ]);
 
-  const syncInventory = async (
-    productId,
-    targetStock,
-    currentOnHandOverride,
-  ) => {
-    const normalizedStock = Number(targetStock);
-    if (!Number.isFinite(normalizedStock)) {
-      return;
-    }
+  useEffect(
+    () => () => {
+      if (loadAbortControllerRef.current) {
+        loadAbortControllerRef.current.abort();
+      }
+    },
+    [],
+  );
 
-    const current = Number.isFinite(currentOnHandOverride)
-      ? currentOnHandOverride
-      : (availabilityMap[productId]?.onHand ??
-        availabilityMap[productId]?.available ??
-        0);
-    const delta = normalizedStock - current;
-    if (delta === 0) {
-      return;
-    }
-
-    try {
-      await api.post("/api/inventory/internal/inventory/adjust", {
-        productId,
-        delta,
-        reason: "Admin sync",
+  const buildCatalogRequest = useCallback(
+    (base = {}, overrides = {}) => {
+      const baseAttributes = sanitizeAttributes(
+        parseAttributes(base.attributes),
+      );
+      const mergedAttributes = sanitizeAttributes({
+        ...baseAttributes,
+        ...(overrides.attributes || {}),
       });
-    } catch (err) {
-      console.warn("Đồng bộ tồn kho thất bại", err);
-    }
-  };
 
-  const buildCatalogRequest = (base = {}, overrides = {}) => {
-    const baseAttributes = parseAttributes(base.attributes);
-    const mergedAttributes = {
-      ...baseAttributes,
-      ...(overrides.attributes || {}),
-    };
-
-    const slugCandidate =
-      overrides.slug ||
-      base.slug ||
-      slugify(overrides.name || base.name || overrides.sku || base.sku);
-
-    return {
-      sku: overrides.sku || base.sku || `SKU-${Date.now()}`,
-      name: overrides.name || base.name || "Thuốc mới",
-      slug: slugCandidate,
-      categoryId:
-        overrides.categoryId || base.categoryId || categories[0]?.id || null,
-      costPrice: overrides.costPrice ?? base.costPrice ?? 0,
-      salePrice:
-        overrides.salePrice ?? base.baseSalePrice ?? base.effectivePrice ?? 0,
-      status: overrides.status || base.status || "ACTIVE",
-      prescriptionRequired:
-        overrides.prescriptionRequired ?? base.prescriptionRequired ?? false,
-      description: overrides.description ?? base.description ?? "",
-      imageUrl: overrides.imageUrl ?? base.imageUrl ?? defaultImage,
-      attributes: JSON.stringify(mergedAttributes),
-    };
-  };
-
-  const enrichedDrugs = useMemo(() => {
-    return products.map((product) => {
-      const availability = availabilityMap[product.id];
-      const attrs = parseAttributes(product.attributes);
-      const unit = attrs.unit || "đơn vị";
-      const fallbackStock =
-        typeof attrs.stock === "number"
-          ? attrs.stock
-          : Number.isFinite(Number(attrs.stock))
-            ? Number(attrs.stock)
-            : null;
-      const available =
-        availability?.available ??
-        (fallbackStock != null ? Math.max(0, fallbackStock) : 0);
-      const images = Array.isArray(attrs.images)
-        ? attrs.images
-        : product.imageUrl
-          ? [product.imageUrl]
-          : [];
-      const stockStatus = available <= 0 ? "out" : available < 5 ? "low" : "in";
-      const stockLabel = available ? `${available} ${unit}` : "Hết hàng";
-
-      const categoryName =
-        categoryMap.get(product.categoryId) || "Không xác định";
+      const slugCandidate =
+        overrides.slug ||
+        base.slug ||
+        slugify(overrides.name || base.name || overrides.sku || base.sku);
 
       return {
-        ...product,
-        categoryName,
-        category: categoryName,
-        priceLabel: formatPrice(
-          product.effectivePrice ?? product.baseSalePrice ?? 0,
-        ),
-        unit,
-        stockStatus,
-        stockLabel,
-        stockQuantity: available,
-        status: product.status || "INACTIVE",
-        image: product.imageUrl || images[0] || defaultImage,
-        images,
-        albumId: attrs.albumId || "",
-        rx: !!product.prescriptionRequired,
-        reviewCount: reviewCounts[product.id] ?? 0,
+        sku: overrides.sku || base.sku || `SKU-${Date.now()}`,
+        name: overrides.name || base.name || "Thuoc moi",
+        slug: slugCandidate,
+        categoryId:
+          overrides.categoryId || base.categoryId || categories[0]?.id || null,
+        costPrice: overrides.costPrice ?? base.costPrice ?? 0,
+        salePrice:
+          overrides.salePrice ??
+          base.baseSalePrice ??
+          base.salePrice ??
+          base.effectivePrice ??
+          0,
+        status: overrides.status || resolveDrugStatus(base) || "ACTIVE",
+        prescriptionRequired:
+          overrides.prescriptionRequired ?? base.prescriptionRequired ?? false,
+        description: overrides.description ?? base.description ?? "",
+        dosageForm: overrides.dosageForm ?? base.dosageForm ?? "",
+        packaging: overrides.packaging ?? base.packaging ?? "",
+        activeIngredient:
+          overrides.activeIngredient ?? base.activeIngredient ?? "",
+        indications: overrides.indications ?? base.indications ?? "",
+        usageDosage: overrides.usageDosage ?? base.usageDosage ?? "",
+        contraindicationsWarning:
+          overrides.contraindicationsWarning ??
+          base.contraindicationsWarning ??
+          "",
+        otherInformation:
+          overrides.otherInformation ?? base.otherInformation ?? "",
+        imageUrl: overrides.imageUrl ?? base.imageUrl ?? defaultImage,
+        attributes: JSON.stringify(mergedAttributes),
       };
-    });
-  }, [products, availabilityMap, categoryMap, reviewCounts]);
+    },
+    [categories],
+  );
+
+  const enrichedDrugs = useMemo(
+    () =>
+      products.map((product) => {
+        const availability = availabilityMap[product.id];
+        const attrs = parseAttributes(product.attributes);
+        const unit = attrs.unit || "don vi";
+        const fallbackStock =
+          typeof attrs.stock === "number"
+            ? attrs.stock
+            : Number.isFinite(Number(attrs.stock))
+              ? Number(attrs.stock)
+              : null;
+        const available =
+          availability?.available ??
+          (fallbackStock != null ? Math.max(0, fallbackStock) : 0);
+        const images = sanitizeImageList(
+          Array.isArray(attrs.images)
+            ? attrs.images
+            : product.imageUrl
+              ? [product.imageUrl]
+              : [],
+        );
+        const stockStatus =
+          available <= 0 ? "out" : available < 5 ? "low" : "in";
+        const stockLabel = available ? `${available} ${unit}` : "Het hang";
+        const categoryName =
+          categoryMap.get(product.categoryId) || "Khong xac dinh";
+
+        return {
+          ...product,
+          categoryName,
+          category: categoryName,
+          priceLabel: formatPrice(
+            product.effectivePrice ?? product.baseSalePrice ?? 0,
+          ),
+          unit,
+          stockStatus,
+          stockLabel,
+          stockQuantity: available,
+          status: resolveDrugStatus(product),
+          image: product.imageUrl || images[0] || defaultImage,
+          images,
+          albumId: attrs.albumId || "",
+          rx: !!product.prescriptionRequired,
+          reviewCount: reviewCounts[product.id] ?? 0,
+        };
+      }),
+    [products, availabilityMap, categoryMap, reviewCounts],
+  );
 
   const filteredDrugs = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -358,6 +553,54 @@ const AdminDrugsPage = () => {
     });
   }, [enrichedDrugs, search, filter]);
 
+  const medicineMetrics = medicineStatsData?.metrics || medicineStatsData || {};
+  const medicineStatsCards = useMemo(
+    () => [
+      {
+        key: "total",
+        label: "Tổng số SKU",
+        value: Number(
+          medicineMetrics.totalMedicines ?? totalElements ?? products.length,
+        ).toLocaleString("vi-VN"),
+        description: "Số SKU đang được quản lý",
+        icon: "medication",
+      },
+      {
+        key: "active",
+        label: "Đang kinh doanh",
+        value: Number(
+          medicineMetrics.activeMedicines ??
+            enrichedDrugs.filter((item) => item.status === "ACTIVE").length,
+        ).toLocaleString("vi-VN"),
+        description: "Đủ điều kiện hiển thị và bán",
+        icon: "inventory_2",
+      },
+      {
+        key: "lowStock",
+        label: "Tồn kho thấp",
+        value: Number(
+          medicineMetrics.lowStockMedicines ??
+            enrichedDrugs.filter((item) => item.stockStatus === "low").length,
+        ).toLocaleString("vi-VN"),
+        description: "Cần bổ sung sớm",
+        icon: "warning",
+        tone: "down",
+      },
+      {
+        key: "outOfStock",
+        label: "Hết hàng",
+        value: Number(
+          medicineMetrics.outOfStockMedicines ??
+            enrichedDrugs.filter((item) => item.stockStatus === "out").length,
+        ).toLocaleString("vi-VN"),
+        description: "Không có tồn kho khả dụng để bán",
+        icon: "remove_shopping_cart",
+        tone: "down",
+      },
+    ],
+    [medicineMetrics, totalElements, products.length, enrichedDrugs],
+  );
+
   const openCreateModal = () => {
     setModalMode("create");
     setEditingProduct(null);
@@ -378,11 +621,12 @@ const AdminDrugsPage = () => {
   const handleSaveDrug = async (values, meta) => {
     const targetCategoryId = values.categoryId || categories[0]?.id || null;
     if (!targetCategoryId) {
-      setError("Vui lòng tạo ít nhất một danh mục trước khi thêm thuốc.");
-      return;
+      const message = "Vui lòng tạo ít nhất một danh mục trước khi thêm thuốc.";
+      setError(message);
+      throw new Error(message);
     }
 
-    setLoading(true);
+    setMutationLoading(true);
     setError("");
 
     try {
@@ -395,13 +639,36 @@ const AdminDrugsPage = () => {
         salePrice: values.salePrice ?? 0,
         status: values.status || "ACTIVE",
         prescriptionRequired: !!values.rx,
-        description: "",
+        description: values.description?.trim() || "",
+        dosageForm: values.dosageForm?.trim() || "",
+        packaging: values.packaging?.trim() || "",
+        activeIngredient: values.activeIngredient?.trim() || "",
+        indications: values.indications?.trim() || "",
+        usageDosage: values.usageDosage?.trim() || "",
+        contraindicationsWarning: values.contraindicationsWarning?.trim() || "",
+        otherInformation: values.otherInformation?.trim() || "",
         imageUrl: values.image?.trim() || values.images?.[0] || defaultImage,
         attributes: {
-          unit: values.unit?.trim() || "đơn vị",
+          unit: values.unit?.trim() || "don vi",
           albumId: values.albumId || "",
-          images: values.images || [],
+          images: sanitizeImageList(values.images || []),
           stock: Number(values.stock || 0),
+          dosageForm: values.dosageForm?.trim() || "",
+          packaging: values.packaging?.trim() || "",
+          activeIngredient: values.activeIngredient?.trim() || "",
+          indications: values.indications?.trim() || "",
+          usageDosage: values.usageDosage?.trim() || "",
+          contraindicationsWarning:
+            values.contraindicationsWarning?.trim() || "",
+          otherInformation: values.otherInformation?.trim() || "",
+          form: values.dosageForm?.trim() || "",
+          packing: values.packaging?.trim() || "",
+          ingredient: values.activeIngredient?.trim() || "",
+          usage: values.indications?.trim() || "",
+          dosage: values.usageDosage?.trim() || "",
+          warning: values.contraindicationsWarning?.trim() || "",
+          contraindications: values.contraindicationsWarning?.trim() || "",
+          extraInfo: values.otherInformation?.trim() || "",
         },
       };
 
@@ -415,52 +682,191 @@ const AdminDrugsPage = () => {
           ? await api.put(
               `/api/catalog/internal/products/${meta.id}`,
               requestBody,
+              {
+                timeout: PRIMARY_TIMEOUT_MS,
+              },
             )
-          : await api.post("/api/catalog/internal/products", requestBody);
+          : await api.post("/api/catalog/internal/products", requestBody, {
+              timeout: PRIMARY_TIMEOUT_MS,
+            });
 
       const payload = response.data;
-      await syncInventory(payload.id, values.stock);
       setReloadIndex((prev) => prev + 1);
-      window.alert(
-        meta.mode === "edit"
-          ? "Cập nhật thuốc thành công"
-          : "Thêm thuốc thành công",
-      );
-      closeModal();
+      Promise.resolve(
+        syncInventory(
+          payload.id,
+          Number(values.stock || 0),
+          undefined,
+          SECONDARY_TIMEOUT_MS,
+        ),
+      ).catch((syncError) => {
+        console.warn("Đồng bộ tồn kho thất bại sau khi lưu thuốc", syncError);
+      });
+
+      if (meta.mode === "create" && meta.createPrPost) {
+        try {
+          const prDraft = await generateProductPrDraft(
+            buildProductPrRequest(values, categories),
+          );
+          closeModal();
+          window.alert("Đã lưu thuốc và tạo sẵn bản nháp PR để bạn review.");
+          navigate("/admin/content", {
+            state: {
+              contentDraft: {
+                seedId: `drug-${payload.id}-${Date.now()}`,
+                selectedProductId: payload.id,
+                sourceProductName: values.name?.trim() || payload.name || "",
+                title: prDraft?.title || "",
+                excerpt: prDraft?.excerpt || "",
+                caption: prDraft?.caption || "",
+                contentHtml: prDraft?.contentHtml || "",
+                tags: prDraft?.suggestedTags || [],
+                disclaimer: prDraft?.disclaimer || "",
+                coverImageUrl:
+                  payload.imageUrl ||
+                  values.image?.trim() ||
+                  values.images?.[0] ||
+                  defaultImage,
+              },
+            },
+          });
+        } catch (prError) {
+          closeModal();
+          window.alert(
+            `Đã lưu thuốc nhưng chưa thể tạo bài PR tự động: ${prError?.message || "Lỗi AI"}`,
+          );
+        }
+      } else {
+        closeModal();
+        window.alert(
+          meta.mode === "edit"
+            ? "Cập nhật thuốc thành công"
+            : "Thêm thuốc thành công",
+        );
+      }
+
+      return payload;
     } catch (err) {
-      setError(err.message);
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        (meta.mode === "edit"
+          ? "Cập nhật thuốc thất bại."
+          : "Thêm thuốc thất bại.");
+      setError(message);
+      throw new Error(message);
     } finally {
-      setLoading(false);
+      setMutationLoading(false);
     }
   };
 
   const handleToggleStatus = async (id) => {
-    setLoading(true);
+    if (togglingProductId && String(togglingProductId) === String(id)) {
+      return;
+    }
+
+    setMutationLoading(true);
+    setTogglingProductId(id);
     setError("");
 
     try {
-      const product = products.find((item) => item.id === id);
-      if (!product) return;
+      const product = enrichedDrugs.find(
+        (item) => String(item.id) === String(id),
+      );
+      if (!product) {
+        throw new Error("Không tìm thấy sản phẩm cần đổi trạng thái.");
+      }
 
-      const requestBody = buildCatalogRequest(product, {
-        status: product.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
-      });
+      const currentStatus = resolveDrugStatus(product);
+      const nextStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
 
-      const response = await api.put(
-        `/api/catalog/internal/products/${id}`,
-        requestBody,
+      // Optimistic UI update for responsive toggles.
+      setProducts((prev) =>
+        prev.map((item) =>
+          String(item.id) === String(id)
+            ? {
+                ...item,
+                status: nextStatus,
+                effectiveStatus: nextStatus,
+                globalStatus: nextStatus,
+              }
+            : item,
+        ),
       );
 
-      const payload = response.data;
-      await syncInventory(
-        payload.id,
-        availabilityMap[payload.id]?.available ?? 0,
+      let payload = {};
+      try {
+        const response = await api.patch(
+          `/api/catalog/internal/products/${id}/status`,
+          {
+            status: nextStatus,
+          },
+          {
+            timeout: SECONDARY_TIMEOUT_MS,
+          },
+        );
+        payload = response.data || {};
+      } catch (primaryError) {
+        if (!shouldFallbackStatusMethod(primaryError)) {
+          throw primaryError;
+        }
+
+        const fallback = await api.put(
+          `/api/catalog/internal/products/${id}/status`,
+          {
+            status: nextStatus,
+          },
+          {
+            timeout: SECONDARY_TIMEOUT_MS,
+          },
+        );
+        payload = fallback.data || {};
+      }
+
+      setProducts((prev) =>
+        prev.map((item) =>
+          String(item.id) === String(id)
+            ? {
+                ...item,
+                ...payload,
+                status: nextStatus,
+                effectiveStatus: nextStatus,
+                globalStatus: nextStatus,
+              }
+            : item,
+        ),
       );
-      setReloadIndex((prev) => prev + 1);
+      window.alert(
+        nextStatus === "ACTIVE"
+          ? "Đã bật kinh doanh thuốc."
+          : "Đã ngừng kinh doanh thuốc.",
+      );
     } catch (err) {
-      setError(err.message);
+      // Rollback if API failed after optimistic update.
+      const rollbackStatus =
+        enrichedDrugs.find((item) => String(item.id) === String(id))?.status ||
+        "INACTIVE";
+      setProducts((prev) =>
+        prev.map((item) =>
+          String(item.id) === String(id)
+            ? {
+                ...item,
+                status: rollbackStatus,
+                effectiveStatus: rollbackStatus,
+                globalStatus: rollbackStatus,
+              }
+            : item,
+        ),
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Cập nhật trạng thái thất bại.",
+      );
     } finally {
-      setLoading(false);
+      setMutationLoading(false);
+      setTogglingProductId(null);
     }
   };
 
@@ -469,16 +875,17 @@ const AdminDrugsPage = () => {
       return;
     }
 
-    setLoading(true);
+    setMutationLoading(true);
     setError("");
-
     try {
-      await api.delete(`/api/catalog/internal/products/${id}`);
+      await api.delete(`/api/catalog/internal/products/${id}`, {
+        timeout: PRIMARY_TIMEOUT_MS,
+      });
       setReloadIndex((prev) => prev + 1);
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setMutationLoading(false);
     }
   };
 
@@ -500,10 +907,47 @@ const AdminDrugsPage = () => {
           editingProduct.effectivePrice ?? editingProduct.baseSalePrice ?? 0,
         unit: editingProduct.unit,
         stock: editingProduct.stockQuantity,
-        status: editingProduct.status,
+        status: resolveDrugStatus(editingProduct),
         rx: editingProduct.rx,
+        description: editingProduct.description || "",
+        dosageForm:
+          editingProduct.dosageForm ||
+          parseAttributes(editingProduct.attributes).dosageForm ||
+          parseAttributes(editingProduct.attributes).form ||
+          "",
+        packaging:
+          editingProduct.packaging ||
+          parseAttributes(editingProduct.attributes).packaging ||
+          parseAttributes(editingProduct.attributes).packing ||
+          "",
+        activeIngredient:
+          editingProduct.activeIngredient ||
+          parseAttributes(editingProduct.attributes).activeIngredient ||
+          parseAttributes(editingProduct.attributes).ingredient ||
+          "",
+        indications:
+          editingProduct.indications ||
+          parseAttributes(editingProduct.attributes).indications ||
+          parseAttributes(editingProduct.attributes).usage ||
+          "",
+        usageDosage:
+          editingProduct.usageDosage ||
+          parseAttributes(editingProduct.attributes).usageDosage ||
+          parseAttributes(editingProduct.attributes).dosage ||
+          "",
+        contraindicationsWarning:
+          editingProduct.contraindicationsWarning ||
+          parseAttributes(editingProduct.attributes).contraindicationsWarning ||
+          parseAttributes(editingProduct.attributes).warning ||
+          parseAttributes(editingProduct.attributes).contraindications ||
+          "",
+        otherInformation:
+          editingProduct.otherInformation ||
+          parseAttributes(editingProduct.attributes).otherInformation ||
+          parseAttributes(editingProduct.attributes).extraInfo ||
+          "",
         image: editingProduct.image,
-        images: editingProduct.images || [],
+        images: sanitizeImageList(editingProduct.images || []),
         albumId: editingProduct.albumId || "",
       }
     : null;
@@ -511,24 +955,26 @@ const AdminDrugsPage = () => {
   return (
     <AdminLayout activeKey="drugs">
       <AdminPageContainer>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">
-              Quản lý thuốc
-            </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Quản lý danh mục, giá cả và tồn kho thuốc toàn hệ thống.
-            </p>
-          </div>
-          <button
-            className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            type="button"
-            onClick={openCreateModal}
-          >
-            <span className="material-symbols-outlined text-[20px]">add</span>
-            Thêm thuốc mới
-          </button>
-        </div>
+        <AdminPageHeader
+          title="Quản lý thuốc"
+          subtitle="Theo dõi danh mục, tồn kho và trạng thái kinh doanh"
+          actions={
+            <button
+              className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              type="button"
+              onClick={openCreateModal}
+            >
+              <span className="material-symbols-outlined text-[20px]">add</span>
+              Thêm thuốc mới
+            </button>
+          }
+        />
+
+        <StatsSection
+          items={medicineStatsCards}
+          loading={medicineStatsLoading && !products.length}
+          emptyText="Chưa có dữ liệu tổng quan thuốc"
+        />
 
         <DrugFilters
           search={search}
@@ -569,6 +1015,7 @@ const AdminDrugsPage = () => {
         <DrugTable
           drugs={filteredDrugs}
           onToggleStatus={handleToggleStatus}
+          togglingProductId={togglingProductId}
           onEdit={openEditModal}
           onDelete={handleDelete}
           onViewReviews={handleViewReviews}
@@ -612,6 +1059,7 @@ const AdminDrugsPage = () => {
         open={modalOpen}
         onClose={closeModal}
         onSave={handleSaveDrug}
+        busy={mutationLoading}
         initialData={modalInitialData}
         categories={categories}
         mode={modalMode}

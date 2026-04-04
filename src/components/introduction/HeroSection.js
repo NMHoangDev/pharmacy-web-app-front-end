@@ -1,109 +1,69 @@
 import React from "react";
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Reveal, Stagger, StaggerItem } from "../ui/Reveal";
-
-const bgUrl =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDBndKe-KKKX5e4zT5Snsl6YFoy-1hn0fjz9YeVno9T_RjPQYkAY4WEInHjAjFp2GjEXtqOs78XAv4v8qsz9lN5E2ay5y_lX8VyxdFVaW1KPXmwuy9iWMqfRgYMmhUKDORMgNOKGPi-Z8MSc4YXF-kK4keiofGVUcgI4xWATchWx_4yzM4YUd9riQt4-W0QMr7oduswCmVxnbmmDBvC52ubXKZdiCD2MyNb9HTH8QRG4NGQ-vswjk2TN5SpagN7oSkUmirpjW72_IZ9J";
+import { Link } from "react-router-dom";
+import "../../styles/storefront-premium.css";
 
 const IntroductionHeroSection = () => {
-  const mx = useMotionValue(0);
-  const my = useMotionValue(0);
-
-  const sx = useSpring(mx, { stiffness: 120, damping: 18, mass: 0.2 });
-  const sy = useSpring(my, { stiffness: 120, damping: 18, mass: 0.2 });
-
-  const x = useTransform(sx, [-0.5, 0.5], [-10, 10]);
-  const y = useTransform(sy, [-0.5, 0.5], [-8, 8]);
-
-  const onMove = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width - 0.5;
-    const py = (e.clientY - rect.top) / rect.height - 0.5;
-    mx.set(px);
-    my.set(py);
-  };
-
-  const onLeave = () => {
-    mx.set(0);
-    my.set(0);
-  };
-
   return (
-    <section className="@container px-4 lg:px-0 mb-10">
-      <div
-        onMouseMove={onMove}
-        onMouseLeave={onLeave}
-        className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)]"
-      >
-        {/* background image layer (parallax) */}
-        <motion.div
-          style={{ x, y, scale: 1.06 }}
-          className="absolute inset-0 will-change-transform"
-        >
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url('${bgUrl}')` }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/55 to-black/70" />
-        </motion.div>
-
-        {/* grain + spotlight */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-24 -right-24 size-[420px] rounded-full bg-primary/20 blur-3xl" />
-          <div className="absolute -bottom-24 -left-24 size-[420px] rounded-full bg-sky-400/15 blur-3xl" />
-          <div className="absolute inset-0 opacity-[0.08] [background-image:radial-gradient(#fff_1px,transparent_1px)] [background-size:18px_18px]" />
-        </div>
-
-        <div className="relative flex min-h-[520px] flex-col items-center justify-center px-6 py-14 text-center md:px-10">
-          <Stagger className="max-w-[820px]">
-            <StaggerItem>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-white/90 backdrop-blur">
-                <span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_0_6px_rgba(16,185,129,0.15)]" />
-                Hỗ trợ tư vấn 24/7 • Dược sĩ chuyên môn
-              </div>
-            </StaggerItem>
-
-            <StaggerItem>
-              <h1 className="mt-5 text-white text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.03em] drop-shadow">
-                Tận tâm vì sức khỏe cộng đồng
-              </h1>
-            </StaggerItem>
-
-            <StaggerItem>
-              <p className="mt-4 text-white/90 text-base md:text-lg font-medium leading-relaxed">
-                Chúng tôi không chỉ bán thuốc — chúng tôi mang đến giải pháp chăm
-                sóc sức khỏe toàn diện với sự thấu hiểu và sẻ chia.
-              </p>
-            </StaggerItem>
-
-            <StaggerItem>
-              <div className="mt-7 flex flex-wrap justify-center gap-3">
-                <motion.button
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="relative inline-flex h-12 items-center justify-center rounded-xl bg-primary px-6 text-white font-bold shadow-lg shadow-primary/30 transition"
-                >
-                  <span className="absolute -inset-0.5 rounded-xl bg-primary/40 blur-xl opacity-60" />
-                  <span className="relative">Liên hệ dược sĩ</span>
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="inline-flex h-12 items-center justify-center rounded-xl bg-white/15 px-6 text-white font-bold backdrop-blur border border-white/25 hover:bg-white/20 transition"
-                >
-                  Xem cửa hàng
-                </motion.button>
-              </div>
-            </StaggerItem>
-          </Stagger>
-
-          <Reveal delay={0.15} className="mt-10">
-            <div className="mx-auto flex items-center justify-center gap-3 text-white/70 text-sm">
-              <span className="material-symbols-outlined text-base">shield</span>
-              Chính hãng • Minh bạch • Bảo mật thông tin
+    <section className="px-4 pb-6 pt-2 lg:px-0">
+      <div className="storefront-hero storefront-fade-up rounded-[36px] border border-white/80 px-6 py-8 shadow-[0_28px_70px_-48px_rgba(15,23,42,0.28)] sm:px-8 lg:px-10">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+          <div className="max-w-2xl">
+            <div className="storefront-pill inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.24em]">
+              <span className="material-symbols-outlined text-[16px]">
+                diversity_3
+              </span>
+              Đồng hành cùng sức khỏe gia đình Việt
             </div>
-          </Reveal>
+            <h1 className="mt-5 text-4xl font-black leading-[1.06] tracking-[-0.04em] text-slate-950 sm:text-5xl">
+              Về chúng tôi
+            </h1>
+            <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg">
+              PharmaCare xây dựng trải nghiệm mua thuốc và tư vấn sức khỏe theo
+              cách rõ ràng, hiện đại và ít ma sát hơn. Chúng tôi ưu tiên sự an
+              tâm của người dùng ở cả giao diện lẫn vận hành dịch vụ.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Link
+                to="/medicines"
+                className="storefront-interactive inline-flex h-12 items-center justify-center rounded-2xl bg-sky-600 px-6 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-sky-200"
+              >
+                Xem hệ sản phẩm
+              </Link>
+              <Link
+                to="/pharmacists"
+                className="storefront-interactive inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-6 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-200"
+              >
+                Gặp dược sĩ của chúng tôi
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+            {[
+              [
+                "2026",
+                "Khởi đầu với mục tiêu số hóa hành trình mua thuốc an tâm.",
+              ],
+              [
+                "24/7",
+                "Sẵn sàng hỗ trợ tư vấn và định hướng thông tin sử dụng.",
+              ],
+              [
+                "Minh bạch",
+                "Tập trung vào nội dung rõ ràng, trạng thái rõ ràng và trải nghiệm nhất quán.",
+              ],
+            ].map(([title, desc]) => (
+              <div
+                key={title}
+                className="storefront-soft-card rounded-[28px] p-5"
+              >
+                <div className="text-2xl font-black tracking-tight text-slate-900">
+                  {title}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

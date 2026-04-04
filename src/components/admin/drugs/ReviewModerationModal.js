@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { authApi as api } from "../../../api/httpClients";
 
 const statusStyles = {
@@ -23,41 +23,44 @@ const ReviewModerationModal = ({
   const canPrev = page > 0;
   const canNext = page + 1 < totalPages;
 
-  const fetchReviews = async (signal) => {
-    if (!product?.id) return;
-    setLoading(true);
-    setError("");
+  const fetchReviews = useCallback(
+    async (signal) => {
+      if (!product?.id) return;
+      setLoading(true);
+      setError("");
 
-    try {
-      const queryParams = {
-        page: String(page),
-        size: "5",
-      };
-      if (statusFilter) {
-        queryParams.status = statusFilter;
-      }
+      try {
+        const queryParams = {
+          page: String(page),
+          size: "5",
+        };
+        if (statusFilter) {
+          queryParams.status = statusFilter;
+        }
 
-      const response = await api.get(
-        `/api/reviews/internal/product/${product.id}`,
-        {
-          params: queryParams,
-          signal,
-        },
-      );
+        const response = await api.get(
+          `/api/reviews/internal/product/${product.id}`,
+          {
+            params: queryParams,
+            signal,
+          },
+        );
 
-      const payload = response.data;
-      setReviews(payload.content ?? []);
-      setTotalPages(payload.totalPages ?? 1);
-    } catch (err) {
-      if (err.name !== "AbortError") {
-        setError(err.message);
+        const payload = response.data;
+        setReviews(payload.content ?? []);
+        setTotalPages(payload.totalPages ?? 1);
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setError(err.message);
+        }
+      } finally {
+        if (!signal?.aborted) {
+          setLoading(false);
+        }
       }
-    } finally {
-      if (!signal?.aborted) {
-        setLoading(false);
-      }
-    }
-  };
+    },
+    [page, product?.id, statusFilter],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -69,7 +72,7 @@ const ReviewModerationModal = ({
     const controller = new AbortController();
     fetchReviews(controller.signal);
     return () => controller.abort();
-  }, [open, product?.id, page, statusFilter]);
+  }, [fetchReviews, open]);
 
   const updateStatus = async (reviewId, nextStatus) => {
     try {
@@ -79,8 +82,8 @@ const ReviewModerationModal = ({
 
       setReviews((prev) =>
         prev.map((item) =>
-          item.id === reviewId ? { ...item, status: nextStatus } : item
-        )
+          item.id === reviewId ? { ...item, status: nextStatus } : item,
+        ),
       );
     } catch (err) {
       alert(err.message);

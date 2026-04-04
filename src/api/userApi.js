@@ -52,8 +52,10 @@ export async function addAddress(userId, payload, context = {}) {
   }
 }
 
-export default {
+const userApi = {
   getUser,
   listAddresses,
   addAddress,
 };
+
+export default userApi;

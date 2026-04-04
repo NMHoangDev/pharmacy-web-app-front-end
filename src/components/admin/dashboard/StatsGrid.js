@@ -3,17 +3,17 @@ import React from "react";
 const StatCard = ({ title, value, suffix, change, changeType, icon, note }) => {
   const isUp = changeType === "up";
   const changeColor = isUp
-    ? "text-green-600 bg-green-50 dark:bg-green-500/10"
-    : "text-red-500 bg-red-50 dark:bg-red-500/10";
+    ? "bg-green-50 text-green-600 dark:bg-green-500/10"
+    : "bg-red-50 text-red-500 dark:bg-red-500/10";
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-      <div className="flex justify-between items-start mb-4">
+    <div className="cursor-pointer rounded-3xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-900/5 transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/70">
+      <div className="mb-4 flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
             {title}
           </p>
-          <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+          <h3 className="mt-3 text-3xl font-bold text-slate-900 dark:text-white">
             {value}
             {suffix && (
               <span className="text-sm font-normal text-slate-400">
@@ -23,21 +23,21 @@ const StatCard = ({ title, value, suffix, change, changeType, icon, note }) => {
             )}
           </h3>
         </div>
-        <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-200">
+        <div className="rounded-2xl bg-primary/10 p-2.5 text-primary dark:bg-primary/15 dark:text-primary-light">
           <span className="material-symbols-outlined">{icon}</span>
         </div>
       </div>
       <div className="flex items-center gap-2 text-sm">
         {change && (
           <span
-            className={`flex items-center font-medium px-1.5 py-0.5 rounded ${changeColor}`}
+            className={`flex items-center rounded-xl px-2 py-1 text-xs font-semibold ${changeColor}`}
           >
             {isUp ? (
-              <span className="material-symbols-outlined text-[16px] mr-0.5">
+              <span className="material-symbols-outlined mr-0.5 text-[16px]">
                 trending_up
               </span>
             ) : (
-              <span className="material-symbols-outlined text-[16px] mr-0.5">
+              <span className="material-symbols-outlined mr-0.5 text-[16px]">
                 trending_down
               </span>
             )}
@@ -54,11 +54,11 @@ const StatCard = ({ title, value, suffix, change, changeType, icon, note }) => {
 
 const StatsGrid = ({ stats }) => (
   <div
-    className={`grid grid-cols-1 sm:grid-cols-2 ${
+    className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${
       {
         5: "lg:grid-cols-5",
       }[Math.min(5, stats?.length || 0)] || "lg:grid-cols-4"
-    } gap-4`}
+    }`}
   >
     {stats.map((item) => (
       <StatCard key={item.key} {...item} />

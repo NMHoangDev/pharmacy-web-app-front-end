@@ -11,7 +11,7 @@ const OnlineNowSection = ({ pharmacists = [], onViewAll }) => {
   };
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="storefront-card rounded-[28px] p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -48,13 +48,13 @@ const OnlineNowSection = ({ pharmacists = [], onViewAll }) => {
           {onlineList.map((pharmacist) => (
             <article
               key={pharmacist.id}
-              className="rounded-lg border border-slate-200 bg-white p-3"
+              className="storefront-soft-card rounded-[22px] p-3"
             >
               <div className="flex items-start gap-3">
                 <img
                   src={pharmacist.image}
                   alt={pharmacist.name}
-                  className="h-10 w-10 rounded-lg object-cover border border-slate-200"
+                  className="h-10 w-10 rounded-2xl object-cover border border-slate-200"
                   loading="lazy"
                 />
                 <div className="min-w-0 flex-1">
@@ -75,7 +75,7 @@ const OnlineNowSection = ({ pharmacists = [], onViewAll }) => {
                 <button
                   type="button"
                   onClick={() => handleNavigateBooking(pharmacist)}
-                  className="h-8 rounded-md border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+                  className="h-8 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
                 >
                   Tư vấn ngay
                 </button>

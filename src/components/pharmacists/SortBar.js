@@ -2,7 +2,7 @@ import React from "react";
 
 const SortBar = ({ total = 0 }) => {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <section className="storefront-panel rounded-[24px] px-4 py-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-slate-600">
           <span className="font-semibold text-slate-900">{total}</span> dược sĩ

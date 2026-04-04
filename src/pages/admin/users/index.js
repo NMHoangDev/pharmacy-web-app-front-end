@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../../components/admin/AdminLayout";
-import AdminHeaderBar from "../../../components/admin/user-management/AdminHeaderBar";
-import AdminStats from "../../../components/admin/user-management/AdminStats";
+import AdminPageHeader from "../../../components/admin/shared/AdminPageHeader";
+import StatsSection from "../../../components/admin/shared/StatsSection";
 import AdminFilters from "../../../components/admin/user-management/AdminFilters";
 import UserTable from "../../../components/admin/user-management/UserTable";
 import UserDrawer from "../../../components/admin/user-management/UserDrawer";
+import useUserStats from "../../../hooks/queries/useUserStats";
 import {
   Dialog,
   DialogContent,
@@ -14,70 +15,107 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import { Button } from "../../../components/ui/button";
-import { getAccessToken } from "../../../utils/auth";
+import { authApi } from "../../../api/httpClients";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8087";
+const PAGE_SIZE = 10;
 
 const requestJson = async (url, options = {}) => {
-  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
-  const token = getAccessToken();
-  const response = await fetch(fullUrl, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token
-        ? {
-            Authorization: token.toLowerCase().startsWith("bearer ")
-              ? token
-              : `Bearer ${token}`,
-          }
-        : {}),
-      ...(options.headers || {}),
-    },
-  });
+  const method = String(options?.method || "GET").toLowerCase();
+  let requestData = options?.body;
+  if (typeof requestData === "string") {
+    try {
+      requestData = JSON.parse(requestData);
+    } catch {
+      // Ignore invalid JSON body and send raw payload.
+    }
+  }
 
-  if (response.status === 204) return null;
-
-  const contentType = response.headers.get("content-type") || "";
-  const isJson = contentType.includes("application/json");
-  const payload = isJson
-    ? await response.json().catch(() => null)
-    : await response.text().catch(() => "");
-
-  if (!response.ok) {
+  try {
+    const response = await authApi.request({
+      url,
+      method,
+      data: requestData,
+      signal: options?.signal,
+      headers: options?.headers,
+    });
+    return response?.data ?? null;
+  } catch (err) {
+    const status = Number(err?.response?.status || err?.status || 0);
+    const statusText = String(err?.response?.statusText || err?.message || "");
+    const payload = err?.response?.data;
     const details =
       typeof payload === "string"
         ? payload.slice(0, 300)
         : JSON.stringify(payload || {}).slice(0, 300);
-    throw new Error(
-      `HTTP ${response.status} ${response.statusText}. ${details}`,
-    );
-  }
+    const message = status
+      ? `HTTP ${status} ${statusText}. ${details}`
+      : statusText || "Request failed";
 
-  return payload;
+    const wrapped = new Error(message);
+    wrapped.name = err?.name || "Error";
+    wrapped.status = status;
+    throw wrapped;
+  }
 };
 
-const normalizeUser = (user) => ({
-  id: user.id,
-  name: user.fullName || user.email || "Chưa có tên",
-  email: user.email,
-  phone: user.phone,
-  fullName: user.fullName,
-  role: "customer",
-  status: "active",
-  orders: 0,
-  lastActive: "",
-  lastActiveValue: Date.now(),
-  joined: "",
-  joinedValue: Date.now(),
-  tags: [],
-  attention: false,
-  avatar: undefined,
-  notes: "",
-});
+const formatDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+};
+
+const normalizeAvatar = (value) => {
+  if (!value) return "";
+  return String(value).startsWith("data:")
+    ? value
+    : `data:image/png;base64,${value}`;
+};
+
+const normalizeUser = (user) => {
+  const createdAt = user?.createdAt ? new Date(user.createdAt) : null;
+  const createdAtValue =
+    createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.getTime() : 0;
+  const normalizedRole = String(user?.role || "").trim().toLowerCase();
+  const normalizedStatus = String(user?.status || "").trim().toLowerCase();
+
+  return {
+    id: user?.id,
+    name: user?.fullName || user?.email || "Chưa có tên",
+    email: user?.email || "",
+    phone: user?.phone || "",
+    fullName: user?.fullName || "",
+    role:
+      normalizedRole === "admin" ||
+      normalizedRole === "pharmacist" ||
+      normalizedRole === "customer"
+        ? normalizedRole
+        : "customer",
+    status:
+      normalizedStatus === "active" ||
+      normalizedStatus === "pending" ||
+      normalizedStatus === "suspended"
+        ? normalizedStatus
+        : "active",
+    orders: Number(user?.orderCount || 0),
+    lastActive: formatDate(user?.createdAt),
+    lastActiveValue: createdAtValue,
+    joined: formatDate(user?.createdAt),
+    joinedValue: createdAtValue,
+    tags: Array.isArray(user?.keycloakRoles) ? user.keycloakRoles : [],
+    attention: normalizedStatus && normalizedStatus !== "active",
+    avatar: normalizeAvatar(user?.avatarBase64),
+    notes: "",
+  };
+};
 
 const AdminUsersPage = () => {
   const [users, setUsers] = useState([]);
+  const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
     query: "",
     role: "all",
@@ -87,7 +125,7 @@ const AdminUsersPage = () => {
   });
   const [selectedIds, setSelectedIds] = useState([]);
   const [drawerUser, setDrawerUser] = useState(null);
-  const [drawerMode, setDrawerMode] = useState("view"); // view | create | edit
+  const [drawerMode, setDrawerMode] = useState("view");
   const [drawerSaving, setDrawerSaving] = useState(false);
   const [drawerDeleting, setDrawerDeleting] = useState(false);
   const [drawerActionError, setDrawerActionError] = useState("");
@@ -99,9 +137,14 @@ const AdminUsersPage = () => {
     message: "",
     tone: "success",
   });
+  const { data: userStatsData, isLoading: userStatsLoading } = useUserStats({
+    range: "7d",
+  });
 
   useEffect(() => {
     const controller = new AbortController();
+    console.log("Users222222222222222222222222222222222222222222:", users);
+
     const load = async () => {
       try {
         setLoading(true);
@@ -109,27 +152,15 @@ const AdminUsersPage = () => {
         const data = await requestJson("/api/admin/users", {
           signal: controller.signal,
         });
+        console.log("[admin users] raw response:", data);
+        console.log("[admin users] first item keys:", Object.keys(data?.[0] || {}));
         setUsers((Array.isArray(data) ? data : []).map(normalizeUser));
       } catch (err) {
-        if (err && err.name === "AbortError") {
-          // Fetch was aborted due to unmount/cleanup — ignore silently
-          console.debug("Admin users fetch aborted");
+        if (err?.name === "AbortError") {
           return;
         }
         console.error("Failed to fetch admin users", err);
-        const msg =
-          (err && err.message) || "Không tải được danh sách người dùng.";
-        if (msg.includes("HTTP 401")) {
-          setError(
-            "API trả về 401 (Unauthorized). Nếu bạn đang gọi qua gateway, hãy kiểm tra cấu hình security của gateway/admin-bff hoặc token đăng nhập.",
-          );
-        } else if (msg.includes("<!DOCTYPE") || msg.includes("text/html")) {
-          setError(
-            "Máy chủ trả về HTML (không phải JSON). Thường do gọi nhầm host/port hoặc React dev server trả index.html. Hãy chắc `proxy` trỏ về gateway và gateway/admin-bff đang chạy.",
-          );
-        } else {
-          setError("Không tải được danh sách người dùng. Vui lòng thử lại.");
-        }
+        setError("Không tải được danh sách người dùng. Vui lòng thử lại.");
       } finally {
         setLoading(false);
       }
@@ -163,42 +194,93 @@ const AdminUsersPage = () => {
     });
   }, [users, filters]);
 
-  const stats = useMemo(() => {
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE)),
+    [filteredUsers.length],
+  );
+
+  const pagedUsers = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredUsers.slice(start, start + PAGE_SIZE);
+  }, [filteredUsers, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
+
+  useEffect(() => {
+    setPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
+
+  const fallbackStats = useMemo(() => {
     const total = users.length;
     const active = users.filter((u) => u.status === "active").length;
     const pending = users.filter((u) => u.status === "pending").length;
     const suspended = users.filter((u) => u.status === "suspended").length;
-    return [
-      {
-        label: "Tổng người dùng",
-        value: total,
-        icon: "group",
-        tint: "bg-primary",
-        caption: "Tính cả khách hàng, dược sĩ và quản trị",
-      },
-      {
-        label: "Đang hoạt động",
-        value: active,
-        icon: "verified",
-        tint: "bg-emerald-500",
-        delta: "+8.4% so với tuần trước",
-      },
-      {
-        label: "Đang xét duyệt",
-        value: pending,
-        icon: "hourglass",
-        tint: "bg-amber-500",
-        caption: "Cần kiểm tra giấy tờ và xác minh thông tin",
-      },
-      {
-        label: "Tạm khóa",
-        value: suspended,
-        icon: "block",
-        tint: "bg-rose-500",
-        caption: "Theo dõi và xử lý sớm các trường hợp vi phạm",
-      },
-    ];
+    return {
+      total,
+      active,
+      pending,
+      suspended,
+      newLast7d: 0,
+    };
   }, [users]);
+
+  const userMetrics = useMemo(
+    () => userStatsData?.metrics || userStatsData || {},
+    [userStatsData],
+  );
+
+  const stats = useMemo(
+    () => [
+      {
+        key: "total",
+        label: "Tổng người dùng",
+        value: (userMetrics.totalUsers ?? fallbackStats.total).toLocaleString(
+          "vi-VN",
+        ),
+        description: "Bao gồm khách hàng, dược sĩ và quản trị",
+        icon: "group",
+      },
+      {
+        key: "active",
+        label: "Đang hoạt động",
+        value: (userMetrics.activeUsers ?? fallbackStats.active).toLocaleString(
+          "vi-VN",
+        ),
+        description: "Tài khoản đủ điều kiện giao dịch",
+        icon: "verified",
+      },
+      {
+        key: "pending",
+        label: "Đang chờ duyệt",
+        value: (
+          userMetrics.pendingApprovalUsers ?? fallbackStats.pending
+        ).toLocaleString("vi-VN"),
+        description: "Cần xác minh thông tin bổ sung",
+        icon: "hourglass_top",
+      },
+      {
+        key: "blocked",
+        label: "Đã khóa",
+        value: (
+          userMetrics.blockedUsers ?? fallbackStats.suspended
+        ).toLocaleString("vi-VN"),
+        description: "Theo dõi các trường hợp cần xử lý",
+        icon: "block",
+      },
+      {
+        key: "new7d",
+        label: "Mới trong 7 ngày",
+        value: (
+          userMetrics.newUsersLast7Days ?? fallbackStats.newLast7d
+        ).toLocaleString("vi-VN"),
+        description: "Tài khoản mới tạo trong tuần gần nhất",
+        icon: "person_add",
+      },
+    ],
+    [fallbackStats, userMetrics],
+  );
 
   const handleToggleSelect = (id) => {
     setSelectedIds((prev) =>
@@ -207,7 +289,7 @@ const AdminUsersPage = () => {
   };
 
   const handleToggleSelectAll = (checked) => {
-    setSelectedIds(checked ? filteredUsers.map((user) => user.id) : []);
+    setSelectedIds(checked ? pagedUsers.map((user) => user.id) : []);
   };
 
   const updateStatus = (ids, status) => {
@@ -228,7 +310,6 @@ const AdminUsersPage = () => {
   };
 
   const persistStatus = async (ids, status) => {
-    // Call admin-bff status endpoint (currently a placeholder) so UI actions hit the correct API.
     await Promise.all(
       ids.map((id) =>
         requestJson(
@@ -244,7 +325,7 @@ const AdminUsersPage = () => {
     if (!selectedIds.length) return;
     persistStatus(selectedIds, status).catch((err) => {
       console.error("Bulk status update failed", err);
-      setError("Không thể cập nhật trạng thái hàng loạt. Vui lòng thử lại.");
+      setError("Không thể cập nhật trạng thái hàng loạt.");
     });
     setSelectedIds([]);
   };
@@ -252,7 +333,7 @@ const AdminUsersPage = () => {
   const handleRowStatusChange = (id, status) => {
     persistStatus([id], status).catch((err) => {
       console.error("Row status update failed", err);
-      setError("Không thể cập nhật trạng thái người dùng. Vui lòng thử lại.");
+      setError("Không thể cập nhật trạng thái người dùng.");
     });
   };
 
@@ -272,6 +353,7 @@ const AdminUsersPage = () => {
 
   const reloadUsers = async () => {
     const data = await requestJson("/api/admin/users");
+    console.log("[admin users] reload response:", data);
     setUsers((Array.isArray(data) ? data : []).map(normalizeUser));
   };
 
@@ -306,13 +388,12 @@ const AdminUsersPage = () => {
     } catch (err) {
       console.error("Save user failed", err);
       setDrawerActionError(
-        (err && err.message) || "Không thể lưu người dùng. Vui lòng thử lại.",
+        err?.message || "Không thể lưu người dùng. Vui lòng thử lại.",
       );
       setActionDialog({
         open: true,
         title: "Không thể lưu",
-        message:
-          (err && err.message) || "Không thể lưu người dùng. Vui lòng thử lại.",
+        message: err?.message || "Không thể lưu người dùng. Vui lòng thử lại.",
         tone: "error",
       });
     } finally {
@@ -339,13 +420,12 @@ const AdminUsersPage = () => {
     } catch (err) {
       console.error("Delete user failed", err);
       setDrawerActionError(
-        (err && err.message) || "Không thể xóa người dùng. Vui lòng thử lại.",
+        err?.message || "Không thể xóa người dùng. Vui lòng thử lại.",
       );
       setActionDialog({
         open: true,
         title: "Không thể xóa",
-        message:
-          (err && err.message) || "Không thể xóa người dùng. Vui lòng thử lại.",
+        message: err?.message || "Không thể xóa người dùng. Vui lòng thử lại.",
         tone: "error",
       });
     } finally {
@@ -362,21 +442,46 @@ const AdminUsersPage = () => {
       attentionOnly: false,
     });
     setSelectedIds([]);
+    setPage(1);
   };
 
   return (
     <AdminLayout activeKey="users">
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-5">
-        <AdminHeaderBar
-          search={filters.query}
-          onSearchChange={(value) => setFilters({ ...filters, query: value })}
-          onAddUser={openCreateDrawer}
-          onInvite={() =>
-            alert("Đã gửi hướng dẫn kích hoạt đến người dùng được chọn.")
+        <AdminPageHeader
+          title="Quản lý người dùng"
+          subtitle="Theo dõi trạng thái tài khoản và chất lượng vận hành"
+          actions={
+            <>
+              <button
+                type="button"
+                className="flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                onClick={() => alert("Đã gửi hướng dẫn kích hoạt.")}
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  outgoing_mail
+                </span>
+                Gửi lời mời
+              </button>
+              <button
+                type="button"
+                className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary/90"
+                onClick={openCreateDrawer}
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  add
+                </span>
+                Thêm người dùng
+              </button>
+            </>
           }
         />
 
-        <AdminStats stats={stats} />
+        <StatsSection
+          items={stats}
+          loading={userStatsLoading && !users.length}
+          emptyText="Chưa có dữ liệu tổng quan người dùng"
+        />
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm flex flex-col gap-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -421,13 +526,13 @@ const AdminUsersPage = () => {
         </div>
 
         {error ? (
-          <div className="bg-rose-50 text-rose-700 border border-rose-200 rounded-lg px-4 py-3 text-sm">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
           </div>
         ) : null}
 
         <UserTable
-          users={filteredUsers}
+          users={pagedUsers}
           selectedIds={selectedIds}
           onToggleSelect={handleToggleSelect}
           onToggleSelectAll={handleToggleSelectAll}
@@ -435,6 +540,35 @@ const AdminUsersPage = () => {
           onStatusChange={handleRowStatusChange}
           loading={loading}
         />
+
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 shadow-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Hiển thị {(page - 1) * PAGE_SIZE + (pagedUsers.length ? 1 : 0)}-
+            {(page - 1) * PAGE_SIZE + pagedUsers.length} /{" "}
+            {filteredUsers.length} người dùng
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 disabled:opacity-50"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={page <= 1}
+            >
+              Trước
+            </button>
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Trang {page}/{totalPages}
+            </span>
+            <button
+              type="button"
+              className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 disabled:opacity-50"
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={page >= totalPages}
+            >
+              Sau
+            </button>
+          </div>
+        </div>
       </div>
 
       <UserDrawer

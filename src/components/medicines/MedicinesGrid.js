@@ -1,21 +1,15 @@
-import React from "react";
+import React, { useEffect } from "react";
 import MedicineCard from "./MedicineCard";
-import MedicineSkeleton from "./MedicineSkeleton";
-import CardGridMotion from "../ui/motion/CardGridMotion";
 
-const MedicinesGrid = ({ products, onAddToCart, onConsult, loading }) => {
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {Array.from({ length: 9 }).map((_, idx) => (
-          <MedicineSkeleton key={idx} />
-        ))}
-      </div>
-    );
-  }
+const GRID_CLASS =
+  "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3";
 
+const MedicinesGrid = ({ products = [], onAddToCart, onConsult }) => {
+  useEffect(() => {
+    console.log(products);
+  }, []);
   return (
-    <CardGridMotion className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className={GRID_CLASS}>
       {products.map((product) => (
         <MedicineCard
           key={product.id}
@@ -24,7 +18,7 @@ const MedicinesGrid = ({ products, onAddToCart, onConsult, loading }) => {
           onConsult={onConsult}
         />
       ))}
-    </CardGridMotion>
+    </div>
   );
 };
 

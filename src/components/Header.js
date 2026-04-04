@@ -1,15 +1,16 @@
-import React, { useMemo, useState } from "react";
-import { NavLink } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
 import { useCart } from "../contexts/CartContext";
 import NotificationBell from "./notifications/NotificationBell";
 import { useAuth } from "../auth/useAuth";
 import { useCampaign } from "../hooks/useCampaign";
 import CampaignBanner from "./CampaignBanner";
+import "../styles/storefront-premium.css";
 
 const navItems = [
   { to: "/", label: "Trang chủ" },
-  { to: "/medicines", label: "Thuốc / Sản phẩm" },
+  { to: "/medicines", label: "Thuốc và sản phẩm" },
   { to: "/posts", label: "Kiến thức thuốc" },
   { to: "/forum", label: "Diễn đàn" },
   { to: "/pharmacists", label: "Dược sĩ" },
@@ -17,8 +18,19 @@ const navItems = [
   { to: "/chatbot", label: "Tư vấn trực tuyến" },
 ];
 
+const navLinkClass = ({ isActive }) =>
+  [
+    "rounded-full px-4 py-2 text-sm font-semibold storefront-interactive",
+    "focus:outline-none focus:ring-2 focus:ring-sky-200",
+    isActive
+      ? "bg-sky-600 text-white shadow-[0_18px_30px_-20px_rgba(2,132,199,0.9)]"
+      : "text-slate-700 hover:bg-white hover:text-slate-900",
+  ].join(" ");
+
 const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+  const navigate = useNavigate();
   const { profile } = useAppContext();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { itemCount } = useCart();
@@ -33,216 +45,165 @@ const Header = () => {
       : `data:image/png;base64,${effectiveProfile.avatarBase64}`;
   }, [effectiveProfile]);
 
+  useEffect(() => {
+    if (!mobileOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileOpen]);
+
   const closeMobile = () => setMobileOpen(false);
 
-  return (
-    <header className="sticky top-0 z-50 w-full bg-white dark:bg-slate-950 border-b border-slate-200/80 dark:border-slate-800 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
-      <CampaignBanner campaign={activeCampaign} />
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Top row */}
-        <div className="flex items-center justify-between h-16 sm:h-[72px] gap-3 sm:gap-6">
-          {/* Brand */}
-          <NavLink
-            to="/"
-            className="flex items-center gap-3 shrink-0 group"
-            aria-label="PharmaCare Home"
-          >
-            <div className="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center ring-1 ring-primary/15 group-hover:ring-primary/25 transition">
-              <span className="material-symbols-outlined text-[26px]">
-                local_pharmacy
-              </span>
-            </div>
-            <div className="hidden sm:block leading-tight">
-              <div className="text-base font-extrabold tracking-tight text-slate-900 dark:text-white">
-                PharmaCare
-              </div>
-              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Pharmacy & Consultation
-              </div>
-            </div>
-          </NavLink>
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+    const trimmed = searchValue.trim();
+    navigate(
+      trimmed ? `/medicines?q=${encodeURIComponent(trimmed)}` : "/medicines",
+    );
+    setMobileOpen(false);
+  };
 
-          {/* Search (desktop) */}
-          <div className="flex-1 max-w-2xl hidden md:block">
-            <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-                <span className="material-symbols-outlined text-[20px]">
+  return (
+    <header className="sticky top-0 z-50 border-b border-white/70 bg-[rgba(247,251,255,0.88)] backdrop-blur-xl">
+      <CampaignBanner campaign={activeCampaign} />
+      <div className="mx-auto max-w-[1280px] px-4 pb-3 pt-3 sm:px-6 lg:px-8">
+        <div className="storefront-panel rounded-[28px] px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap items-center gap-3 lg:gap-4">
+            <NavLink
+              to="/"
+              className="storefront-interactive flex min-w-0 items-center gap-3 rounded-2xl px-2 py-2 focus:outline-none focus:ring-2 focus:ring-sky-200"
+              aria-label="PharmaCare Home"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-[0_16px_32px_-18px_rgba(37,99,235,0.85)]">
+                <span className="material-symbols-outlined text-[24px]">
+                  local_pharmacy
+                </span>
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-base font-black tracking-tight text-slate-900">
+                  PharmaCare
+                </div>
+                <div className="truncate text-xs font-medium text-slate-500">
+                  Nhà thuốc và tư vấn sức khỏe trực tuyến
+                </div>
+              </div>
+            </NavLink>
+
+            <form
+              onSubmit={handleSearchSubmit}
+              className="order-3 w-full lg:order-none lg:flex-1"
+            >
+              <div className="storefront-input flex h-12 items-center gap-3 px-3 sm:px-4">
+                <span className="material-symbols-outlined text-[20px] text-slate-400">
                   search
                 </span>
-              </span>
-              <input
-                type="text"
-                placeholder="Tìm tên thuốc, bệnh lý, thực phẩm chức năng..."
-                className="block w-full h-11 pl-10 pr-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400
-                           focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/30
-                           transition"
-              />
-              <span className="pointer-events-none absolute inset-y-0 right-3 hidden lg:flex items-center">
-                <span className="text-[10px] font-semibold text-slate-400 border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1">
-                  ⌘ K
+                <input
+                  value={searchValue}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  type="search"
+                  placeholder="Tìm thuốc, hoạt chất, bệnh lý hoặc nhu cầu chăm sóc"
+                  className="h-full w-full bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                  aria-label="Tìm kiếm thuốc"
+                />
+              </div>
+            </form>
+
+            <div className="ml-auto flex items-center gap-1 sm:gap-2">
+              <NotificationBell />
+
+              <NavLink
+                to="/cart"
+                className="storefront-interactive relative inline-flex h-11 w-11 items-center justify-center rounded-2xl text-slate-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-sky-200"
+                aria-label="Giỏ hàng"
+              >
+                <span className="material-symbols-outlined text-[22px]">
+                  shopping_cart
                 </span>
-              </span>
+                {itemCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[11px] font-bold text-white ring-2 ring-white">
+                    {itemCount}
+                  </span>
+                ) : null}
+              </NavLink>
+
+              <NavLink
+                to={isAuthenticated ? "/account" : "/login"}
+                className="storefront-interactive inline-flex h-11 items-center gap-2 rounded-2xl px-2.5 text-slate-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-sky-200 sm:px-3"
+                aria-label={isAuthenticated ? "Trang tài khoản" : "Đăng nhập"}
+              >
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt="Ảnh đại diện"
+                    className="h-8 w-8 rounded-full object-cover ring-2 ring-sky-100"
+                  />
+                ) : (
+                  <span className="material-symbols-outlined text-[24px] text-slate-700">
+                    account_circle
+                  </span>
+                )}
+                <span className="hidden max-w-[140px] truncate text-sm font-semibold text-slate-800 lg:block">
+                  {authLoading
+                    ? "Đang tải..."
+                    : effectiveProfile?.fullName ||
+                      (isAuthenticated ? "Tài khoản" : "Đăng nhập")}
+                </span>
+              </NavLink>
+
+              <button
+                type="button"
+                className="storefront-interactive inline-flex h-11 w-11 items-center justify-center rounded-2xl text-slate-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-sky-200 lg:hidden"
+                aria-label="Mở menu"
+                onClick={() => setMobileOpen((value) => !value)}
+              >
+                <span className="material-symbols-outlined text-[24px]">
+                  {mobileOpen ? "close" : "menu"}
+                </span>
+              </button>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Search button (mobile) */}
-            <button
-              type="button"
-              className="md:hidden h-10 w-10 grid place-items-center rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition"
-              aria-label="Tìm kiếm"
-            >
-              <span className="material-symbols-outlined text-[22px]">
-                search
-              </span>
-            </button>
-
-            {/* Cart */}
-            <NotificationBell />
-
-            {/* Cart */}
-            <NavLink
-              to="/cart"
-              className="relative h-10 w-10 grid place-items-center rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition"
-              aria-label="Xem giỏ hàng"
-            >
-              <span className="material-symbols-outlined text-[22px]">
-                shopping_cart
-              </span>
-              {itemCount > 0 ? (
-                <span className="absolute -top-1 -right-1 flex h-5 min-w-[1.25rem] px-1 items-center justify-center rounded-full bg-rose-500 text-[11px] font-extrabold text-white ring-2 ring-white dark:ring-slate-950">
-                  {itemCount}
-                </span>
-              ) : null}
-            </NavLink>
-
-            {/* Account */}
-            <NavLink
-              to={isAuthenticated ? "/account" : "/login"}
-              className="h-10 px-2 sm:px-3 flex items-center gap-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-900 transition"
-              aria-label={
-                authLoading
-                  ? "Đang kiểm tra đăng nhập"
-                  : isAuthenticated
-                    ? "Trang tài khoản"
-                    : "Đăng nhập"
-              }
-            >
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt="Ảnh đại diện"
-                  className="size-8 rounded-full object-cover ring-2 ring-slate-200 dark:ring-slate-800"
-                />
-              ) : (
-                <span className="material-symbols-outlined text-slate-700 dark:text-slate-200 text-[24px]">
-                  account_circle
-                </span>
-              )}
-              <span className="hidden lg:block text-sm font-semibold text-slate-800 dark:text-slate-200 max-w-[160px] truncate">
-                {authLoading
-                  ? "..."
-                  : effectiveProfile?.fullName ||
-                    (isAuthenticated ? "Tài khoản" : "Đăng nhập")}
-              </span>
-            </NavLink>
-
-            {/* Mobile menu */}
-            <button
-              type="button"
-              className="md:hidden h-10 w-10 grid place-items-center rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition"
-              aria-label="Mở menu"
-              onClick={() => setMobileOpen((v) => !v)}
-            >
-              <span className="material-symbols-outlined text-[24px]">
-                {mobileOpen ? "close" : "menu"}
-              </span>
-            </button>
-          </div>
+          <nav className="mt-3 hidden flex-wrap items-center gap-2 border-t border-slate-200/80 pt-3 lg:flex">
+            {navItems.map((item) => (
+              <NavLink key={item.to} to={item.to} className={navLinkClass}>
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
         </div>
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-2 pb-3">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                [
-                  "px-3 py-2 rounded-xl text-sm font-semibold transition",
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white",
-                ].join(" ")
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-
-        {/* Mobile menu */}
-        {mobileOpen && (
-          <div className="md:hidden pb-4">
-            <div className="mt-1 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-[0_20px_60px_rgba(15,23,42,0.12)] overflow-hidden">
-              <div className="p-3">
-                {/* Mobile search */}
-                <div className="relative mb-3">
-                  <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-                    <span className="material-symbols-outlined text-[20px]">
-                      search
-                    </span>
-                  </span>
-                  <input
-                    type="text"
-                    placeholder="Tìm thuốc, bệnh lý..."
-                    className="block w-full h-11 pl-10 pr-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400
-                               focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/30 transition"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  {navItems.map((item) => (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={closeMobile}
-                      className={({ isActive }) =>
-                        [
-                          "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold transition",
-                          isActive
-                            ? "bg-primary/10 text-primary"
-                            : "text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900",
-                        ].join(" ")
-                      }
-                    >
-                      <span>{item.label}</span>
-                      <span className="material-symbols-outlined text-[18px] text-slate-400">
-                        chevron_right
-                      </span>
-                    </NavLink>
-                  ))}
-
-                  <button
-                    type="button"
-                    className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition"
+        {mobileOpen ? (
+          <div className="pt-3 lg:hidden">
+            <div className="storefront-card rounded-[28px] p-3 shadow-[0_24px_50px_-28px_rgba(15,23,42,0.26)]">
+              <nav className="flex flex-col gap-1">
+                {navItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
                     onClick={closeMobile}
+                    className={({ isActive }) =>
+                      [
+                        "storefront-interactive flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-200",
+                        isActive
+                          ? "bg-sky-600 text-white"
+                          : "text-slate-700 hover:bg-sky-50",
+                      ].join(" ")
+                    }
                   >
-                    <span>Liên hệ</span>
-                    <span className="material-symbols-outlined text-[18px] text-slate-400">
+                    <span>{item.label}</span>
+                    <span className="material-symbols-outlined text-[18px]">
                       chevron_right
                     </span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
-                © {new Date().getFullYear()} PharmaCare
-              </div>
+                  </NavLink>
+                ))}
+              </nav>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </header>
   );

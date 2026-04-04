@@ -48,11 +48,17 @@ import ShipperProfilePage from "../pages/shipper/profile";
 import ShipperEarningsPage from "../pages/shipper/earnings";
 import LoginPage from "../pages/auth/login";
 import SignupPage from "../pages/auth/signup";
+import OauthCallbackPage from "../pages/auth/oauth-callback";
 import { useAppContext } from "../context/AppContext";
+import { getDefaultPathForRoles } from "../auth/roleRedirect";
 
 const RoleRoute = ({ children, requiredRoles }) => {
   const location = useLocation();
-  const { isAuthenticated, roles, isAdmin } = useAppContext();
+  const { isAuthenticated, roles, isAdmin, authLoading } = useAppContext();
+
+  if (authLoading) {
+    return null;
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
@@ -62,18 +68,26 @@ const RoleRoute = ({ children, requiredRoles }) => {
     isAdmin || (requiredRoles && requiredRoles.some((r) => roles.includes(r)));
 
   if (!hasRole) {
-    // Redirect to home if unauthorized
-    return <Navigate to="/" replace />;
+    return <Navigate to={getDefaultPathForRoles(roles)} replace />;
   }
 
   return children;
 };
 
-const RequireAuth = ({ children }) => (
-  <RoleRoute requiredRoles={["USER", "PHARMACIST", "STAFF", "ADMIN"]}>
-    {children}
-  </RoleRoute>
-);
+const RequireAuth = ({ children }) => {
+  const location = useLocation();
+  const { isAuthenticated, authLoading } = useAppContext();
+
+  if (authLoading) {
+    return null;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+};
 
 const RequireAdmin = ({ children }) => (
   <RoleRoute requiredRoles={["ADMIN"]}>{children}</RoleRoute>
@@ -164,6 +178,7 @@ const AnimatedRoutes = () => {
         />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/auth/callback" element={<OauthCallbackPage />} />
         <Route
           path="/admin/dashboard"
           element={

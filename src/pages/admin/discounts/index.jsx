@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../../components/admin/AdminLayout";
+import AdminPageHeader from "../../../components/admin/shared/AdminPageHeader";
+import StatsSection from "../../../components/admin/shared/StatsSection";
 import AdminPageContainer from "../../../components/common/AdminPageContainer";
 import AdminTableWrapper from "../../../components/common/AdminTableWrapper";
 import DiscountFilters from "../../../components/admin/discounts/DiscountFilters";
@@ -76,6 +78,54 @@ const AdminDiscountsPage = () => {
     categories.forEach((c) => map.set(c.id, c.name));
     return map;
   }, [categories]);
+
+  const discountStats = useMemo(() => {
+    const total = discounts.length;
+    const active = discounts.filter(
+      (item) => String(item.status || "").toUpperCase() === "ACTIVE",
+    ).length;
+    const scheduled = discounts.filter(
+      (item) => String(item.status || "").toUpperCase() === "SCHEDULED",
+    ).length;
+    const pausedOrExpired = discounts.filter((item) =>
+      ["DISABLED", "EXPIRED", "CANCELED"].includes(
+        String(item.status || "").toUpperCase(),
+      ),
+    ).length;
+
+    return [
+      {
+        key: "total",
+        label: "Tổng chương trình",
+        value: total.toLocaleString("vi-VN"),
+        description: "Khuyến mãi đang được quản lý",
+        icon: "sell",
+      },
+      {
+        key: "active",
+        label: "Đang hiệu lực",
+        value: active.toLocaleString("vi-VN"),
+        description: "Đang áp dụng cho người dùng",
+        icon: "check_circle",
+        tone: active > 0 ? "up" : "neutral",
+      },
+      {
+        key: "scheduled",
+        label: "Đã lên lịch",
+        value: scheduled.toLocaleString("vi-VN"),
+        description: "Sắp bắt đầu trong thời gian tới",
+        icon: "schedule",
+      },
+      {
+        key: "inactive",
+        label: "Tạm dừng / Hết hạn",
+        value: pausedOrExpired.toLocaleString("vi-VN"),
+        description: "Cần rà soát để dọn dẹp chiến dịch",
+        icon: "pause_circle",
+        tone: pausedOrExpired > 0 ? "neutral" : "up",
+      },
+    ];
+  }, [discounts]);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -267,25 +317,25 @@ const AdminDiscountsPage = () => {
   return (
     <AdminLayout activeKey="discounts">
       <AdminPageContainer>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">
-              Quản lý khuyến mãi
-            </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Quản lý chương trình giảm giá, phạm vi áp dụng và thời gian hiệu
-              lực.
-            </p>
-          </div>
-          <button
-            className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            type="button"
-            onClick={openCreateModal}
-          >
-            <span className="material-symbols-outlined text-[20px]">add</span>
-            Tạo khuyến mãi
-          </button>
-        </div>
+        <AdminPageHeader
+          title="Quản lý khuyến mãi"
+          subtitle="Quản lý chương trình giảm giá, phạm vi áp dụng và thời gian hiệu lực"
+          actions={
+            <button
+              className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              type="button"
+              onClick={openCreateModal}
+            >
+              <span className="material-symbols-outlined text-[20px]">add</span>
+              Tạo khuyến mãi
+            </button>
+          }
+        />
+        <StatsSection
+          items={discountStats}
+          loading={loading && !discounts.length}
+          emptyText="Chưa có dữ liệu tổng quan khuyến mãi"
+        />
 
         <DiscountFilters
           search={searchInput}
@@ -313,12 +363,6 @@ const AdminDiscountsPage = () => {
             setPageSize(10);
           }}
         />
-
-        {uiError ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {uiError}
-          </div>
-        ) : null}
 
         {loading ? (
           <AdminTableWrapper className="px-4 py-3 text-sm text-slate-600">

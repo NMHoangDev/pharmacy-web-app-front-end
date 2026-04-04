@@ -64,9 +64,11 @@ export const getProductReviewSummary = async (productId) =>
 export const createReview = async (payload) =>
   handleFetch(authApi.post("/api/reviews", payload));
 
-export default {
+const reviewApi = {
   listProductReviews,
   getProductReviewSummary,
   uploadReviewImages,
   createReview,
 };
+
+export default reviewApi;

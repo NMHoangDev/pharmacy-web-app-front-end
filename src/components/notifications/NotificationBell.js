@@ -6,53 +6,119 @@ import React, {
   useState,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import useNotifications from "../../hooks/useNotifications";
 import { useAppContext } from "../../context/AppContext";
 import NotificationPanel from "./NotificationPanel";
+import { useCampaign } from "../../hooks/useCampaign";
+import { useNotificationsQuery } from "../../hooks/queries/useNotifications";
+import { useUnreadCount } from "../../hooks/queries/useUnreadCount";
+import { useMarkNotificationRead } from "../../hooks/mutations/useMarkNotificationRead";
+import { useDeleteNotification } from "../../hooks/mutations/useDeleteNotification";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "../../hooks/queries/queryKeys";
 
 const NotificationBell = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, accessToken, notificationRefreshVersion } =
-    useAppContext();
+  const { isAuthenticated, accessToken } = useAppContext();
   const notificationsEnabled = Boolean(isAuthenticated && accessToken);
   const containerRef = useRef(null);
   const flushOnUnmountRef = useRef(() => Promise.resolve());
   const [open, setOpen] = useState(false);
 
-  const {
-    notifications,
-    unreadCount,
-    loading,
-    error,
-    initialize,
-    openPanel,
-    refreshNotifications,
-    refreshUnreadCount,
-    markAsRead,
-    queueReadOnClose,
-    flushPendingReads,
-    dismissNotification,
-  } = useNotifications(20, { enabled: notificationsEnabled });
+  const queryClient = useQueryClient();
+  const [pendingReadIds, setPendingReadIds] = useState(() => new Set());
 
-  useEffect(() => {
-    if (!notificationsEnabled) return;
-    initialize();
-  }, [initialize, notificationsEnabled]);
+  const unreadQuery = useUnreadCount({
+    enabled: notificationsEnabled,
+  });
 
-  useEffect(() => {
-    if (!notificationsEnabled) return;
-    if (open) {
-      refreshNotifications();
-      return;
-    }
-    refreshUnreadCount();
-  }, [
-    notificationRefreshVersion,
-    notificationsEnabled,
-    open,
-    refreshNotifications,
-    refreshUnreadCount,
-  ]);
+  const notificationsQuery = useNotificationsQuery(20, {
+    enabled: notificationsEnabled && open,
+  });
+
+  const markReadMutation = useMarkNotificationRead();
+  const deleteMutation = useDeleteNotification();
+
+  const notifications = useMemo(
+    () => notificationsQuery.data?.items || [],
+    [notificationsQuery.data?.items],
+  );
+  const unreadCount = Number(unreadQuery.data || 0);
+  const loading = notificationsQuery.isLoading || notificationsQuery.isFetching;
+  const error = notificationsQuery.error?.message || "";
+  const refreshNotifications = useCallback(
+    () => notificationsQuery.refetch(),
+    [notificationsQuery],
+  );
+
+  const { activeCampaign } = useCampaign({ refreshIntervalMs: 180000 });
+
+  const campaignNotification = useMemo(() => {
+    if (!activeCampaign) return null;
+
+    const now = new Date().toISOString();
+    const title = activeCampaign?.name
+      ? `Ưu đãi: ${activeCampaign.name}`
+      : "Ưu đãi đang diễn ra";
+
+    return {
+      id: `campaign-${activeCampaign?.id || "active"}`,
+      read: false,
+      category: "DISCOUNT",
+      title,
+      message: activeCampaign?.displayText || "Có mã giảm giá đang áp dụng.",
+      actionUrl: "/checkout",
+      createdAt: now,
+      synthetic: true,
+    };
+  }, [activeCampaign]);
+
+  const panelNotifications = useMemo(() => {
+    const list = Array.isArray(notifications) ? notifications : [];
+    return campaignNotification ? [campaignNotification, ...list] : list;
+  }, [campaignNotification, notifications]);
+
+  const queueReadOnClose = useCallback(
+    (notificationId) => {
+      if (!notificationId) return;
+
+      setPendingReadIds((prev) => {
+        const next = new Set(prev);
+        next.add(notificationId);
+        return next;
+      });
+
+      // Optimistically update UI: mark read + decrement unread.
+      queryClient.setQueryData(queryKeys.unreadCount(), (prev) =>
+        Math.max(0, Number(prev || 0) - 1),
+      );
+      queryClient.setQueriesData({ queryKey: ["notifications"] }, (prev) => {
+        if (!prev) return prev;
+        const items = Array.isArray(prev?.items) ? prev.items : [];
+        let changed = false;
+        const nextItems = items.map((it) => {
+          if (it?.id !== notificationId || it?.read) return it;
+          changed = true;
+          return { ...it, read: true };
+        });
+        if (!changed) return prev;
+        return {
+          ...prev,
+          items: nextItems,
+          unreadCount: Math.max(0, Number(prev?.unreadCount || 0) - 1),
+        };
+      });
+    },
+    [queryClient],
+  );
+
+  const flushPendingReads = useCallback(async () => {
+    const ids = Array.from(pendingReadIds);
+    if (!ids.length) return;
+
+    setPendingReadIds(new Set());
+    await Promise.allSettled(ids.map((id) => markReadMutation.mutateAsync(id)));
+    await unreadQuery.refetch();
+  }, [markReadMutation, pendingReadIds, unreadQuery]);
 
   flushOnUnmountRef.current = flushPendingReads;
 
@@ -74,11 +140,18 @@ const NotificationBell = () => {
       return;
     }
     setOpen(true);
-    await openPanel();
-  }, [closePanel, notificationsEnabled, open, openPanel]);
+    await refreshNotifications();
+  }, [closePanel, notificationsEnabled, open, refreshNotifications]);
 
   const handleOpenItem = useCallback(
     (item) => {
+      if (item?.synthetic) {
+        const target = String(item?.actionUrl || "").trim();
+        if (!target) return;
+        navigate(target.startsWith("/") ? target : `/${target}`);
+        return;
+      }
+
       if (!item?.read) {
         queueReadOnClose(item.id);
       }
@@ -98,16 +171,18 @@ const NotificationBell = () => {
 
   const handleMarkRead = useCallback(
     async (item) => {
-      await markAsRead(item?.id);
+      if (item?.synthetic) return;
+      await markReadMutation.mutateAsync(item?.id);
     },
-    [markAsRead],
+    [markReadMutation],
   );
 
   const handleDelete = useCallback(
     async (item) => {
-      await dismissNotification(item?.id);
+      if (item?.synthetic) return;
+      await deleteMutation.mutateAsync(item?.id);
     },
-    [dismissNotification],
+    [deleteMutation],
   );
 
   useEffect(() => {
@@ -165,7 +240,7 @@ const NotificationBell = () => {
 
       {open ? (
         <NotificationPanel
-          notifications={notifications}
+          notifications={panelNotifications}
           loading={loading}
           error={error}
           onOpenItem={handleOpenItem}

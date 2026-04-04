@@ -7,13 +7,17 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { publicApi } from "../api/httpClients";
 import {
   clearAccessToken,
   clearAuthUser,
+  clearRefreshToken,
   getAccessToken,
   getAuthUser,
+  getRefreshToken,
   setAccessToken,
   setAuthUser,
+  setRefreshToken,
 } from "./authStorage";
 import {
   decodeJwt,
@@ -24,26 +28,20 @@ import {
 
 const AuthContext = createContext(null);
 
-const CLOCK_SKEW_MS = 30_000; // expire 30s early to avoid race
-const REFRESH_WINDOW_MS = 60_000; // future: refresh if expiring within 60s
+const CLOCK_SKEW_MS = 5_000;
+const REFRESH_WINDOW_MS = 60_000;
 
 const buildSnapshotFromStorage = () => {
   const accessToken = (getAccessToken() || "").trim();
+  const refreshToken = (getRefreshToken() || "").trim();
   const expired = accessToken
     ? isTokenExpired(accessToken, CLOCK_SKEW_MS)
     : true;
 
-  if (accessToken && expired) {
-    // If already expired at bootstrap, clear immediately.
-    clearAccessToken();
-    clearAuthUser();
-  }
-
-  const token = accessToken && !expired ? accessToken : "";
+  const token = accessToken;
   const decoded = token ? decodeJwt(token) : null;
 
-  // Prefer stored authUser (it may include extra fields), fallback to token decode.
-  const storedUser = token ? getAuthUser() : null;
+  const storedUser = token || refreshToken ? getAuthUser() : null;
   const user =
     storedUser ||
     (decoded
@@ -59,29 +57,24 @@ const buildSnapshotFromStorage = () => {
 
   return {
     accessToken: token,
-    authUser: token ? user : null,
+    refreshToken,
+    authUser: token || refreshToken ? user : null,
     roles,
     userId,
   };
 };
 
 export const AuthProvider = ({ children }) => {
-  // Prevent UI flicker: compute initial auth state synchronously,
-  // but keep an explicit loading flag for future async refresh-token integration.
   const [isLoading, setIsLoading] = useState(true);
   const [snapshot, setSnapshot] = useState(() => buildSnapshotFromStorage());
 
   const refreshTimerRef = useRef(null);
-  const logoutTimerRef = useRef(null);
+  const refreshPromiseRef = useRef(null);
 
   const clearTimers = useCallback(() => {
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = null;
-    }
-    if (logoutTimerRef.current) {
-      clearTimeout(logoutTimerRef.current);
-      logoutTimerRef.current = null;
     }
   }, []);
 
@@ -92,8 +85,15 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(() => {
     clearTimers();
     clearAccessToken();
+    clearRefreshToken();
     clearAuthUser();
-    setSnapshot({ accessToken: "", authUser: null, roles: [], userId: null });
+    setSnapshot({
+      accessToken: "",
+      refreshToken: "",
+      authUser: null,
+      roles: [],
+      userId: null,
+    });
   }, [clearTimers]);
 
   const login = useCallback(
@@ -107,8 +107,17 @@ export const AuthProvider = ({ children }) => {
       }
 
       setAccessToken(trimmed);
+      const persistedToken = (getAccessToken() || "").trim();
+      if (!persistedToken) {
+        logout();
+        return;
+      }
 
-      const decoded = decodeJwt(trimmed);
+      const nextRefreshToken =
+        typeof data === "string" ? "" : data?.refreshToken;
+      setRefreshToken(nextRefreshToken || "");
+
+      const decoded = decodeJwt(persistedToken);
       const userObj =
         typeof data === "string"
           ? {
@@ -126,36 +135,114 @@ export const AuthProvider = ({ children }) => {
 
       setAuthUser(userObj);
       setSnapshot({
-        accessToken: trimmed,
+        accessToken: persistedToken,
+        refreshToken: String(getRefreshToken() || "").trim(),
         authUser: userObj,
-        roles: getRolesFromToken(trimmed),
+        roles: getRolesFromToken(persistedToken),
         userId: decoded?.sub || userObj?.id || null,
       });
     },
     [logout],
   );
 
-  // Future refresh-token integration:
-  // - If a refresh token exists, this is where we would exchange it.
   const maybeRefreshAccessToken = useCallback(async () => {
-    // Placeholder: keep for future.
-    return null;
+    if (refreshPromiseRef.current) {
+      return refreshPromiseRef.current;
+    }
+
+    const refreshToken = (getRefreshToken() || "").trim();
+    if (!refreshToken) {
+      return null;
+    }
+
+    const refreshPromise = publicApi
+      .post("/api/auth/refresh", { refreshToken })
+      .then(({ data }) => {
+        const nextToken = String(data?.token || "").trim();
+        if (!nextToken) {
+          throw new Error("No access token returned from refresh endpoint");
+        }
+
+        setAccessToken(nextToken);
+        const persistedToken = (getAccessToken() || "").trim();
+        if (!persistedToken) {
+          throw new Error(
+            "Invalid access token returned from refresh endpoint",
+          );
+        }
+
+        const nextRefreshToken = String(
+          data?.refreshToken || refreshToken,
+        ).trim();
+        setRefreshToken(nextRefreshToken);
+
+        const decoded = decodeJwt(persistedToken);
+        const currentUser = getAuthUser();
+        const userObj =
+          currentUser ||
+          (decoded
+            ? {
+                id: decoded?.sub,
+                email: decoded?.email,
+                fullName: decoded?.name,
+              }
+            : null);
+
+        if (userObj) {
+          setAuthUser(userObj);
+        }
+
+        const nextSnapshot = {
+          accessToken: persistedToken,
+          refreshToken: String(getRefreshToken() || "").trim(),
+          authUser: userObj,
+          roles: getRolesFromToken(persistedToken),
+          userId: decoded?.sub || userObj?.id || null,
+        };
+
+        setSnapshot(nextSnapshot);
+        return nextToken;
+      })
+      .catch((err) => {
+        const status = Number(err?.response?.status || err?.status || 0);
+        if (status === 400 || status === 401) {
+          clearAccessToken();
+          clearRefreshToken();
+          clearAuthUser();
+          setSnapshot({
+            accessToken: "",
+            refreshToken: "",
+            authUser: null,
+            roles: [],
+            userId: null,
+          });
+          return null;
+        }
+
+        return null;
+      })
+      .finally(() => {
+        refreshPromiseRef.current = null;
+      });
+
+    refreshPromiseRef.current = refreshPromise;
+    return refreshPromise;
   }, []);
 
-  // Bootstrap: validate token and prepare timers.
   useEffect(() => {
     let active = true;
 
     const bootstrap = async () => {
       try {
         const token = (getAccessToken() || "").trim();
+        const refreshToken = (getRefreshToken() || "").trim();
 
         if (token && isTokenExpired(token, CLOCK_SKEW_MS)) {
-          // Future: attempt refresh here.
           const refreshed = await maybeRefreshAccessToken();
-          if (!refreshed) {
-            logout();
-          }
+          if (!refreshed) syncFromStorage();
+        } else if (!token && refreshToken) {
+          const refreshed = await maybeRefreshAccessToken();
+          if (!refreshed) syncFromStorage();
         } else {
           syncFromStorage();
         }
@@ -171,7 +258,6 @@ export const AuthProvider = ({ children }) => {
     };
   }, [logout, maybeRefreshAccessToken, syncFromStorage]);
 
-  // Keep UI in sync across tabs and across app writes via authStorage dispatch.
   useEffect(() => {
     const handler = () => syncFromStorage();
     window.addEventListener("storage", handler);
@@ -182,7 +268,6 @@ export const AuthProvider = ({ children }) => {
     };
   }, [syncFromStorage]);
 
-  // Schedule refresh/logout based on token expiration.
   useEffect(() => {
     clearTimers();
 
@@ -193,31 +278,35 @@ export const AuthProvider = ({ children }) => {
     if (!expMs) return undefined;
 
     const now = Date.now();
-    const logoutInMs = Math.max(0, expMs - now - CLOCK_SKEW_MS);
     const refreshInMs = Math.max(0, expMs - now - REFRESH_WINDOW_MS);
 
-    // Refresh timer (no-op today, but wired).
     refreshTimerRef.current = setTimeout(() => {
-      maybeRefreshAccessToken().catch(() => null);
+      maybeRefreshAccessToken().then((refreshed) => {
+        if (!refreshed) {
+          syncFromStorage();
+        }
+      });
     }, refreshInMs);
 
-    // Hard logout at (near) expiry to ensure UI updates.
-    logoutTimerRef.current = setTimeout(() => {
-      logout();
-    }, logoutInMs);
-
     return () => clearTimers();
-  }, [clearTimers, logout, maybeRefreshAccessToken, snapshot.accessToken]);
+  }, [
+    clearTimers,
+    maybeRefreshAccessToken,
+    snapshot.accessToken,
+    syncFromStorage,
+  ]);
 
   const roles = snapshot.roles;
-  const isAuthenticated =
+  const hasValidAccessToken =
     Boolean(snapshot.accessToken) &&
     !isTokenExpired(snapshot.accessToken, CLOCK_SKEW_MS);
+  const isAuthenticated = hasValidAccessToken || Boolean(snapshot.refreshToken);
 
   const isAdmin = roles.includes("ADMIN");
   const isStaff = roles.includes("STAFF") || isAdmin;
   const isPharmacist = roles.includes("PHARMACIST") || isAdmin;
   const isUser =
+    isAuthenticated ||
     roles.includes("USER") ||
     roles.includes("PHARMACIST") ||
     roles.includes("STAFF") ||
@@ -249,7 +338,6 @@ export const AuthProvider = ({ children }) => {
       hasRole,
       login,
       logout,
-      // Future: export refresh method when implemented.
       refreshAccessToken: maybeRefreshAccessToken,
     }),
     [

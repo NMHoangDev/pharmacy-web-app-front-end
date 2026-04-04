@@ -17,6 +17,7 @@ const statusSwitch = (checked) =>
 const DrugTable = ({
   drugs,
   onToggleStatus,
+  togglingProductId,
   onEdit,
   onDelete,
   onViewReviews,
@@ -56,7 +57,7 @@ const DrugTable = ({
                 Danh mục
               </th>
               <th className="px-3 py-3 font-semibold sm:px-4">Giá bán</th>
-              <th className="px-3 py-3 font-semibold sm:px-4">Kho</th>
+              <th className="px-3 py-3 font-semibold sm:px-4">Đơn vị</th>
               <th className="px-3 py-3 font-semibold sm:px-4">Trạng thái</th>
               <th className="px-3 py-3 text-right font-semibold sm:px-4">
                 Hành động
@@ -124,10 +125,18 @@ const DrugTable = ({
                 </td>
                 <td className="px-3 py-2.5 align-middle sm:px-4 sm:py-3">
                   <div className="flex items-center">
+                    {String(togglingProductId || "") === String(drug.id) ? (
+                      <span className="material-symbols-outlined mr-2 animate-spin text-base text-slate-400">
+                        progress_activity
+                      </span>
+                    ) : null}
                     <button
                       type="button"
                       className={statusSwitch(drug.status === "ACTIVE")}
                       onClick={() => onToggleStatus(drug.id)}
+                      disabled={
+                        String(togglingProductId || "") === String(drug.id)
+                      }
                       aria-label={
                         drug.status === "ACTIVE"
                           ? "Tắt kinh doanh"

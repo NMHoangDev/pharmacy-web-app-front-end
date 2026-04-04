@@ -1,6 +1,5 @@
 import { authApi as apiClient } from "./httpClients";
 
-
 async function handleAxios(promise) {
   try {
     const res = await promise;
@@ -108,7 +107,7 @@ export async function updateUser(
   return handleAxios(apiClient.put(`/api/users/${userId}`, payload));
 }
 
-export default {
+const api = {
   getCart,
   upsertCartItem,
   removeCartItem,
@@ -119,3 +118,5 @@ export default {
   getUser,
   updateUser,
 };
+
+export default api;

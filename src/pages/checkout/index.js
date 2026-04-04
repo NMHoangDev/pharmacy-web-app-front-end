@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
@@ -12,8 +12,11 @@ import * as orderApi from "../../api/orderApi";
 import * as paymentApi from "../../api/paymentApi";
 import * as productApi from "../../api/productApi";
 import * as userApi from "../../api/userApi";
+import { authApi } from "../../api/httpClients";
 import PageTransition from "../../components/ui/PageTransition";
 import useNotificationAction from "../../hooks/useNotificationAction";
+import { formatCompactCurrency } from "../../utils/discountUi";
+import "../../styles/storefront-premium.css";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +30,15 @@ import {
 
 const formatCurrency = (value) =>
   (value || 0).toLocaleString("vi-VN", { style: "currency", currency: "VND" });
+
+const parseMoneyNumber = (value) => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+  const raw = String(value ?? "");
+  const digits = raw.replace(/[^0-9]/g, "");
+  if (!digits) return NaN;
+  const num = Number(digits);
+  return Number.isFinite(num) ? num : NaN;
+};
 
 const shippingLabelMap = {
   STANDARD: {
@@ -122,6 +134,16 @@ const normalizePaymentOptions = (options) =>
     };
   });
 
+const openOrdersHistory = (navigate, options = {}) =>
+  navigate("/account?tab=orders", {
+    replace: !!options.replace,
+    state: {
+      activeTab: "orders",
+      paymentResult: options.paymentResult || "",
+      paymentMessage: options.paymentMessage || "",
+    },
+  });
+
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -146,6 +168,11 @@ const CheckoutPage = () => {
   const [shippingId, setShippingId] = useState("");
   const [paymentId, setPaymentId] = useState("");
   const [promoCode, setPromoCode] = useState("");
+
+  const [availableDiscounts, setAvailableDiscounts] = useState([]);
+  const [availableDiscountsLoading, setAvailableDiscountsLoading] =
+    useState(false);
+  const [availableDiscountsError, setAvailableDiscountsError] = useState("");
 
   const [cartItems, setCartItems] = useState([]);
   const [selectedCartIds, setSelectedCartIds] = useState([]);
@@ -186,18 +213,11 @@ const CheckoutPage = () => {
     const pending = readPendingVnpay();
     const pendingTxnRef = pending?.txnRef ? String(pending.txnRef) : "";
 
-    const cleanUrl = () => {
-      try {
-        navigate(location.pathname, { replace: true });
-      } catch (e) {}
-    };
-
     const handle = async () => {
+      const isSuccess = responseCode === "00" && transactionStatus === "00";
       try {
-        // Optional but recommended: backend verifies checksum and finalizes transaction/order.
+        // Backend verifies checksum and finalizes transaction/order.
         await paymentApi.verifyVnpayReturn(rawQuery);
-
-        const isSuccess = responseCode === "00" && transactionStatus === "00";
         if (!isSuccess) {
           setVnpayDialog({
             open: true,
@@ -219,13 +239,34 @@ const CheckoutPage = () => {
           return;
         }
 
-        setVnpayDialog({
-          open: true,
-          status: "success",
-          title: "Thanh toán thành công",
-          message: "Đơn hàng của bạn đã được thanh toán.",
+        try {
+          sessionStorage.removeItem("checkoutSelectedIds");
+        } catch (e) {}
+        try {
+          await refreshCart();
+        } catch (e) {}
+        clearPendingVnpay();
+        setProcessingVnpayReturn(false);
+        openOrdersHistory(navigate, {
+          replace: true,
+          paymentResult: "success",
+          paymentMessage:
+            "Thanh toán thành công. Đơn hàng đã được cập nhật sang Đã thanh toán và Đang xử lý.",
         });
+        return;
       } catch (err) {
+        if (isSuccess) {
+          clearPendingVnpay();
+          setProcessingVnpayReturn(false);
+          openOrdersHistory(navigate, {
+            replace: true,
+            paymentResult: "success",
+            paymentMessage:
+              "Thanh toán đã hoàn tất. Đơn hàng đang được cập nhật trong lịch sử mua hàng.",
+          });
+          return;
+        }
+
         setVnpayDialog({
           open: true,
           status: "failed",
@@ -235,14 +276,13 @@ const CheckoutPage = () => {
             "Không thể xác thực thanh toán. Vui lòng thử lại hoặc chọn phương thức khác.",
         });
       } finally {
-        cleanUrl();
         clearPendingVnpay();
         setProcessingVnpayReturn(false);
       }
     };
 
     handle();
-  }, [location.pathname, location.search, navigate]);
+  }, [location.pathname, location.search, navigate, refreshCart]);
 
   // 1. Fetch Methods and Cart on mount
   useEffect(() => {
@@ -380,6 +420,39 @@ const CheckoutPage = () => {
       clearTimeout(timer);
     };
   }, [authUser?.id, cartItems, shippingId, paymentId, promoCode]);
+
+  // 3. Fetch available discounts for the user (non-blocking)
+  useEffect(() => {
+    if (!authUser?.id || !accessToken) return;
+
+    let active = true;
+    const load = async () => {
+      try {
+        setAvailableDiscountsError("");
+        setAvailableDiscountsLoading(true);
+        const res = await authApi.get("/user/discounts/available");
+        const payload = res?.data;
+        const items = Array.isArray(payload)
+          ? payload
+          : (payload?.content ?? payload?.data ?? []);
+        if (!active) return;
+        setAvailableDiscounts(Array.isArray(items) ? items : []);
+      } catch (err) {
+        if (!active) return;
+        setAvailableDiscounts([]);
+        setAvailableDiscountsError(
+          err?.message || "Không thể tải danh sách mã giảm giá",
+        );
+      } finally {
+        if (active) setAvailableDiscountsLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, [accessToken, authUser?.id]);
 
   const handleFormChange = (field, value) => {
     setDeliveryForm((prev) => ({ ...prev, [field]: value }));
@@ -556,13 +629,39 @@ const CheckoutPage = () => {
   };
 
   return (
-    <PageTransition className="bg-background-light dark:bg-background-dark text-[#0d141b] dark:text-gray-100 min-h-screen flex flex-col font-display">
+    <PageTransition className="storefront-shell text-[#0d141b] min-h-screen flex flex-col font-display">
       <Header />
 
-      <main className="flex-grow py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+      <main className="storefront-container flex-grow py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
         <CheckoutBreadcrumbs />
 
-        <div className="flex flex-col lg:flex-row gap-8">
+        <section className="storefront-hero storefront-fade-up mb-8 rounded-[32px] border border-white/70 px-5 py-6 sm:px-8">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400"></div>
+              <h1 className="mt-3 text-3xl font-black text-slate-900 sm:text-4xl">
+                Hoàn tất đơn hàng của bạn
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base">
+                Xác nhận địa chỉ, chọn vận chuyển, thanh toán và voucher trong
+                một trải nghiệm mượt mà hơn.
+              </p>
+            </div>
+            <div className="storefront-soft-card rounded-[22px] px-5 py-4">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
+                Tổng số sản phẩm
+              </div>
+              <div className="mt-2 text-2xl font-black text-slate-900">
+                {cartItems.reduce(
+                  (sum, item) => sum + Number(item.quantity || 0),
+                  0,
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="flex flex-col gap-8 lg:flex-row">
           <div className="flex-1 space-y-8">
             <div>
               <h1 className="text-3xl font-black text-[#0d141b] dark:text-white tracking-tight mb-2">
@@ -593,7 +692,7 @@ const CheckoutPage = () => {
             />
           </div>
 
-          <div className="lg:w-[400px] shrink-0">
+          <div className="lg:w-[420px] shrink-0">
             <OrderSummary
               items={cartItems}
               shippingFee={quote.shippingFee}
@@ -605,6 +704,9 @@ const CheckoutPage = () => {
               submitting={submitting || processingVnpayReturn}
               isLoading={loading || quoteLoading}
               appliedCode={promoCode}
+              availableDiscounts={availableDiscounts}
+              availableDiscountsLoading={availableDiscountsLoading}
+              availableDiscountsError={availableDiscountsError}
             />
           </div>
         </div>
@@ -634,7 +736,11 @@ const CheckoutPage = () => {
                   message: "",
                 });
                 if (isSuccess) {
-                  navigate("/account?tab=orders");
+                  openOrdersHistory(navigate, {
+                    paymentResult: "success",
+                    paymentMessage:
+                      "Thanh toán thành công. Đơn hàng đã được cập nhật trong lịch sử đơn hàng.",
+                  });
                 }
               }}
             >
@@ -647,14 +753,64 @@ const CheckoutPage = () => {
   );
 };
 
-const DiscountSelector = ({ value, onApply, disabled, loading, invalid }) => {
-  const [mode, setMode] = useState(value ? "code" : "none");
+const DiscountSelector = ({
+  value,
+  onApply,
+  disabled,
+  loading,
+  invalid,
+  options,
+  subtotal,
+  optionsLoading,
+  optionsError,
+}) => {
+  const orderSubtotal = Number(subtotal || 0);
+
+  const eligibleOptions = useMemo(() => {
+    const safeOptions = Array.isArray(options) ? options : [];
+    return safeOptions.filter((item) => {
+      const min = parseMoneyNumber(item?.minOrderValue);
+      if (!Number.isFinite(min) || min <= 0) return true;
+      return orderSubtotal >= min;
+    });
+  }, [options, orderSubtotal]);
+
+  const eligibleCodeSet = useMemo(
+    () =>
+      new Set(
+        eligibleOptions
+          .map((item) =>
+            String(item?.code || "")
+              .trim()
+              .toLowerCase(),
+          )
+          .filter(Boolean),
+      ),
+    [eligibleOptions],
+  );
+
+  const normalizedValue = useMemo(
+    () =>
+      String(value || "")
+        .trim()
+        .toLowerCase(),
+    [value],
+  );
+
+  const [mode, setMode] = useState(() => {
+    if (!normalizedValue) return "none";
+    return eligibleCodeSet.has(normalizedValue) ? "eligible" : "code";
+  });
   const [promoInput, setPromoInput] = useState(value || "");
 
   useEffect(() => {
     setPromoInput(value || "");
-    setMode(value ? "code" : "none");
-  }, [value]);
+    if (!normalizedValue) {
+      setMode("none");
+      return;
+    }
+    setMode(eligibleCodeSet.has(normalizedValue) ? "eligible" : "code");
+  }, [eligibleCodeSet, normalizedValue, value]);
 
   const applyNone = () => {
     setPromoInput("");
@@ -662,51 +818,142 @@ const DiscountSelector = ({ value, onApply, disabled, loading, invalid }) => {
   };
 
   const applyCode = () => {
-    onApply(promoInput);
+    onApply(String(promoInput || "").trim());
   };
 
   return (
-    <div className="space-y-3">
-      <div className="text-sm font-semibold text-slate-900 dark:text-white">
-        Giảm giá
-      </div>
-
-      <label
-        className={`flex items-start gap-3 border rounded-lg p-3 shadow-sm transition-colors ${
-          mode === "none"
-            ? "border-primary bg-primary/5"
-            : "border-slate-200 dark:border-slate-700 hover:border-red-500"
-        }`}
-      >
-        <input
-          type="radio"
-          name="discount-mode"
-          checked={mode === "none"}
-          onChange={() => {
-            setMode("none");
-            applyNone();
-          }}
-          disabled={disabled || loading}
-          className="mt-1"
-        />
-        <div className="min-w-0">
-          <div className="font-medium text-slate-900 dark:text-white">
-            Không áp dụng
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-900 dark:text-white">
+            Giảm giá
           </div>
-          <div className="text-sm text-slate-500 dark:text-slate-400">
-            Thanh toán theo giá hiện tại.
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Chọn voucher phù hợp hoặc nhập mã giảm giá của bạn.
           </div>
         </div>
-      </label>
+        <div className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
+          {optionsLoading ? "Đang tải..." : `${eligibleOptions.length} mã`}
+        </div>
+      </div>
 
-      <label
-        className={`border rounded-lg p-3 shadow-sm transition-colors ${
-          mode === "code"
-            ? "border-primary bg-primary/5"
-            : "border-slate-200 dark:border-slate-700 hover:border-red-500"
-        }`}
-      >
-        <div className="flex items-start gap-3">
+      {optionsError && !optionsLoading ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          {optionsError}
+        </div>
+      ) : null}
+
+      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Voucher khả dụng
+        </div>
+
+        {optionsLoading ? (
+          <div className="rounded-xl border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-300">
+            Đang tải danh sách voucher...
+          </div>
+        ) : eligibleOptions.length > 0 ? (
+          <div className="space-y-2">
+            {eligibleOptions.map((opt) => {
+              const code = String(opt?.code || "").trim();
+              const isSelected =
+                mode === "eligible" &&
+                String(promoInput || "")
+                  .trim()
+                  .toLowerCase() === code.toLowerCase();
+
+              const type = String(opt?.type || "").toUpperCase();
+              const valueLabel =
+                type === "PERCENT"
+                  ? `Giảm ${Number(opt?.value || 0)}%`
+                  : type === "FREESHIP"
+                    ? "Miễn phí giao hàng"
+                    : `Giảm ${formatCurrency(parseMoneyNumber(opt?.value) || 0)}`;
+
+              const min = parseMoneyNumber(opt?.minOrderValue);
+              const minLabel =
+                Number.isFinite(min) && min > 0
+                  ? `Đơn tối thiểu ${formatCurrency(min)}`
+                  : "Không yêu cầu giá trị tối thiểu";
+
+              return (
+                <button
+                  key={code || opt?.id}
+                  type="button"
+                  onClick={() => {
+                    setMode("eligible");
+                    setPromoInput(code);
+                    onApply(code);
+                  }}
+                  disabled={disabled || loading}
+                  className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                    isSelected
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                      : "border-slate-200 bg-white hover:border-rose-300 dark:border-slate-700 dark:bg-slate-900"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-slate-900 dark:text-white">
+                          {opt?.name || "Mã giảm giá"}
+                        </span>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                          {code}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        {minLabel}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        {valueLabel}
+                      </div>
+                      {isSelected ? (
+                        <div className="mt-1 text-[11px] font-semibold text-primary">
+                          Đang áp dụng
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-300">
+            Chưa có voucher nào phù hợp với đơn hàng hiện tại.
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <label className="flex items-start gap-3">
+          <input
+            type="radio"
+            name="discount-mode"
+            checked={mode === "none"}
+            onChange={() => {
+              setMode("none");
+              applyNone();
+            }}
+            disabled={disabled || loading}
+            className="mt-1"
+          />
+          <div>
+            <div className="font-medium text-slate-900 dark:text-white">
+              Không áp dụng
+            </div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">
+              Thanh toán theo giá hiện tại.
+            </div>
+          </div>
+        </label>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <label className="flex items-start gap-3">
           <input
             type="radio"
             name="discount-mode"
@@ -723,14 +970,14 @@ const DiscountSelector = ({ value, onApply, disabled, loading, invalid }) => {
               Áp dụng mã cho đơn hàng này.
             </div>
 
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex items-center gap-2">
               <input
                 type="text"
                 value={promoInput}
                 onChange={(e) => setPromoInput(e.target.value)}
                 disabled={disabled}
-                className="flex-1 h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm focus:border-primary focus:ring-primary"
-                placeholder="Mã giảm giá (ví dụ: PROMO10)"
+                className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-primary focus:ring-primary dark:border-slate-700 dark:bg-slate-900"
+                placeholder="Mã giảm giá, ví dụ: PROMO10"
               />
               <button
                 type="button"
@@ -738,10 +985,10 @@ const DiscountSelector = ({ value, onApply, disabled, loading, invalid }) => {
                 disabled={
                   disabled || loading || !String(promoInput || "").trim()
                 }
-                className={`h-10 px-4 rounded-lg text-sm font-medium transition-colors ${
+                className={`h-11 rounded-xl px-4 text-sm font-semibold transition ${
                   disabled || loading || !String(promoInput || "").trim()
-                    ? "bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
-                    : "bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90"
+                    ? "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800"
+                    : "bg-slate-900 text-white hover:opacity-90 dark:bg-white dark:text-slate-900"
                 }`}
               >
                 {loading ? "Đang kiểm tra..." : "Áp dụng"}
@@ -750,12 +997,12 @@ const DiscountSelector = ({ value, onApply, disabled, loading, invalid }) => {
 
             {invalid && !loading ? (
               <div className="mt-2 text-sm text-red-500">
-                Mã không hợp lệ hoặc không áp dụng cho đơn này.
+                Mã không hợp lệ hoặc chưa đủ điều kiện áp dụng.
               </div>
             ) : null}
           </div>
-        </div>
-      </label>
+        </label>
+      </div>
     </div>
   );
 };
@@ -771,6 +1018,9 @@ const OrderSummary = ({
   submitting,
   isLoading,
   appliedCode,
+  availableDiscounts,
+  availableDiscountsLoading,
+  availableDiscountsError,
 }) => {
   const [totalPulse, setTotalPulse] = useState(false);
   const prevTotalRef = useRef(total);
@@ -787,6 +1037,20 @@ const OrderSummary = ({
 
   const invalidCode =
     Boolean(String(appliedCode || "").trim()) && Number(discount || 0) <= 0;
+  const normalizedAppliedCode = String(appliedCode || "")
+    .trim()
+    .toLowerCase();
+  const appliedDiscountMeta = (
+    Array.isArray(availableDiscounts) ? availableDiscounts : []
+  ).find(
+    (item) =>
+      String(item?.code || "")
+        .trim()
+        .toLowerCase() === normalizedAppliedCode,
+  );
+  const availableDiscountCount = Array.isArray(availableDiscounts)
+    ? availableDiscounts.length
+    : 0;
 
   return (
     <div className="sticky top-24 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 p-6">
@@ -815,6 +1079,50 @@ const OrderSummary = ({
         ))}
       </div>
 
+      <div className="mb-6 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 p-4 shadow-sm dark:border-amber-400/20 dark:from-amber-500/10 dark:via-orange-500/10 dark:to-rose-500/10">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300">
+              Ưu đãi đơn hàng
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+              {availableDiscountsLoading
+                ? "Đang tải voucher phù hợp..."
+                : availableDiscountCount > 0
+                  ? `Bạn đang có ${availableDiscountCount} mã giảm giá`
+                  : "Chưa có mã giảm giá khả dụng"}
+            </div>
+            <div className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+              {normalizedAppliedCode
+                ? `Mã đang áp dụng: ${String(appliedCode).trim().toUpperCase()}`
+                : "Chọn voucher bên dưới hoặc nhập mã để thử áp dụng."}
+            </div>
+          </div>
+
+          {discount > 0 ? (
+            <div className="shrink-0 rounded-2xl bg-white/90 px-4 py-3 text-right shadow-sm dark:bg-slate-900/80">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Đang tiết kiệm
+              </div>
+              <div className="mt-1 text-lg font-black text-rose-600 dark:text-rose-300">
+                -{formatCompactCurrency(discount)}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {appliedDiscountMeta?.name ? (
+          <div className="mt-3 rounded-xl border border-white/70 bg-white/70 px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+            <span className="font-semibold">{appliedDiscountMeta.name}</span>
+            {appliedDiscountMeta?.code ? (
+              <span className="ml-2 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
+                {String(appliedDiscountMeta.code).toUpperCase()}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
       <div className={isLoading ? "opacity-60 pointer-events-none" : ""}>
         <DiscountSelector
           value={appliedCode}
@@ -822,6 +1130,10 @@ const OrderSummary = ({
           disabled={submitting}
           loading={isLoading}
           invalid={invalidCode}
+          options={availableDiscounts}
+          subtotal={subtotal}
+          optionsLoading={availableDiscountsLoading}
+          optionsError={availableDiscountsError}
         />
       </div>
 
@@ -850,6 +1162,18 @@ const OrderSummary = ({
             {isLoading ? "..." : `-${formatCurrency(discount)}`}
           </span>
         </div>
+
+        {normalizedAppliedCode && !isLoading ? (
+          <div className="rounded-xl border border-rose-100 bg-rose-50/80 px-3 py-2 text-xs text-rose-700 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-300">
+            {discount > 0
+              ? `Đơn hàng đang áp dụng mã ${String(appliedCode)
+                  .trim()
+                  .toUpperCase()} và giảm ${formatCurrency(discount)}.`
+              : `Mã ${String(appliedCode)
+                  .trim()
+                  .toUpperCase()} hiện chưa đủ điều kiện hoặc không còn hiệu lực.`}
+          </div>
+        ) : null}
 
         <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between font-bold text-lg">
           <span className="text-slate-900 dark:text-white">Tổng</span>

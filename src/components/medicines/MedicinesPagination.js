@@ -4,6 +4,7 @@ const MedicinesPagination = ({
   page = 0,
   totalPages = 1,
   pageSize = 12,
+  fixedPageSize,
   onPageChange,
   onPageSizeChange,
 }) => {
@@ -11,19 +12,30 @@ const MedicinesPagination = ({
     { length: Math.min(totalPages, 5) },
     (_, idx) => idx,
   );
+  const effectivePageSize = Number.isFinite(fixedPageSize)
+    ? fixedPageSize
+    : pageSize;
+
   return (
     <div className="mt-12 flex flex-col sm:flex-row justify-between items-center gap-4">
       <div className="text-sm text-slate-500 dark:text-slate-400">
         Hiển thị
-        <select
-          value={pageSize}
-          onChange={(event) => onPageSizeChange?.(Number(event.target.value))}
-          className="mx-2 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm focus:ring-primary focus:border-primary"
-        >
-          <option value={12}>12</option>
-          <option value={24}>24</option>
-          <option value={48}>48</option>
-        </select>
+        {Number.isFinite(fixedPageSize) ? (
+          <span className="mx-2 font-semibold text-slate-700 dark:text-slate-200">
+            {effectivePageSize}
+          </span>
+        ) : (
+          <select
+            value={pageSize}
+            onChange={(event) => onPageSizeChange?.(Number(event.target.value))}
+            className="mx-2 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm focus:ring-primary focus:border-primary"
+          >
+            <option value={10}>10</option>
+            <option value={12}>12</option>
+            <option value={24}>24</option>
+            <option value={48}>48</option>
+          </select>
+        )}
         / trang
       </div>
       <nav className="flex items-center gap-1">

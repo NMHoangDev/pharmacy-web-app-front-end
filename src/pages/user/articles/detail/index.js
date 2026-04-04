@@ -3,10 +3,14 @@ import { NavLink, useParams } from "react-router-dom";
 import Header from "../../../../components/Header";
 import Footer from "../../../../components/Footer";
 import PageTransition from "../../../../components/ui/PageTransition";
-import { getPostBySlug, incrementPostView } from "../../../../api/contentApi";
+import {
+  getAdminPostBySlug,
+  getPostBySlug,
+  incrementPostView,
+} from "../../../../api/contentApi";
 import { resolveHtmlImagesToDataUrls } from "../../../../utils/media";
 
-const ArticleDetailPage = () => {
+const ArticleDetailPage = ({ adminPreview = false }) => {
   const { slug } = useParams();
   const [progress, setProgress] = useState(0);
   const [post, setPost] = useState(null);
@@ -37,7 +41,9 @@ const ArticleDetailPage = () => {
       try {
         setLoading(true);
         setError("");
-        const data = await getPostBySlug(slug);
+        const data = adminPreview
+          ? await getAdminPostBySlug(slug)
+          : await getPostBySlug(slug);
         setPost(data || null);
         if (data?.id) {
           incrementPostView(data.id).catch(() => {});
@@ -49,7 +55,7 @@ const ArticleDetailPage = () => {
       }
     };
     load();
-  }, [slug]);
+  }, [adminPreview, slug]);
 
   const formattedDate = useMemo(() => {
     if (!post?.publishedAt) return "";
@@ -82,7 +88,7 @@ const ArticleDetailPage = () => {
   if (!slug) {
     return (
       <PageTransition className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
-        <Header />
+        {adminPreview ? null : <Header />}
         <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex-grow">
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8">
             <h1 className="text-2xl font-extrabold mb-2">
@@ -92,7 +98,7 @@ const ArticleDetailPage = () => {
               Bài viết này không tồn tại hoặc đã bị gỡ.
             </p>
             <NavLink
-              to="/posts"
+              to={adminPreview ? "/admin/content" : "/posts"}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white font-semibold"
             >
               <span className="material-symbols-outlined text-[18px]">
@@ -102,7 +108,7 @@ const ArticleDetailPage = () => {
             </NavLink>
           </div>
         </main>
-        <Footer />
+        {adminPreview ? null : <Footer />}
       </PageTransition>
     );
   }
@@ -114,7 +120,7 @@ const ArticleDetailPage = () => {
         <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex-grow">
           <div className="text-center text-slate-500">Đang tải bài viết...</div>
         </main>
-        <Footer />
+        {adminPreview ? null : <Footer />}
       </PageTransition>
     );
   }
@@ -132,7 +138,7 @@ const ArticleDetailPage = () => {
               {error || "Bài viết này không tồn tại hoặc đã bị gỡ."}
             </p>
             <NavLink
-              to="/posts"
+              to={adminPreview ? "/admin/content" : "/posts"}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white font-semibold"
             >
               <span className="material-symbols-outlined text-[18px]">
@@ -142,7 +148,7 @@ const ArticleDetailPage = () => {
             </NavLink>
           </div>
         </main>
-        <Footer />
+        {adminPreview ? null : <Footer />}
       </PageTransition>
     );
   }
@@ -208,7 +214,7 @@ const ArticleDetailPage = () => {
                   lượng và cách dùng.
                 </p>
                 <NavLink
-                  to="/chatbot"
+                  to={adminPreview ? "/admin/content" : "/chatbot"}
                   className="bg-white text-primary w-full py-2.5 rounded-lg font-bold hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined text-[18px]">
@@ -275,7 +281,7 @@ const ArticleDetailPage = () => {
         </div>
       </main>
 
-      <Footer />
+      {adminPreview ? null : <Footer />}
     </PageTransition>
   );
 };

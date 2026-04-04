@@ -1,65 +1,57 @@
-import React from "react";
+﻿import React from "react";
 
-const StatCard = ({ icon, title, value, accent, pill }) => (
-  <div className="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-[#e7edf3] dark:border-gray-800 p-5">
-    <h4 className="text-sm font-bold text-text-secondary dark:text-gray-400 uppercase tracking-wider mb-4">
-      {title}
-    </h4>
-    <div className="flex justify-between items-center">
-      <div className="space-y-2">
-        <p className="text-lg font-bold text-text-main dark:text-white">
-          {value}
-        </p>
-        {pill && (
-          <span
-            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${pill.bg} ${pill.text}`}
-          >
-            {pill.label}
-          </span>
-        )}
-      </div>
-      <div className={`p-2 rounded-lg ${accent}`}>
-        <span className="material-symbols-outlined text-[20px]">{icon}</span>
+const StatCard = ({ icon, title, value, description, tone }) => {
+  const toneClassMap = {
+    emerald: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+    blue: "bg-blue-50 text-blue-700",
+  };
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-900/5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            {title}
+          </p>
+          <p className="mt-3 text-3xl font-bold text-slate-900">{value}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+        </div>
+        <div
+          className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl ${
+            toneClassMap[tone] || toneClassMap.blue
+          }`}
+        >
+          <span className="material-symbols-outlined text-[22px]">{icon}</span>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const ContentStats = ({ published, pending, drafts }) => {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid gap-4">
       <StatCard
-        icon="public"
-        title="Tổng quan nội dung"
+        icon="publish"
+        title="Bài đã xuất bản"
         value={published}
-        accent="bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
-        pill={{
-          bg: "bg-green-50 dark:bg-green-900/30",
-          text: "text-green-600",
-          label: "Đã xuất bản",
-        }}
-      />
-      <StatCard
-        icon="pending_actions"
-        title="Chờ duyệt"
-        value={pending}
-        accent="bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400"
-        pill={{
-          bg: "bg-yellow-50 dark:bg-yellow-900/30",
-          text: "text-yellow-600",
-          label: "Cần xử lý",
-        }}
+        description="Những nội dung đã sẵn sàng hiển thị ngoài website."
+        tone="emerald"
       />
       <StatCard
         icon="draft"
         title="Bản nháp"
         value={drafts}
-        accent="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-        pill={{
-          bg: "bg-gray-100 dark:bg-gray-800",
-          text: "text-gray-600 dark:text-gray-300",
-          label: "Chưa xuất bản",
-        }}
+        description="Nội dung đang chờ biên tập hoặc rà soát trước khi lên lịch."
+        tone="blue"
+      />
+      <StatCard
+        icon="pending_actions"
+        title="Chờ duyệt"
+        value={pending}
+        description="Các mục cần người phụ trách kiểm tra lần cuối."
+        tone="amber"
       />
     </div>
   );

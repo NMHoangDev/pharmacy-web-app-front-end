@@ -3,46 +3,34 @@ import AdminLayout from "../../../components/admin/AdminLayout";
 import OrdersToolbar from "../../../components/admin/orders/OrdersToolbar";
 import OrdersTable from "../../../components/admin/orders/OrdersTable";
 import OrderDetailPanel from "../../../components/admin/orders/OrderDetailPanel";
+import AdminPageHeader from "../../../components/admin/shared/AdminPageHeader";
+import StatsSection from "../../../components/admin/shared/StatsSection";
 import AdminPageContainer from "../../../components/common/AdminPageContainer";
 import AdminTableWrapper from "../../../components/common/AdminTableWrapper";
 import { authApi } from "../../../api/httpClients";
+import useOrderStats from "../../../hooks/queries/useOrderStats";
+import {
+  toApiOrderStatus,
+  toOrderStatusLabel,
+  toPaymentStatusLabel,
+  toUiOrderStatus,
+  toUiPaymentStatus,
+} from "../../../utils/orderStatus";
 
-const formatCurrency = (n) => `$${Number(n || 0).toFixed(2)}`;
-
-const statusMapFromApi = {
-  DRAFT: "pending",
-  PENDING_PAYMENT: "pending",
-  PLACED: "processing",
-  CONFIRMED: "processing",
-  SHIPPING: "shipped",
-  COMPLETED: "completed",
-  CANCELED: "cancelled",
-};
-
-const statusMapToApi = {
-  pending: "PENDING_PAYMENT",
-  processing: "CONFIRMED",
-  shipped: "SHIPPING",
-  completed: "COMPLETED",
-  cancelled: "CANCELED",
-};
-
-const placeholderImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuAcwAsgIceZ-i3iDrfCK8wU1cMATpaKU9tDMcAZabrpL6YgwzXlSUS1gM6T0HRblEH1yY9yilN4EfCNQaVGMfz9bzDLAzRYFvU484libnDtm6gDN20o3wwmpV4Cn7ul40y9MBaYRmpaTau4VTrOlWBV-o8fI8g4XRc-sCIuxemIGKLljYGtYP7fwWwCm29HG_Fh6e_L_UObXnFrmcDx1jnCC79BikwyowQmAJ5pcDUyMLWGIsPgY1fH-sqU9wFaMrDnoWWaiMEXDZ8k";
+const formatCurrency = (n) => `${Number(n || 0).toLocaleString("vi-VN")} đ`;
 
 const normalizeOrder = (order) => {
   const dateObj = new Date(order.date || order.createdAt || Date.now());
   return {
     ...order,
     dateObj,
-    dateLabel: `${dateObj.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    })} ${dateObj.toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`,
+    dateLabel: `${dateObj.toLocaleDateString("vi-VN")} ${dateObj.toLocaleTimeString(
+      "vi-VN",
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+      },
+    )}`,
     subtotalLabel: formatCurrency(
       order.subtotal ?? order.total - order.shipping,
     ),
@@ -62,6 +50,7 @@ const mapApiOrder = (order) => {
 
   return normalizeOrder({
     id: order.id,
+    orderCode: order.orderCode || "",
     userId: order.userId,
     fulfillmentBranchId: order.fulfillmentBranchId || null,
     fulfillmentAssignedAt: order.fulfillmentAssignedAt || null,
@@ -71,17 +60,22 @@ const mapApiOrder = (order) => {
     customer: shippingAddress.fullName || order.userId || "Khách hàng",
     date: order.createdAt,
     total: order.totalAmount,
-    payment: (order.paymentStatus || "unpaid").toLowerCase(),
-    status: statusMapFromApi[order.status] || "pending",
+    payment: toUiPaymentStatus(order.paymentStatus),
+    paymentLabel: toPaymentStatusLabel(order.paymentStatus),
+    status: toUiOrderStatus(order.status),
+    statusLabel: toOrderStatusLabel(order.status),
     phone: shippingAddress.phone || "",
     address: addressParts.join(", ") || "",
     customerNote: order.note || "",
     items: (order.items || []).map((item) => ({
       name: item.productName || "Sản phẩm",
-      meta: item.productId,
+      meta:
+        item.shortDescription || item.category || item.sku || item.productId,
       qty: item.quantity,
       priceLabel: formatCurrency(item.unitPrice),
-      image: placeholderImage,
+      image: item.imageUrl || "",
+      sku: item.sku || "",
+      unit: item.unit || "",
     })),
     shipping: order.shippingFee ?? 0,
     subtotal: order.subtotal,
@@ -107,6 +101,9 @@ const AdminOrdersPage = () => {
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { data: orderStatsData, isLoading: orderStatsLoading } = useOrderStats({
+    range: "7d",
+  });
 
   const filteredOrders = useMemo(() => {
     const q = filters.query.trim().toLowerCase();
@@ -142,6 +139,7 @@ const AdminOrdersPage = () => {
 
   useEffect(() => {
     const controller = new AbortController();
+
     const loadOrders = async () => {
       try {
         setLoading(true);
@@ -149,9 +147,13 @@ const AdminOrdersPage = () => {
         const response = await authApi.get("/api/admin/orders", {
           signal: controller.signal,
         });
-        const items = Array.isArray(response?.data) ? response.data : [];
+        const payload = response?.data;
+        const items = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : [];
         setOrders(items.map(mapApiOrder));
-        setError("");
       } catch (err) {
         if (err && err.name === "AbortError") return;
         setError("Không tải được danh sách đơn hàng.");
@@ -171,7 +173,7 @@ const AdminOrdersPage = () => {
   const handleUpdateStatus = async (status, idOverride) => {
     const targetId = idOverride || selectedId;
     if (!targetId) return;
-    const apiStatus = statusMapToApi[status] || status.toUpperCase();
+    const apiStatus = toApiOrderStatus(status);
     try {
       const response = await authApi.post(
         `/api/admin/orders/${targetId}/status`,
@@ -207,39 +209,107 @@ const AdminOrdersPage = () => {
   };
 
   const selectedOrder = orders.find((o) => o.id === selectedId) || null;
+  const orderMetrics = orderStatsData?.metrics || orderStatsData || {};
+
+  const orderStatsCards = useMemo(
+    () => [
+      {
+        key: "total",
+        label: "Tổng đơn hàng",
+        value: Number(orderMetrics.totalOrders ?? orders.length).toLocaleString(
+          "vi-VN",
+        ),
+        description: "Tất cả đơn trong hệ thống",
+        icon: "receipt_long",
+      },
+      {
+        key: "waiting",
+        label: "Chờ xác nhận",
+        value: Number(
+          orderMetrics.waitingConfirmationOrders ??
+            orders.filter((o) => o.status === "pending").length,
+        ).toLocaleString("vi-VN"),
+        description: "Đơn mới tạo hoặc chưa hoàn tất xác nhận thanh toán",
+        icon: "pending_actions",
+      },
+      {
+        key: "processing",
+        label: "Đang xử lý",
+        value: Number(
+          orderMetrics.processingOrders ??
+            orders.filter((o) => o.status === "processing").length,
+        ).toLocaleString("vi-VN"),
+        description: "Đơn đã xác nhận và đang được chuẩn bị",
+        icon: "inventory_2",
+      },
+      {
+        key: "shipping",
+        label: "Đang giao",
+        value: Number(
+          orderMetrics.shippingOrders ??
+            orders.filter((o) => o.status === "shipped").length,
+        ).toLocaleString("vi-VN"),
+        description: "Đơn đang ở luồng vận chuyển",
+        icon: "local_shipping",
+      },
+      {
+        key: "completed",
+        label: "Đã hoàn thành",
+        value: Number(
+          orderMetrics.completedOrders ??
+            orders.filter((o) => o.status === "completed").length,
+        ).toLocaleString("vi-VN"),
+        description: "Đơn đã giao thành công và khép quy trình",
+        icon: "task_alt",
+        tone: "up",
+      },
+      {
+        key: "revenueWeek",
+        label: "Doanh thu tuần",
+        value: `${Number(orderMetrics.revenueThisWeek ?? 0).toLocaleString("vi-VN")} đ`,
+        description: `Hôm nay: ${Number(orderMetrics.revenueToday ?? 0).toLocaleString("vi-VN")} đ`,
+        icon: "payments",
+      },
+    ],
+    [orderMetrics, orders],
+  );
 
   return (
     <AdminLayout activeKey="orders">
       <AdminPageContainer>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">
-              Quản lý đơn hàng
-            </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Theo dõi và xử lý đơn hàng khách đặt
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              className="flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              <span className="material-symbols-outlined text-[20px]">
-                file_download
-              </span>
-              Xuất dữ liệu
-            </button>
-            <button
-              type="button"
-              className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-sm hover:bg-primary/90"
-              onClick={() => alert("Chức năng thêm đơn mới sẽ được bổ sung")}
-            >
-              <span className="material-symbols-outlined text-[20px]">add</span>
-              + Đơn mới
-            </button>
-          </div>
-        </div>
+        <AdminPageHeader
+          title="Quản lý đơn hàng"
+          subtitle="Theo dõi trạng thái vận hành và doanh thu theo thời gian"
+          actions={
+            <div className="flex gap-3">
+              <button
+                type="button"
+                className="flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  file_download
+                </span>
+                Xuất dữ liệu
+              </button>
+              <button
+                type="button"
+                className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-sm hover:bg-primary/90"
+                onClick={() => alert("Chức năng thêm đơn mới sẽ được bổ sung")}
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  add
+                </span>
+                + Đơn mới
+              </button>
+            </div>
+          }
+        />
+
+        <StatsSection
+          items={orderStatsCards}
+          loading={orderStatsLoading && !orders.length}
+          emptyText="Chưa có dữ liệu tổng quan đơn hàng"
+        />
 
         <OrdersToolbar
           search={filters.query}
@@ -263,17 +333,11 @@ const AdminOrdersPage = () => {
           }}
         />
 
-        {error && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
-          </div>
-        )}
-
-        {loading && (
+        {loading ? (
           <AdminTableWrapper className="px-4 py-3 text-sm text-slate-600">
             Đang tải dữ liệu đơn hàng...
           </AdminTableWrapper>
-        )}
+        ) : null}
 
         <OrdersTable
           orders={pagedOrders}

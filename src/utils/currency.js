@@ -27,4 +27,6 @@ export function formatVnd(value) {
   return n.toLocaleString("vi-VN") + " ₫";
 }
 
-export default { toIntegerVnd, calcSubtotal, calcVat, formatVnd };
+const currencyUtils = { toIntegerVnd, calcSubtotal, calcVat, formatVnd };
+
+export default currencyUtils;

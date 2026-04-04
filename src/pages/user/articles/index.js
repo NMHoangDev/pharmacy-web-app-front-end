@@ -3,20 +3,16 @@ import { NavLink } from "react-router-dom";
 import Header from "../../../components/Header";
 import Footer from "../../../components/Footer";
 import PageTransition from "../../../components/ui/PageTransition";
-import { getPosts } from "../../../api/contentApi";
+import { usePosts } from "../../../hooks/queries/usePosts";
+import { useTags } from "../../../hooks/queries/useTags"; // ✅ dùng hook riêng cho tags
+import "../../../styles/storefront-premium.css";
 
 const ArticlesPage = () => {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [tag, setTag] = useState("all");
-  const [items, setItems] = useState([]);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pageSize: 10,
-    total: 0,
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -26,138 +22,123 @@ const ArticlesPage = () => {
   }, [query]);
 
   useEffect(() => {
-    setPagination((p) => (p.page === 1 ? p : { ...p, page: 1 }));
+    setPage(1);
   }, [debouncedQuery, tag]);
+
+  const queryParams = useMemo(() => {
+    const params = {
+      page,
+      pageSize,
+      sortBy: "publishedAt",
+      sortDir: "desc",
+    };
+    const q = debouncedQuery.trim();
+    if (q) params.q = q;
+    if (tag !== "all") params.tag = tag;
+    return params;
+  }, [debouncedQuery, page, pageSize, tag]);
+
+  const postsQuery = usePosts(queryParams);
+
+  // ✅ Fix: gọi API tags riêng, không phụ thuộc vào items hiện tại
+  const tagsQuery = useTags();
+
+  const items = useMemo(
+    () => postsQuery.data?.items || [],
+    [postsQuery.data?.items],
+  );
+  const pagination = useMemo(
+    () => postsQuery.data?.pagination || { page, pageSize, total: 0 },
+    [page, pageSize, postsQuery.data?.pagination],
+  );
+  const loading = postsQuery.isLoading || postsQuery.isFetching;
+  const error = postsQuery.error?.message || "";
 
   const totalPages = useMemo(() => {
     const total = pagination.total || 0;
-    return Math.max(1, Math.ceil(total / pagination.pageSize));
-  }, [pagination.pageSize, pagination.total]);
+    return Math.max(1, Math.ceil(total / (pagination.pageSize || pageSize)));
+  }, [pagination.pageSize, pagination.total, pageSize]);
+
+  // ✅ Fix: dùng currentPage nhất quán từ state, không lẫn với pagination.page
+  const currentPage = pagination.page || page;
 
   useEffect(() => {
-    if (pagination.page > totalPages) {
-      setPagination((p) => ({ ...p, page: totalPages }));
-      return;
-    }
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
-    let active = true;
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const params = {
-          page: pagination.page,
-          pageSize: pagination.pageSize,
-          sortBy: "publishedAt",
-          sortDir: "desc",
-        };
-        if (debouncedQuery) {
-          params.q = debouncedQuery;
-        }
-        if (tag !== "all") {
-          params.tag = tag;
-        }
-        const data = await getPosts(params);
-        if (!active) return;
-        setItems(data.items || []);
-        setPagination((p) => ({
-          ...p,
-          page: data.pagination?.page || p.page,
-          pageSize: data.pagination?.pageSize || p.pageSize,
-          total: data.pagination?.total || 0,
-        }));
-      } catch (err) {
-        if (!active) return;
-        setError(err.message || "Không thể tải bài viết");
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    load();
-    return () => {
-      active = false;
-    };
-  }, [debouncedQuery, tag, pagination.page, pagination.pageSize, totalPages]);
-
+  // ✅ Fix: tags lấy từ API, ổn định qua các trang
   const availableTags = useMemo(() => {
-    const tags = new Map();
-    items.forEach((item) => {
-      (item.tags || []).forEach((t) => {
-        tags.set(t.slug, t.name);
-      });
-    });
+    const tagItems = tagsQuery.data || [];
     return [
       { key: "all", label: "Tất cả" },
-      ...Array.from(tags.entries()).map(([slug, name]) => ({
-        key: slug,
-        label: name,
-      })),
+      ...tagItems.map((t) => ({ key: t.slug, label: t.name })),
     ];
-  }, [items]);
+  }, [tagsQuery.data]);
 
   const featured = items[0];
   const rest = items.slice(1);
-
-  const canPrev = pagination.page > 1;
-  const canNext = pagination.page < totalPages;
+  const canPrev = currentPage > 1;
+  const canNext = currentPage < totalPages;
 
   return (
-    <PageTransition className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col antialiased">
+    <PageTransition className="storefront-shell min-h-screen flex flex-col font-display text-slate-900 antialiased">
       <Header />
 
-      <header className="bg-white dark:bg-slate-900 pt-10 pb-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto">
-            <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white mb-4 leading-tight">
-              Bài viết sức khỏe
+      <main className="storefront-container mx-auto w-full max-w-7xl flex-grow px-4 py-6 sm:px-6 lg:px-8">
+        <section className="storefront-hero storefront-fade-up rounded-[34px] border border-white/70 px-5 py-8 sm:px-8">
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
+              Kiến thức sức khỏe và bài viết y khoa
+            </div>
+            <h1 className="mt-3 text-4xl font-extrabold leading-tight text-slate-900">
+              Bài viết sức khỏe và y khoa chính thống, được duyệt bởi dược sĩ
+              chuyên môn
             </h1>
-            <p className="text-lg text-slate-600 dark:text-slate-400">
-              Cung cấp kiến thức y khoa chính thống, tin cậy và được kiểm duyệt
-              bởi đội ngũ dược sĩ chuyên môn cao.
+            <p className="mt-4 text-lg text-slate-600">
+              Nội dung chính thống, dễ đọc và được trình bày đồng nhất với toàn
+              bộ trải nghiệm
             </p>
           </div>
 
-          <div className="mt-8 flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="mt-8 flex flex-col items-center justify-between gap-4 md:flex-row">
             <div className="relative w-full md:w-1/3">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="material-symbols-outlined text-slate-400 text-[18px]">
+              <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <span className="material-symbols-outlined text-[18px] text-slate-400">
                   search
                 </span>
               </span>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                className="storefront-input block h-12 w-full pl-10 pr-3 text-sm"
                 placeholder="Tìm kiếm bài viết, thuốc..."
                 type="text"
               />
             </div>
 
-            <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 no-scrollbar">
-              {availableTags.map((c) => {
-                const active = c.key === tag;
+            <div className="no-scrollbar flex w-full gap-2 overflow-x-auto pb-2 md:w-auto">
+              {availableTags.map((category) => {
+                const active = category.key === tag;
                 return (
                   <button
-                    key={c.key}
+                    key={category.key}
                     type="button"
-                    onClick={() => setTag(c.key)}
+                    onClick={() => setTag(category.key)}
                     className={
                       active
-                        ? "bg-primary text-white px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap shadow-md shadow-primary/20"
-                        : "bg-primary/10 text-primary dark:bg-primary/20 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap hover:bg-primary hover:text-white transition-colors"
+                        ? "rounded-full bg-slate-900 px-4 py-2 text-sm font-medium whitespace-nowrap text-white shadow-md"
+                        : "storefront-pill rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors hover:bg-primary hover:text-white"
                     }
                   >
-                    {c.label}
+                    {category.label}
                   </button>
                 );
               })}
             </div>
           </div>
-        </div>
-      </header>
+        </section>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow">
-        <div className="flex flex-col lg:flex-row gap-8">
+        <div className="mt-8 flex flex-col gap-8 lg:flex-row">
           <div className="lg:w-2/3">
             {loading ? (
               <div className="py-16 text-center text-slate-500">
@@ -165,25 +146,30 @@ const ArticlesPage = () => {
               </div>
             ) : error ? (
               <div className="py-16 text-center text-rose-500">{error}</div>
-            ) : featured ? (
+            ) : !featured ? (
+              // ✅ Fix: thêm empty state
+              <div className="py-16 text-center text-slate-400">
+                Không tìm thấy bài viết nào.
+              </div>
+            ) : (
               <section className="mb-12">
-                <div className="group relative overflow-hidden bg-white dark:bg-slate-900 rounded-xl shadow-sm hover:shadow-xl transition-all border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row">
-                  <div className="md:w-1/2 overflow-hidden h-64 md:h-auto">
+                <div className="storefront-card group relative flex flex-col overflow-hidden rounded-[30px] transition-all hover:-translate-y-1 md:flex-row">
+                  <div className="h-64 overflow-hidden md:h-auto md:w-1/2">
                     <img
                       alt="Featured Post"
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       src={
                         featured.coverImageUrl || "https://placehold.co/600x400"
                       }
                     />
                   </div>
-                  <div className="p-6 md:p-8 md:w-1/2 flex flex-col justify-center">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider px-2 py-1 rounded">
-                        NỔI BẬT
+                  <div className="flex flex-col justify-center p-6 md:w-1/2 md:p-8">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="storefront-pill rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider">
+                        Nổi bật
                       </span>
-                      <span className="flex items-center text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
-                        <span className="material-symbols-outlined text-[16px] mr-1">
+                      <span className="flex items-center text-xs font-semibold text-emerald-600">
+                        <span className="material-symbols-outlined mr-1 text-[16px]">
                           verified_user
                         </span>
                         Đã kiểm duyệt
@@ -191,20 +177,20 @@ const ArticlesPage = () => {
                     </div>
                     <NavLink
                       to={`/posts/${featured.slug}`}
-                      className="text-2xl font-bold text-slate-900 dark:text-white mb-4 hover:text-primary cursor-pointer transition-colors"
+                      className="mb-4 text-2xl font-bold text-slate-900 transition-colors hover:text-primary"
                     >
                       {featured.title}
                     </NavLink>
-                    <p className="text-slate-600 dark:text-slate-400 mb-6 line-clamp-3">
+                    <p className="mb-6 line-clamp-3 text-slate-600">
                       {featured.excerpt}
                     </p>
-                    <div className="flex items-center justify-between mt-auto">
+                    <div className="mt-auto flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
                           {featured.author?.displayName?.[0] || "D"}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                          <p className="text-sm font-semibold text-slate-800">
                             {featured.author?.displayName || "Dược sĩ"}
                           </p>
                           <p className="text-xs text-slate-500">
@@ -216,8 +202,8 @@ const ArticlesPage = () => {
                           </p>
                         </div>
                       </div>
-                      <span className="text-xs text-slate-500 flex items-center">
-                        <span className="material-symbols-outlined text-[16px] mr-1">
+                      <span className="flex items-center text-xs text-slate-500">
+                        <span className="material-symbols-outlined mr-1 text-[16px]">
                           schedule
                         </span>
                         {featured.readingMinutes} phút đọc
@@ -226,50 +212,52 @@ const ArticlesPage = () => {
                   </div>
                 </div>
               </section>
-            ) : null}
+            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {rest.map((a) => (
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+              {rest.map((article) => (
                 <div
-                  key={a.id}
-                  className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 flex flex-col"
+                  key={article.id}
+                  className="storefront-card flex flex-col overflow-hidden rounded-[26px] transition-all hover:-translate-y-1"
                 >
                   <div className="relative h-48">
                     <img
-                      alt={a.title}
-                      className="w-full h-full object-cover"
-                      src={a.coverImageUrl || "https://placehold.co/600x400"}
+                      alt={article.title}
+                      className="h-full w-full object-cover"
+                      src={
+                        article.coverImageUrl || "https://placehold.co/600x400"
+                      }
                     />
-                    <span className="absolute top-4 left-4 bg-white/90 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-primary uppercase">
-                      {(a.tags && a.tags[0]?.name) || "Bài viết"}
+                    <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-[10px] font-bold uppercase text-primary backdrop-blur">
+                      {article.tags?.[0]?.name || "Bài viết"}
                     </span>
                   </div>
-                  <div className="p-5 flex flex-col flex-grow">
-                    <div className="flex items-center text-emerald-600 dark:text-emerald-400 text-[11px] font-bold mb-2">
-                      <span className="material-symbols-outlined text-[16px] mr-1">
+                  <div className="flex flex-grow flex-col p-5">
+                    <div className="mb-2 flex items-center text-[11px] font-bold text-emerald-600">
+                      <span className="material-symbols-outlined mr-1 text-[16px]">
                         verified
                       </span>
                       DƯỢC SĨ KIỂM DUYỆT
                     </div>
                     <NavLink
-                      to={`/posts/${a.slug}`}
-                      className="text-lg font-bold text-slate-900 dark:text-white mb-2 leading-tight hover:text-primary transition-colors cursor-pointer"
+                      to={`/posts/${article.slug}`}
+                      className="mb-2 text-lg font-bold leading-tight text-slate-900 transition-colors hover:text-primary"
                     >
-                      {a.title}
+                      {article.title}
                     </NavLink>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 mb-4">
-                      {a.excerpt}
+                    <p className="mb-4 line-clamp-2 text-sm text-slate-600">
+                      {article.excerpt}
                     </p>
-                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50 dark:border-slate-800">
-                      <span className="text-xs text-slate-500 font-medium">
-                        {a.readingMinutes} phút đọc
+                    <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-4">
+                      <span className="text-xs font-medium text-slate-500">
+                        {article.readingMinutes} phút đọc
                       </span>
                       <NavLink
-                        to={`/posts/${a.slug}`}
-                        className="text-primary text-xs font-bold flex items-center hover:translate-x-1 transition-transform"
+                        to={`/posts/${article.slug}`}
+                        className="flex items-center text-xs font-bold text-primary transition-transform hover:translate-x-1"
                       >
-                        CHI TIẾT
-                        <span className="material-symbols-outlined text-[18px] ml-1">
+                        Chi tiết
+                        <span className="material-symbols-outlined ml-1 text-[18px]">
                           chevron_right
                         </span>
                       </NavLink>
@@ -279,19 +267,14 @@ const ArticlesPage = () => {
               ))}
             </div>
 
+            {/* Pagination */}
             <div className="mt-12 flex justify-center">
               <nav className="inline-flex gap-2">
                 <button
                   type="button"
                   disabled={!canPrev}
-                  className="w-10 h-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 disabled:opacity-50"
-                  onClick={() =>
-                    canPrev &&
-                    setPagination((p) => ({
-                      ...p,
-                      page: Math.max(1, p.page - 1),
-                    }))
-                  }
+                  className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
                   <span className="material-symbols-outlined">
                     chevron_left
@@ -299,21 +282,15 @@ const ArticlesPage = () => {
                 </button>
                 <button
                   type="button"
-                  className="w-10 h-10 flex items-center justify-center rounded-lg bg-primary text-white font-bold"
+                  className="grid h-10 w-10 place-items-center rounded-xl bg-primary font-bold text-white"
                 >
-                  {pagination.page}
+                  {currentPage}
                 </button>
                 <button
                   type="button"
                   disabled={!canNext}
-                  className="w-10 h-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 disabled:opacity-50"
-                  onClick={() =>
-                    canNext &&
-                    setPagination((p) => ({
-                      ...p,
-                      page: p.page + 1,
-                    }))
-                  }
+                  className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  onClick={() => setPage((p) => p + 1)}
                 >
                   <span className="material-symbols-outlined">
                     chevron_right
@@ -323,29 +300,26 @@ const ArticlesPage = () => {
             </div>
           </div>
 
-          <aside className="lg:w-1/3 space-y-8">
-            <div className="bg-gradient-to-br from-primary to-blue-700 rounded-2xl p-6 text-white shadow-xl shadow-primary/30 relative overflow-hidden group">
-              <div className="absolute -right-4 -bottom-4 opacity-20 group-hover:scale-110 transition-transform duration-500">
-                <span className="material-symbols-outlined text-[96px]">
-                  chat_bubble
-                </span>
-              </div>
+          <aside className="space-y-8 lg:w-1/3">
+            <div className="storefront-hero relative overflow-hidden rounded-[28px] p-6 shadow-xl shadow-sky-500/10">
               <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/70 text-primary backdrop-blur">
                     <span className="material-symbols-outlined">
                       support_agent
                     </span>
                   </div>
-                  <h3 className="text-xl font-bold">Hỏi ý kiến Dược sĩ</h3>
+                  <h3 className="text-xl font-bold text-slate-900">
+                    Hỏi ý kiến dược sĩ
+                  </h3>
                 </div>
-                <p className="text-blue-50 mb-6 text-sm leading-relaxed">
-                  Bạn cần tư vấn về thuốc hoặc tình trạng sức khỏe? Đội ngũ dược
-                  sĩ của chúng tôi luôn sẵn sàng hỗ trợ bạn 24/7.
+                <p className="mb-6 text-sm leading-relaxed text-slate-600">
+                  Nếu bạn cần tư vấn về thuốc hoặc tình trạng sức khỏe, đội ngũ
+                  dược sĩ của chúng tôi luôn sẵn sàng hỗ trợ.
                 </p>
                 <NavLink
                   to="/chatbot"
-                  className="w-full bg-white text-primary font-bold py-3 rounded-xl hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 font-bold text-white transition-colors hover:bg-primary"
                 >
                   <span>Chat ngay bây giờ</span>
                   <span className="material-symbols-outlined text-[18px]">
@@ -355,31 +329,31 @@ const ArticlesPage = () => {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+            <div className="storefront-card rounded-[28px] p-6">
+              <h3 className="mb-6 flex items-center gap-2 text-lg font-bold text-slate-900">
                 <span className="material-symbols-outlined text-primary">
                   trending_up
                 </span>
                 Bài viết xem nhiều
               </h3>
               <div className="space-y-6">
-                {items.slice(0, 5).map((p) => (
+                {items.slice(0, 5).map((post) => (
                   <NavLink
-                    key={p.id}
-                    to={`/posts/${p.slug}`}
+                    key={post.id}
+                    to={`/posts/${post.slug}`}
                     className="flex gap-4 group"
                   >
                     <img
-                      alt={p.title}
-                      className="w-16 h-16 rounded-lg object-cover"
-                      src={p.coverImageUrl || "https://placehold.co/160x160"}
+                      alt={post.title}
+                      className="h-16 w-16 rounded-xl object-cover"
+                      src={post.coverImageUrl || "https://placehold.co/160x160"}
                     />
                     <div>
-                      <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 line-clamp-2 group-hover:text-primary transition-colors">
-                        {p.title}
+                      <h4 className="line-clamp-2 text-sm font-semibold text-slate-800 transition-colors group-hover:text-primary">
+                        {post.title}
                       </h4>
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        {p.views} lượt xem
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        {post.views} lượt xem
                       </p>
                     </div>
                   </NavLink>
@@ -387,23 +361,23 @@ const ArticlesPage = () => {
               </div>
             </div>
 
-            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-dashed border-slate-300 dark:border-slate-700">
-              <h3 className="text-md font-bold text-slate-900 dark:text-white mb-2">
+            <div className="storefront-soft-card rounded-[28px] border border-dashed border-slate-300 p-6">
+              <h3 className="mb-2 text-md font-bold text-slate-900">
                 Đăng ký nhận tin
               </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              <p className="mb-4 text-sm text-slate-600">
                 Nhận cập nhật những bài viết mới nhất về y khoa, thuốc và sức
                 khỏe.
               </p>
               <div className="flex flex-col gap-3">
                 <input
-                  className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
+                  className="storefront-input h-11 w-full px-4 text-sm"
                   placeholder="Email của bạn"
                   type="email"
                 />
                 <button
                   type="button"
-                  className="w-full bg-primary text-white font-semibold py-2 rounded-lg hover:bg-primary/90"
+                  className="w-full rounded-xl bg-primary py-2.5 font-semibold text-white hover:bg-primary/90"
                 >
                   Đăng ký
                 </button>
