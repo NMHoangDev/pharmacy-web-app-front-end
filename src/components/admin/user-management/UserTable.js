@@ -35,6 +35,7 @@ const UserTable = ({
   onToggleSelectAll,
   onRowClick,
   onStatusChange,
+  onGrantRole,
   loading = false,
 }) => {
   const allSelected = users.length > 0 && selectedIds.length === users.length;
@@ -175,6 +176,13 @@ const UserTable = ({
                         onClick={() => onRowClick(user)}
                       >
                         Xem
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
+                        onClick={() => onGrantRole?.(user)}
+                      >
+                        Cap quyen
                       </button>
                       {user.status !== "active" ? (
                         <button

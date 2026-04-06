@@ -1,8 +1,17 @@
 import React from "react";
 
 const PharmacistCard = ({ pharmacist, onNavigate }) => {
-  const { image, name, status, rating, badge, experience, reviews, tag } =
-    pharmacist;
+  const {
+    image,
+    name,
+    status,
+    rating,
+    badge,
+    experience,
+    reviews,
+    tag,
+    branchName,
+  } = pharmacist;
 
   const isOnline = String(status).toLowerCase() === "online";
   const open = () => onNavigate?.(pharmacist);
@@ -46,9 +55,10 @@ const PharmacistCard = ({ pharmacist, onNavigate }) => {
               />
               {isOnline ? "Online" : "Offline"}
             </span>
-            {experience ? <span>• {experience}</span> : null}
+            {experience ? <span>{experience}</span> : null}
+            {branchName ? <span>{branchName}</span> : null}
             {typeof reviews === "number" && reviews > 0 ? (
-              <span>• {reviews} đánh giá</span>
+              <span>{reviews} đánh giá</span>
             ) : null}
           </div>
 

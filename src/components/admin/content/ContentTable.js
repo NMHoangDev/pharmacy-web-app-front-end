@@ -61,7 +61,10 @@ const ContentTable = ({
           {articles.map((item) => {
             const status = statusConfig[item.status] || statusConfig.draft;
             return (
-              <tr key={item.id} className="align-top transition hover:bg-slate-50/80">
+              <tr
+                key={item.id}
+                className="align-top transition hover:bg-slate-50/80"
+              >
                 <td className="px-5 py-4">
                   <div className="flex items-start gap-4">
                     <div
@@ -94,10 +97,9 @@ const ContentTable = ({
 
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700">
-                      {item.authorInitials}
-                    </div>
-                    <p className="text-sm font-medium text-slate-800">{item.author}</p>
+                    <p className="text-sm font-medium text-slate-800">
+                      {item.author}
+                    </p>
                   </div>
                 </td>
 
@@ -119,7 +121,9 @@ const ContentTable = ({
                         onClick={() => onTogglePublish(item)}
                       >
                         <span className="material-symbols-outlined text-[18px]">
-                          {item.status === "published" ? "unpublished" : "publish"}
+                          {item.status === "published"
+                            ? "unpublished"
+                            : "publish"}
                         </span>
                       </button>
                     ) : null}

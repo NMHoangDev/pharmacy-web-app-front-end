@@ -22,6 +22,12 @@ const NAV_ITEMS = [
     icon: "calendar_month",
     path: "/pharmacist/appointments",
   },
+  {
+    key: "profile",
+    label: "Hồ sơ",
+    icon: "badge",
+    path: "/pharmacist/profile",
+  },
 ];
 
 const PharmacistSidebar = ({ open, onClose }) => {

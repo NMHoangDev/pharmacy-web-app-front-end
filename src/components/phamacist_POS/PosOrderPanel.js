@@ -17,27 +17,27 @@ const PosOrderPanel = ({
   currentOrderCode,
 }) => {
   return (
-    <aside className="flex flex-col w-full xl:w-[390px] 2xl:w-[420px] bg-white dark:bg-slate-800 h-full min-h-0 shadow-sm z-10 border border-slate-200 dark:border-slate-700 rounded-xl overflow-y-auto">
-      <div className="px-4 md:px-5 py-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800 sticky top-0 z-10">
+    <aside className="z-10 flex h-full min-h-0 w-full flex-col overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 xl:w-[390px] 2xl:w-[420px]">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800 md:px-5">
         <div className="min-w-0">
-          <h2 className="text-base md:text-lg font-bold text-slate-900 dark:text-white">
-            Current Order
+          <h2 className="text-base font-bold text-slate-900 dark:text-white md:text-lg">
+            Đơn hàng hiện tại
           </h2>
-          <p className="text-xs text-slate-500 truncate">
-            Transaction #{currentOrderCode || "new"}
+          <p className="truncate text-xs text-slate-500">
+            Mã giao dịch #{currentOrderCode || "mới"}
           </p>
         </div>
         <button
           type="button"
-          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+          className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
           onClick={onClear}
-          title="Clear order"
+          title="Xóa đơn"
         >
           <span className="material-symbols-outlined">delete</span>
         </button>
       </div>
 
-      <div className="px-4 md:px-5 py-3 space-y-2">
+      <div className="space-y-2 px-4 py-3 md:px-5">
         {cart.length > 0 ? (
           cart.map((item) => (
             <PosCartItem
@@ -49,23 +49,23 @@ const PosOrderPanel = ({
             />
           ))
         ) : (
-          <div className="text-sm text-slate-500 text-center py-8">
+          <div className="py-8 text-center text-sm text-slate-500">
             Chưa có sản phẩm trong giỏ.
           </div>
         )}
       </div>
 
-      <div className="bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 md:p-5 space-y-3">
+      <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800 md:p-5">
         <div className="space-y-1.5 text-sm">
           <div className="flex justify-between text-slate-500 dark:text-slate-400">
-            <span>Subtotal</span>
+            <span>Tạm tính</span>
             <span>{Number(subtotal).toLocaleString("vi-VN")}đ</span>
           </div>
 
-          <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
-            <span>Discount</span>
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+            <span>Giảm giá</span>
             <input
-              className="w-24 rounded border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 h-8 px-2 text-right text-xs"
+              className="h-8 w-24 rounded border border-dashed border-slate-300 bg-white px-2 text-right text-xs dark:border-slate-600 dark:bg-slate-700"
               type="number"
               min={0}
               value={discount}
@@ -73,10 +73,10 @@ const PosOrderPanel = ({
             />
           </div>
 
-          <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
-            <span>Tax/Fee</span>
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+            <span>Phụ phí / thuế</span>
             <input
-              className="w-24 rounded border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 h-8 px-2 text-right text-xs"
+              className="h-8 w-24 rounded border border-dashed border-slate-300 bg-white px-2 text-right text-xs dark:border-slate-600 dark:bg-slate-700"
               type="number"
               min={0}
               value={taxFee}
@@ -84,16 +84,16 @@ const PosOrderPanel = ({
             />
           </div>
 
-          <div className="flex justify-between items-end pt-2 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex items-end justify-between border-t border-slate-200 pt-2 dark:border-slate-700">
             <div className="flex flex-col">
-              <span className="text-slate-500 text-xs font-medium uppercase">
-                Total Amount
+              <span className="text-xs font-medium uppercase text-slate-500">
+                Tổng thanh toán
               </span>
               <span className="text-xs text-slate-400">
-                {cart.length} items
+                {cart.length} sản phẩm
               </span>
             </div>
-            <span className="text-2xl md:text-[32px] font-bold text-slate-900 dark:text-white tracking-tight">
+            <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white md:text-[32px]">
               {Number(total).toLocaleString("vi-VN")}đ
             </span>
           </div>
@@ -101,11 +101,11 @@ const PosOrderPanel = ({
 
         <button
           type="button"
-          className="w-full h-12 bg-primary hover:bg-blue-600 text-white rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-white transition-all active:scale-[0.98] hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
           onClick={onContinue}
           disabled={cart.length === 0}
         >
-          <span className="font-bold text-base md:text-lg">Tiếp tục</span>
+          <span className="text-base font-bold md:text-lg">Tiếp tục</span>
           <span className="material-symbols-outlined">arrow_forward</span>
         </button>
       </div>

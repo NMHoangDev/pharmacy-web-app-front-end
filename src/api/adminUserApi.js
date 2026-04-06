@@ -1,18 +1,5 @@
 import { authApi } from "./httpClients";
 
-const handleFetch = async (promise) => {
-  try {
-    const res = await promise;
-    return res?.data ?? {};
-  } catch (err) {
-    const message =
-      err?.response?.data?.message || err.message || "Request failed";
-    const error = new Error(message);
-    error.status = err?.response?.status;
-    throw error;
-  }
-};
-
 export const getUserStats = async (params = {}) => {
   const res = await authApi.get("/api/admin/users/stats", { params });
   const cacheStatus = String(res?.headers?.["x-cache"] || "UNKNOWN");
@@ -26,8 +13,22 @@ export const getUserStats = async (params = {}) => {
   return data;
 };
 
+export const getAdminUserIdentityList = async () => {
+  const res = await authApi.get("/api/auth/admin/users/identity");
+  return Array.isArray(res?.data) ? res.data : [];
+};
+
+export const assignAdminUserRole = async (userId, role) => {
+  const res = await authApi.put(`/api/auth/admin/users/${userId}/role`, {
+    role,
+  });
+  return res?.data ?? null;
+};
+
 const adminUserApi = {
   getUserStats,
+  getAdminUserIdentityList,
+  assignAdminUserRole,
 };
 
 export default adminUserApi;

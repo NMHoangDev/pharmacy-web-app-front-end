@@ -43,6 +43,8 @@ import PharmacistPosPage from "../pages/pharmacist/pos";
 import PosConfirmPaymentPage from "../pages/pharmacist/pos/confirm-payment";
 import PosOrdersPage from "../pages/pharmacist/pos/orders";
 import PharmacistAppointmentsPage from "../pages/pharmacist/appointments";
+import PharmacistProfilePage from "../pages/pharmacist/profile";
+import AdminPharmacistDetailPage from "../pages/admin/pharmacists/detail";
 import ShipperDashboardPage from "../pages/shipper";
 import ShipperProfilePage from "../pages/shipper/profile";
 import ShipperEarningsPage from "../pages/shipper/earnings";
@@ -236,6 +238,14 @@ const AnimatedRoutes = () => {
           }
         />
         <Route
+          path="/admin/pharmacists/:id"
+          element={
+            <RequireAdmin>
+              <AdminPharmacistDetailPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
           path="/admin/schedule"
           element={
             <RequireAdmin>
@@ -312,6 +322,14 @@ const AnimatedRoutes = () => {
           element={
             <RequirePharmacist>
               <PharmacistAppointmentsPage />
+            </RequirePharmacist>
+          }
+        />
+        <Route
+          path="/pharmacist/profile"
+          element={
+            <RequirePharmacist>
+              <PharmacistProfilePage />
             </RequirePharmacist>
           }
         />

@@ -228,7 +228,7 @@ export async function uploadMediaImage(file, albumId) {
   const item = data?.items?.[0];
   return {
     albumId: data?.albumId,
-    url: item?.presignedUrl || item?.url || "",
+    url: item?.url || item?.presignedUrl || "",
     key: item?.key,
     bucket: item?.bucket,
   };

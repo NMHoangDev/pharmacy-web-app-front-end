@@ -8,7 +8,12 @@ import OnlineNowSection from "../../../components/pharmacists/OnlineNowSection";
 import SortBar from "../../../components/pharmacists/SortBar";
 import PharmacistsGrid from "../../../components/pharmacists/PharmacistsGrid";
 import PharmacistsPagination from "../../../components/pharmacists/PharmacistsPagination";
-import { publicApi as api } from "../../../api/httpClients";
+import { useBranches } from "../../../hooks/useBranches";
+import {
+  listOnlinePharmacists,
+  listPublicPharmacists,
+} from "../../../api/pharmacistApi";
+import { normalizeMediaUrl } from "../../../utils/media";
 import "../../../styles/storefront-premium.css";
 
 const specialtyLabels = {
@@ -27,81 +32,72 @@ const defaultAvatar =
   "https://images.unsplash.com/photo-1526256262350-7da7584cf5eb?auto=format&fit=crop&w=300&q=80";
 
 const defaultFilters = {
+  branchId: "",
   specialty: "all",
   mode: "all",
   experience: "all",
   ratingGte: null,
 };
 
+const normalizeListValue = (value, fallback = "") => {
+  if (Array.isArray(value)) return value.join(", ");
+  return value || fallback;
+};
+
 const PharmacistsPage = () => {
+  const { branches } = useBranches();
   const [draftFilters, setDraftFilters] = useState(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
   const [list, setList] = useState([]);
   const [online, setOnline] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
-  const loadPharmacists = useCallback(
-    async (signal) => {
-      setLoading(true);
-      setError("");
-      try {
-        const queryParams = { verified: "true" };
-        if (appliedFilters.specialty !== "all") {
-          queryParams.specialty = appliedFilters.specialty;
-        }
-        if (appliedFilters.mode !== "all") {
-          queryParams.mode = appliedFilters.mode;
-        }
-        if (appliedFilters.experience !== "all") {
-          queryParams.experience = appliedFilters.experience;
-        }
-        if (appliedFilters.ratingGte != null) {
-          queryParams.ratingGte = String(appliedFilters.ratingGte);
-        }
-
-        const response = await api.get("/api/pharmacists", {
-          params: queryParams,
-          signal,
-        });
-
-        const payload = response.data;
-        setTotal(payload?.totalElements ?? 0);
-        setList(payload?.content ?? []);
-
-        const onlineResponse = await api.get("/api/pharmacists/online", {
-          params: { limit: 4 },
-          signal,
-        });
-        const onlinePayload = onlineResponse.data;
-        setOnline(onlinePayload ?? []);
-      } catch (err) {
-        if (err.name !== "AbortError") {
-          setError(err.message || "Khong the tai duoc si");
-        }
-      } finally {
-        setLoading(false);
+  const loadPharmacists = useCallback(async () => {
+    setLoading(true);
+    try {
+      const queryParams = { verified: true };
+      if (appliedFilters.branchId) queryParams.branchId = appliedFilters.branchId;
+      if (appliedFilters.specialty !== "all") {
+        queryParams.specialty = appliedFilters.specialty;
       }
-    },
-    [appliedFilters],
-  );
+      if (appliedFilters.mode !== "all") queryParams.mode = appliedFilters.mode;
+      if (appliedFilters.experience !== "all") {
+        queryParams.experience = appliedFilters.experience;
+      }
+      if (appliedFilters.ratingGte != null) {
+        queryParams.ratingGte = appliedFilters.ratingGte;
+      }
+
+      const payload = await listPublicPharmacists(queryParams);
+      setTotal(payload?.totalElements ?? 0);
+      setList(payload?.content ?? []);
+
+      const onlinePayload = await listOnlinePharmacists({
+        limit: 4,
+        branchId: appliedFilters.branchId || undefined,
+      });
+      setOnline(onlinePayload ?? []);
+    } catch (err) {
+      console.error("[PharmacistsPage] Failed to load pharmacists", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedFilters]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    loadPharmacists(controller.signal);
-    return () => controller.abort();
+    loadPharmacists();
   }, [loadPharmacists, reloadKey]);
 
-  const handleReload = useCallback(
-    () => setReloadKey((value) => value + 1),
-    [],
-  );
-  const handleApply = useCallback(
-    () => setAppliedFilters(draftFilters),
-    [draftFilters],
-  );
+  const handleReload = useCallback(() => {
+    setReloadKey((value) => value + 1);
+  }, []);
+
+  const handleApply = useCallback(() => {
+    setAppliedFilters(draftFilters);
+  }, [draftFilters]);
+
   const handleReset = useCallback(() => {
     setDraftFilters(defaultFilters);
     setAppliedFilters(defaultFilters);
@@ -112,13 +108,22 @@ const PharmacistsPage = () => {
       list.map((item) => ({
         id: item.id,
         name: item.name,
-        tag: specialtyLabels[item.specialty] || item.specialty || "Duoc si",
-        experience: `${item.experienceYears ?? 0} nam KN`,
+        tag: specialtyLabels[item.specialty] || item.specialty || "Dược sĩ",
+        experience: `${item.experienceYears ?? 0} năm KN`,
         rating: item.rating ?? 0,
         reviews: item.reviewCount ?? 0,
         status: (item.status || "offline").toLowerCase(),
         badge: item.verified ? "Đã xác minh chứng chỉ" : "Chờ xác minh",
-        image: item.avatarUrl || defaultAvatar,
+        image: normalizeMediaUrl(item.avatarUrl) || defaultAvatar,
+        avatarUrl: normalizeMediaUrl(item.avatarUrl) || defaultAvatar,
+        specialty: specialtyLabels[item.specialty] || item.specialty || "Dược sĩ",
+        branchId: item.branchId || "",
+        branchName: item.branchName || "",
+        workingHours: item.workingHours || "08:00 - 17:00",
+        workingDays: normalizeListValue(item.workingDays, "Thứ 2 - Thứ 7"),
+        languages: normalizeListValue(item.languages, "Tiếng Việt"),
+        education: item.education || "Đang cập nhật",
+        verified: Boolean(item.verified),
       })),
     [list],
   );
@@ -129,9 +134,17 @@ const PharmacistsPage = () => {
         id: item.id,
         name: item.name,
         specialty:
-          specialtyLabels[item.specialty] || item.specialty || "Duoc si",
-        image: item.avatarUrl || defaultAvatar,
+          specialtyLabels[item.specialty] || item.specialty || "Dược sĩ",
+        image: normalizeMediaUrl(item.avatarUrl) || defaultAvatar,
+        avatarUrl: normalizeMediaUrl(item.avatarUrl) || defaultAvatar,
         status: (item.status || "online").toLowerCase(),
+        branchId: item.branchId || "",
+        branchName: item.branchName || "",
+        workingHours: item.workingHours || "08:00 - 17:00",
+        workingDays: normalizeListValue(item.workingDays, "Thứ 2 - Thứ 7"),
+        languages: normalizeListValue(item.languages, "Tiếng Việt"),
+        education: item.education || "Đang cập nhật",
+        verified: Boolean(item.verified),
       })),
     [online],
   );
@@ -155,7 +168,7 @@ const PharmacistsPage = () => {
                 </h1>
                 <p className="mt-3 max-w-3xl text-base text-slate-600">
                   Danh sách dược sĩ đã xác minh, có thể tư vấn nhanh qua chat,
-                  video hoặc tại quầy thuốc.
+                  video hoặc tại chi nhánh được gán.
                 </p>
               </div>
             </div>
@@ -165,6 +178,7 @@ const PharmacistsPage = () => {
             <div className="w-full lg:w-72">
               <PharmacistsFilters
                 filters={draftFilters}
+                branches={branches}
                 onChange={setDraftFilters}
                 onApply={handleApply}
                 onReset={handleReset}
@@ -181,7 +195,7 @@ const PharmacistsPage = () => {
                 <div className="storefront-card rounded-[24px] p-6">
                   <EmptyState
                     title="Không tìm thấy dược sĩ phù hợp"
-                    subtitle="Hiện chưa có dược sĩ nào sẵn sàng tư vấn."
+                    subtitle="Hiện chưa có dược sĩ nào sẵn sàng tư vấn ở bộ lọc này."
                     actionLabel="Tải lại"
                     onAction={handleReload}
                   />
@@ -189,10 +203,7 @@ const PharmacistsPage = () => {
               ) : (
                 <PharmacistsGrid pharmacists={mappedList} />
               )}
-              <PharmacistsPagination
-                total={total}
-                showing={mappedList.length}
-              />
+              <PharmacistsPagination total={total} showing={mappedList.length} />
             </div>
           </section>
         </div>

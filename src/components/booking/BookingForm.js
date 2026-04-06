@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as appointmentApi from "../../api/appointmentApi";
 import useNotificationAction from "../../hooks/useNotificationAction";
+import { useAppContext } from "../../context/AppContext";
 import "./scrollbar.css";
 
 const MORNING_SLOTS = [
@@ -44,54 +45,64 @@ const METHOD_OPTIONS = [
   },
 ];
 
-function pad(n) {
-  return String(n).padStart(2, "0");
+const CHANNEL_BY_METHOD = {
+  video_call: "VIDEO_CALL",
+  voice_call: "VOICE_CALL",
+  chat: "CHAT",
+};
+
+function pad(value) {
+  return String(value).padStart(2, "0");
 }
 
-function formatLocalDateTime(d) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}:00`;
+function formatLocalDateTime(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
 }
 
-function isEmail(v) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
+function isEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
 
-function isPhone(v) {
+function isPhone(value) {
   return /^[0-9]{9,11}$/.test(
-    String(v || "")
+    String(value || "")
       .trim()
       .replace(/\s/g, ""),
   );
 }
 
-function startOfDay(d) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function addDays(d, n) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
+function addDays(date, numberOfDays) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + numberOfDays);
+  return next;
 }
 
-function isSameDay(a, b) {
-  return startOfDay(a).getTime() === startOfDay(b).getTime();
+function isSameDay(first, second) {
+  return startOfDay(first).getTime() === startOfDay(second).getTime();
 }
 
-function formatDow(d) {
+function formatDow(date) {
   const map = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
-  return map[d.getDay()];
+  return map[date.getDay()];
 }
 
-function formatMonthYear(d) {
-  return d.toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
+function formatMonthYear(date) {
+  return date.toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
 }
 
 function toMinutes(hhmm) {
-  const [h, m] = String(hhmm).split(":").map(Number);
-  return h * 60 + m;
+  const [hours, minutes] = String(hhmm).split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function normalizeApiError(error) {
+  const responseMessage = error?.response?.data?.message;
+  const message = error?.message || responseMessage || "Lỗi khi đặt lịch";
+  return String(message);
 }
 
 const Section = ({ step, title, children }) => (
@@ -113,112 +124,104 @@ const Field = ({
   placeholder,
   error,
   type = "text",
-}) => {
-  return (
-    <label className="block">
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-sm font-medium text-slate-700">{label}</span>
-        {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-      </div>
-      <input
-        type={type}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        className={[
-          "h-11 w-full rounded-lg border px-3 text-sm",
-          "bg-white text-slate-900 placeholder:text-slate-400",
-          "outline-none focus:ring-2 focus:ring-blue-100",
-          error
-            ? "border-rose-300 focus:border-rose-400"
-            : "border-slate-200 focus:border-blue-400",
-        ].join(" ")}
-      />
-    </label>
-  );
-};
+}) => (
+  <label className="block">
+    <div className="mb-1.5 flex items-center justify-between">
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
+    </div>
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className={[
+        "h-11 w-full rounded-lg border px-3 text-sm",
+        "bg-white text-slate-900 placeholder:text-slate-400",
+        "outline-none focus:ring-2 focus:ring-blue-100",
+        error
+          ? "border-rose-300 focus:border-rose-400"
+          : "border-slate-200 focus:border-blue-400",
+      ].join(" ")}
+    />
+  </label>
+);
 
-const TextareaField = ({ label, value, onChange, placeholder, error }) => {
-  return (
-    <label className="block">
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-sm font-medium text-slate-700">{label}</span>
-        {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-      </div>
-      <textarea
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        className={[
-          "min-h-[120px] w-full rounded-lg border px-3 py-2.5 text-sm",
-          "bg-white text-slate-900 placeholder:text-slate-400",
-          "outline-none focus:ring-2 focus:ring-blue-100 resize-none",
-          error
-            ? "border-rose-300 focus:border-rose-400"
-            : "border-slate-200 focus:border-blue-400",
-        ].join(" ")}
-      />
-    </label>
-  );
-};
+const TextareaField = ({ label, value, onChange, placeholder, error }) => (
+  <label className="block">
+    <div className="mb-1.5 flex items-center justify-between">
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
+    </div>
+    <textarea
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className={[
+        "min-h-[120px] w-full rounded-lg border px-3 py-2.5 text-sm",
+        "bg-white text-slate-900 placeholder:text-slate-400",
+        "resize-none outline-none focus:ring-2 focus:ring-blue-100",
+        error
+          ? "border-rose-300 focus:border-rose-400"
+          : "border-slate-200 focus:border-blue-400",
+      ].join(" ")}
+    />
+  </label>
+);
 
-const MethodCard = ({ option, checked, onChange }) => {
-  return (
-    <label className="cursor-pointer">
-      <input
-        className="sr-only"
-        name="method"
-        type="radio"
-        checked={checked}
-        onChange={onChange}
-      />
-      <div
-        className={[
-          "h-full rounded-lg border p-3 transition-colors",
-          checked
-            ? "border-blue-300 bg-blue-50"
-            : "border-slate-200 bg-white hover:bg-slate-50",
-        ].join(" ")}
-      >
-        <div className="flex items-start gap-2.5">
-          <span
-            className={[
-              "material-symbols-outlined text-[18px] mt-0.5",
-              checked ? "text-blue-700" : "text-slate-500",
-            ].join(" ")}
-          >
-            {option.icon}
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-slate-900">
-              {option.title}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">{option.desc}</p>
-          </div>
+const MethodCard = ({ option, checked, onChange }) => (
+  <label className="cursor-pointer">
+    <input
+      className="sr-only"
+      name="method"
+      type="radio"
+      checked={checked}
+      onChange={onChange}
+    />
+    <div
+      className={[
+        "h-full rounded-lg border p-3 transition-colors",
+        checked
+          ? "border-blue-300 bg-blue-50"
+          : "border-slate-200 bg-white hover:bg-slate-50",
+      ].join(" ")}
+    >
+      <div className="flex items-start gap-2.5">
+        <span
+          className={[
+            "material-symbols-outlined mt-0.5 text-[18px]",
+            checked ? "text-blue-700" : "text-slate-500",
+          ].join(" ")}
+        >
+          {option.icon}
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-slate-900">{option.title}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{option.desc}</p>
         </div>
       </div>
-    </label>
-  );
-};
+    </div>
+  </label>
+);
 
-const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
+const BookingForm = ({ onBackToPharmacists, pharmacistId, branchId }) => {
   const navigate = useNavigate();
   const { notifyAfterSuccess } = useNotificationAction();
+  const { userId } = useAppContext();
 
   const [fullName, setFullName] = useState("");
   const [contact, setContact] = useState("");
+  const [selectedTime, setSelectedTime] = useState("09:00");
+  const [method, setMethod] = useState("video_call");
+  const [description, setDescription] = useState("");
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const today = useMemo(() => startOfDay(new Date()), []);
-  const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDateISO, setSelectedDateISO] = useState(
     today.toISOString().slice(0, 10),
   );
 
-  const [selectedTime, setSelectedTime] = useState("09:00");
-  const [method, setMethod] = useState("video_call");
-  const [description, setDescription] = useState("");
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({
     fullName: "",
     contact: "",
@@ -234,28 +237,29 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
 
   const days = useMemo(() => {
     const base = addDays(today, weekOffset * 7);
-    return Array.from({ length: 7 }, (_, i) => {
-      const date = addDays(base, i);
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = addDays(base, index);
       const iso = date.toISOString().slice(0, 10);
-      const disabled = date < today;
       return {
         key: iso,
         iso,
         date,
         dow: formatDow(date),
         day: date.getDate(),
-        disabled,
+        disabled: date < today,
       };
     });
   }, [today, weekOffset]);
 
-  const selectedDay = useMemo(() => {
-    return days.find((d) => d.iso === selectedDateISO) ?? days[0];
-  }, [days, selectedDateISO]);
+  const selectedDay = useMemo(
+    () => days.find((day) => day.iso === selectedDateISO) ?? days[0],
+    [days, selectedDateISO],
+  );
 
-  const monthLabel = useMemo(() => {
-    return formatMonthYear(days[0]?.date ?? today);
-  }, [days, today]);
+  const monthLabel = useMemo(
+    () => formatMonthYear(days[0]?.date ?? today),
+    [days, today],
+  );
 
   const canGoPrev = weekOffset > 0;
 
@@ -277,8 +281,7 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
       String(description || "").trim() &&
       String(description || "").trim().length < 10
     ) {
-      next.description =
-        "Mô tả hơi ngắn, bạn nhập thêm chi tiết (tối thiểu 10 ký tự).";
+      next.description = "Mô tả hơi ngắn, vui lòng nhập ít nhất 10 ký tự.";
     }
 
     setErrors(next);
@@ -288,7 +291,6 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
   const renderSlotButton = (slot, isSelected) => {
     const now = new Date();
     const bufferMinutes = 10;
-
     const isToday = isSameDay(selectedDay.date, now);
     const slotIsPast =
       isToday &&
@@ -341,12 +343,12 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
     });
 
     try {
-      const rawUser = sessionStorage.getItem("authUser");
-      if (!rawUser) throw new Error("Bạn cần đăng nhập để đặt lịch");
-      const authUser = JSON.parse(rawUser || "{}");
-      const userId = authUser?.id;
-      if (!userId) throw new Error("Không tìm thấy userId trong session");
-      if (!pharmacistId) throw new Error("Không xác định dược sĩ để đặt lịch");
+      if (!userId) {
+        throw new Error("Bạn cần đăng nhập để đặt lịch.");
+      }
+      if (!pharmacistId) {
+        throw new Error("Không xác định được dược sĩ để đặt lịch.");
+      }
 
       const [hourStr, minuteStr] = selectedTime.split(":");
       const startDate = new Date(selectedDay.date);
@@ -357,14 +359,15 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
       }
 
       const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
-
       const payload = {
         userId,
         pharmacistId,
+        // Do not block booking on branch synchronization between services.
+        branchId: undefined,
         startAt: formatLocalDateTime(startDate),
         endAt: formatLocalDateTime(endDate),
-        channel: method.toUpperCase(),
-        notes: description || undefined,
+        channel: CHANNEL_BY_METHOD[method] || "VIDEO_CALL",
+        notes: description?.trim() || undefined,
       };
 
       await notifyAfterSuccess({
@@ -392,10 +395,9 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
         message:
           "Bạn có thể quay lại danh sách dược sĩ hoặc tiếp tục đặt lịch khác.",
       });
-    } catch (err) {
-      const status = err?.status || err?.response?.status;
-      const message =
-        err?.message || err?.response?.data?.message || "Lỗi khi đặt lịch";
+    } catch (error) {
+      const status = error?.status || error?.response?.status;
+      const message = normalizeApiError(error);
 
       if (Number(status) === 409) {
         setDialog({
@@ -510,16 +512,16 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
                 <button
                   type="button"
                   onClick={() => {
-                    if (canGoPrev) setWeekOffset((x) => x - 1);
+                    if (canGoPrev) setWeekOffset((value) => value - 1);
                   }}
                   disabled={!canGoPrev}
                   className={[
                     "grid h-8 w-8 place-items-center rounded-md border transition-colors",
                     canGoPrev
                       ? "border-slate-200 text-slate-600 hover:bg-slate-50"
-                      : "border-slate-200 text-slate-300 cursor-not-allowed",
+                      : "cursor-not-allowed border-slate-200 text-slate-300",
                   ].join(" ")}
-                  aria-label="Previous week"
+                  aria-label="Tuần trước"
                 >
                   <span className="material-symbols-outlined text-[18px]">
                     chevron_left
@@ -527,9 +529,9 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setWeekOffset((x) => x + 1)}
-                  className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-                  aria-label="Next week"
+                  onClick={() => setWeekOffset((value) => value + 1)}
+                  className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50"
+                  aria-label="Tuần sau"
                 >
                   <span className="material-symbols-outlined text-[18px]">
                     chevron_right
@@ -549,7 +551,7 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
                     disabled={day.disabled}
                     onClick={() => !day.disabled && setSelectedDateISO(day.iso)}
                     className={[
-                      "flex-none rounded-lg border px-3 py-2 text-center min-w-[64px]",
+                      "min-w-[64px] flex-none rounded-lg border px-3 py-2 text-center",
                       day.disabled
                         ? "border-slate-200 bg-slate-50 text-slate-300"
                         : isSelected
@@ -629,13 +631,13 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
               disabled={!canSubmit}
               className={[
                 "inline-flex h-11 min-w-[220px] items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold",
-                "bg-blue-600 text-white hover:bg-blue-700 transition-colors",
+                "bg-blue-600 text-white transition-colors hover:bg-blue-700",
                 "disabled:cursor-not-allowed disabled:opacity-60",
               ].join(" ")}
             >
               {isSubmitting ? (
                 <>
-                  <span className="h-4 w-4 rounded-full border-2 border-white/50 border-t-white animate-spin" />
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white" />
                   <span>Đang xử lý...</span>
                 </>
               ) : (
@@ -653,7 +655,7 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
 
       <Dialog.Root
         open={dialog.open}
-        onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
+        onOpenChange={(open) => setDialog((previous) => ({ ...previous, open }))}
       >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-900/35" />
@@ -679,7 +681,7 @@ const BookingForm = ({ onBackToPharmacists, pharmacistId }) => {
                   {dialog.type === "success" ? (
                     <button
                       onClick={() => {
-                        setDialog((d) => ({ ...d, open: false }));
+                        setDialog((previous) => ({ ...previous, open: false }));
                         navigate("/pharmacists");
                       }}
                       className="h-9 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"

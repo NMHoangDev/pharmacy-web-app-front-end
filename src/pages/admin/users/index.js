@@ -80,8 +80,6 @@ const normalizeUser = (user) => {
   const createdAt = user?.createdAt ? new Date(user.createdAt) : null;
   const createdAtValue =
     createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.getTime() : 0;
-  const normalizedRole = String(user?.role || "").trim().toLowerCase();
-  const normalizedStatus = String(user?.status || "").trim().toLowerCase();
 
   return {
     id: user?.id,
@@ -89,25 +87,15 @@ const normalizeUser = (user) => {
     email: user?.email || "",
     phone: user?.phone || "",
     fullName: user?.fullName || "",
-    role:
-      normalizedRole === "admin" ||
-      normalizedRole === "pharmacist" ||
-      normalizedRole === "customer"
-        ? normalizedRole
-        : "customer",
-    status:
-      normalizedStatus === "active" ||
-      normalizedStatus === "pending" ||
-      normalizedStatus === "suspended"
-        ? normalizedStatus
-        : "active",
+    role: "customer",
+    status: "active",
     orders: Number(user?.orderCount || 0),
     lastActive: formatDate(user?.createdAt),
     lastActiveValue: createdAtValue,
     joined: formatDate(user?.createdAt),
     joinedValue: createdAtValue,
-    tags: Array.isArray(user?.keycloakRoles) ? user.keycloakRoles : [],
-    attention: normalizedStatus && normalizedStatus !== "active",
+    tags: [],
+    attention: false,
     avatar: normalizeAvatar(user?.avatarBase64),
     notes: "",
   };
@@ -143,7 +131,7 @@ const AdminUsersPage = () => {
 
   useEffect(() => {
     const controller = new AbortController();
-    console.log("Users222222222222222222222222222222222222222222:", users);
+    
 
     const load = async () => {
       try {
@@ -153,7 +141,6 @@ const AdminUsersPage = () => {
           signal: controller.signal,
         });
         console.log("[admin users] raw response:", data);
-        console.log("[admin users] first item keys:", Object.keys(data?.[0] || {}));
         setUsers((Array.isArray(data) ? data : []).map(normalizeUser));
       } catch (err) {
         if (err?.name === "AbortError") {
