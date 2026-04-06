@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import Header from "../../../components/Header";
 import Footer from "../../../components/Footer";
 import MedicinesBreadcrumbs from "../../../components/medicines/MedicinesBreadcrumbs";
 import MedicinesFilters from "../../../components/medicines/MedicinesFilters";
+import MedicinesFiltersDrawer from "../../../components/medicines/MedicinesFiltersDrawer";
 import MedicinesHeaderBar from "../../../components/medicines/MedicinesHeaderBar";
 import MedicinesGrid from "../../../components/medicines/MedicinesGrid";
+import MedicineSkeleton from "../../../components/medicines/MedicineSkeleton";
 import MedicinesPagination from "../../../components/medicines/MedicinesPagination";
 import medicinesProducts, { parsePrice } from "../../../data/medicinesProducts";
 import EmptyState from "../../../components/EmptyState";
@@ -12,9 +15,29 @@ import PageTransition from "../../../components/ui/PageTransition";
 import { publicApi } from "../../../api/httpClients";
 import { useCart } from "../../../contexts/CartContext";
 import useNotificationAction from "../../../hooks/useNotificationAction";
+import { useCampaign } from "../../../hooks/useCampaign";
+import { getCampaignPresentation } from "../../../utils/discountUi";
+import "../../../styles/storefront-premium.css";
 
 const formatPrice = (value) =>
   `${Number(value || 0).toLocaleString("vi-VN")} đ`;
+
+const parseMoneyNumber = (value) => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+  const raw = String(value ?? "");
+  const digits = raw.replace(/[^0-9]/g, "");
+  if (!digits) return NaN;
+  const num = Number(digits);
+  return Number.isFinite(num) ? num : NaN;
+};
+
+const resolvePriceValue = (...candidates) => {
+  for (const candidate of candidates) {
+    const parsed = parseMoneyNumber(candidate);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+};
 
 const parseAttributes = (value) => {
   if (!value) return {};
@@ -39,29 +62,66 @@ const resolveBadge = (attrs, createdAt) => {
   return null;
 };
 
-const fallbackPrices = medicinesProducts.map((p) => parsePrice(p.price));
+const isSellingProduct = (item) => {
+  const effective = String(item?.effectiveStatus || "")
+    .trim()
+    .toUpperCase();
+  if (effective) return effective === "ACTIVE";
+
+  const global = String(item?.status || item?.globalStatus || "")
+    .trim()
+    .toUpperCase();
+  if (global) return global === "ACTIVE";
+
+  const branch = String(item?.branchStatus || "")
+    .trim()
+    .toUpperCase();
+  if (branch) return branch === "ACTIVE";
+
+  return false;
+};
+
+const fallbackPrices = medicinesProducts.map((product) =>
+  parsePrice(product.price),
+);
 const fallbackMin = Math.min(...fallbackPrices);
 const fallbackMax = Math.max(...fallbackPrices);
 
 const MedicinesPage = () => {
+  const [searchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => searchParams.get("q") || "");
   const [sort, setSort] = useState("best");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
   const [selectedBrands, setSelectedBrands] = useState([]);
   const [selectedAudiences, setSelectedAudiences] = useState([]);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(12);
+  const [pageSize] = useState(10);
   const [priceRange, setPriceRange] = useState({
     min: fallbackMin,
     max: fallbackMax,
   });
+  const [hasTouchedPriceRange, setHasTouchedPriceRange] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [draftPriceRange, setDraftPriceRange] = useState({
+    min: fallbackMin,
+    max: fallbackMax,
+  });
+  const [draftCategoryIds, setDraftCategoryIds] = useState([]);
+  const [draftBrands, setDraftBrands] = useState([]);
+  const [draftAudiences, setDraftAudiences] = useState([]);
 
   const { upsertItem } = useCart();
   const { notifyAfterSuccess } = useNotificationAction();
+  const { activeCampaign } = useCampaign({ refreshIntervalMs: 180000 });
+
+  const campaignPresentation = useMemo(
+    () => getCampaignPresentation(activeCampaign),
+    [activeCampaign],
+  );
 
   const handleAddToCart = useCallback(
     async (product) => {
@@ -89,16 +149,6 @@ const MedicinesPage = () => {
     [notifyAfterSuccess, upsertItem],
   );
 
-  const handlePriceRangeChange = (nextRange) => {
-    let { min, max } = nextRange;
-    if (min > max) {
-      [min, max] = [max, min];
-    }
-    min = Math.max(overallMinPrice, min);
-    max = Math.min(overallMaxPrice, max);
-    setPriceRange({ min, max });
-  };
-
   const overallMinPrice = useMemo(() => {
     if (!products.length) return fallbackMin;
     return Math.min(...products.map((item) => item.priceValue));
@@ -109,12 +159,31 @@ const MedicinesPage = () => {
     return Math.max(...products.map((item) => item.priceValue));
   }, [products]);
 
+  const handlePriceRangeChange = (nextRange) => {
+    setHasTouchedPriceRange(true);
+    let { min, max } = nextRange;
+    if (min > max) [min, max] = [max, min];
+    min = Math.max(overallMinPrice, min);
+    max = Math.min(overallMaxPrice, max);
+    setPriceRange({ min, max });
+  };
+
   useEffect(() => {
-    setPriceRange((prev) => ({
-      min: Math.max(overallMinPrice, prev.min),
-      max: Math.min(overallMaxPrice, prev.max),
-    }));
-  }, [overallMinPrice, overallMaxPrice]);
+    setQuery(searchParams.get("q") || "");
+    setPage(0);
+  }, [searchParams]);
+
+  useEffect(() => {
+    setPriceRange((prev) => {
+      if (!hasTouchedPriceRange) {
+        return { min: overallMinPrice, max: overallMaxPrice };
+      }
+      return {
+        min: Math.max(overallMinPrice, prev.min),
+        max: Math.min(overallMaxPrice, prev.max),
+      };
+    });
+  }, [hasTouchedPriceRange, overallMinPrice, overallMaxPrice]);
 
   useEffect(() => {
     setPriceRange((prev) => {
@@ -129,79 +198,103 @@ const MedicinesPage = () => {
 
   const [reloadKey, setReloadKey] = useState(0);
 
-  const loadProducts = useCallback(async (signal) => {
-    setLoading(true);
-    setError("");
+  const loadProducts = useCallback(
+    async (signal) => {
+      setLoading(true);
+      setError("");
 
-    try {
-      const categoryResponse = await publicApi.get(
-        "/api/catalog/public/categories",
-        {
-          signal,
-        },
-      );
-      setCategories(categoryResponse.data || []);
-
-      const response = await publicApi.get("/api/catalog/public/products", {
-        params: {
-          size: 200,
-          sort: "name,asc",
-        },
-        signal,
-      });
-
-      const payload = response.data;
-      // robust parsing: handle array, pageable (.content), or wrapper (.data)
-      const items =
-        payload?.content ??
-        payload?.data ??
-        (Array.isArray(payload) ? payload : []);
-
-      const mapped = items.map((item) => {
-        const attrs = parseAttributes(item.attributes);
-        const badge = resolveBadge(attrs, item.createdAt);
-        const priceValue = Number(
-          item.price ?? item.salePrice ?? item.baseSalePrice ?? 0,
+      try {
+        const categoryResponse = await publicApi.get(
+          "/api/catalog/public/categories",
+          { signal },
         );
-        return {
-          id: item.id,
-          slug: item.slug,
-          title: item.name || item.title || "No Name",
-          description: item.description || attrs.shortDescription || "",
-          price: formatPrice(priceValue),
-          priceValue,
-          oldPrice: attrs.oldPrice ? formatPrice(attrs.oldPrice) : "",
-          image:
-            item.imageUrl ||
-            item.image ||
-            "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=300&q=80",
-          rx: !!item.prescriptionRequired,
-          consult: !!attrs.consultationRequired,
-          badge: badge?.label,
-          badgeColor: badge?.color,
-          categoryId: item.categoryId,
-          brand: attrs.brand || attrs.manufacturer || "",
-          audience: attrs.audience || attrs.target || "",
-          createdAt: item.createdAt,
-        };
-      });
-      setProducts(mapped);
-    } catch (err) {
-      // detect cancellation
-      const isCancel =
-        err.name === "AbortError" ||
-        err.code === "ERR_CANCELED" ||
-        err?.message?.toLowerCase().includes("canceled");
+        setCategories(categoryResponse.data || []);
 
-      if (!isCancel) {
-        console.error("loadProducts -> error:", err);
-        setError(err.message || "Không thể tải danh sách sản phẩm");
-        setProducts([]);
+        const response = await publicApi.get("/api/catalog/public/products", {
+          params: {
+            size: 200,
+            sort: "name,asc",
+          },
+          signal,
+        });
+
+        const payload = response.data;
+        const items =
+          payload?.content ??
+          payload?.data ??
+          (Array.isArray(payload) ? payload : []);
+        console.log(items);
+
+        const sellingItems = items.filter(isSellingProduct);
+
+        const mapped = sellingItems.map((item) => {
+          const attrs = parseAttributes(item.attributes);
+          const badge = resolveBadge(attrs, item.createdAt);
+          const priceValue = resolvePriceValue(
+            item.price,
+            item.salePrice,
+            item.baseSalePrice,
+            attrs.price,
+            attrs.salePrice,
+            attrs.baseSalePrice,
+            0,
+          );
+
+          const originalCandidate =
+            item.oldPrice ?? item.originalPrice ?? attrs.oldPrice;
+          const originalValue = parseMoneyNumber(originalCandidate);
+          const oldPriceLabel =
+            Number.isFinite(originalValue) && originalValue > priceValue
+              ? formatPrice(originalValue)
+              : "";
+
+          return {
+            id: item.id,
+            slug: item.slug,
+            title: item.name || item.title || "No Name",
+            description: item.description || attrs.shortDescription || "",
+            price: formatPrice(priceValue),
+            priceValue,
+            oldPrice: oldPriceLabel,
+            image:
+              item.imageUrl ||
+              item.image ||
+              "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=300&q=80",
+            rx: !!item.prescriptionRequired,
+            consult: !!attrs.consultationRequired,
+            badge: badge?.label,
+            badgeColor: badge?.color,
+            originalPrice: oldPriceLabel,
+            categoryId: item.categoryId,
+            brand: attrs.brand || attrs.manufacturer || "",
+            audience: attrs.audience || attrs.target || "",
+            createdAt: item.createdAt,
+            campaign: activeCampaign || null,
+            campaignHeadline: campaignPresentation?.headline || "",
+            campaignDetail: campaignPresentation?.detail || "",
+          };
+        });
+        setProducts(mapped);
+      } catch (err) {
+        const isCancel =
+          err.name === "AbortError" ||
+          err.code === "ERR_CANCELED" ||
+          err?.message?.toLowerCase().includes("canceled");
+        if (!isCancel) {
+          console.error("loadProducts -> error:", err);
+          setError(err.message || "Khong the tai danh sach san pham");
+          setProducts([]);
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [
+      activeCampaign,
+      campaignPresentation?.detail,
+      campaignPresentation?.headline,
+    ],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -209,7 +302,42 @@ const MedicinesPage = () => {
     return () => controller.abort();
   }, [loadProducts, reloadKey]);
 
-  const handleReload = useCallback(() => setReloadKey((v) => v + 1), []);
+  const handleReload = useCallback(
+    () => setReloadKey((value) => value + 1),
+    [],
+  );
+
+  const activeFiltersCount =
+    selectedCategoryIds.length +
+    selectedBrands.length +
+    selectedAudiences.length;
+
+  const openMobileFilters = useCallback(() => {
+    setDraftPriceRange(priceRange);
+    setDraftCategoryIds(selectedCategoryIds);
+    setDraftBrands(selectedBrands);
+    setDraftAudiences(selectedAudiences);
+    setMobileFiltersOpen(true);
+  }, [priceRange, selectedAudiences, selectedBrands, selectedCategoryIds]);
+
+  const closeMobileFilters = useCallback(() => setMobileFiltersOpen(false), []);
+
+  const applyMobileFilters = useCallback(() => {
+    setHasTouchedPriceRange(true);
+    setPriceRange(draftPriceRange);
+    setSelectedCategoryIds(draftCategoryIds);
+    setSelectedBrands(draftBrands);
+    setSelectedAudiences(draftAudiences);
+    setPage(0);
+    setMobileFiltersOpen(false);
+  }, [draftAudiences, draftBrands, draftCategoryIds, draftPriceRange]);
+
+  const resetMobileDraftFilters = useCallback(() => {
+    setDraftCategoryIds([]);
+    setDraftBrands([]);
+    setDraftAudiences([]);
+    setDraftPriceRange({ min: overallMinPrice, max: overallMaxPrice });
+  }, [overallMaxPrice, overallMinPrice]);
 
   const availableBrands = useMemo(() => {
     const set = new Set();
@@ -299,9 +427,7 @@ const MedicinesPage = () => {
   );
 
   useEffect(() => {
-    if (page > totalPages - 1) {
-      setPage(0);
-    }
+    if (page > totalPages - 1) setPage(0);
   }, [page, totalPages]);
 
   const pagedProducts = useMemo(() => {
@@ -316,6 +442,12 @@ const MedicinesPage = () => {
     setPage(0);
   };
 
+  const handleToggleDraftCategory = useCallback((id) => {
+    setDraftCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }, []);
+
   const handleToggleBrand = (brand) => {
     setSelectedBrands((prev) =>
       prev.includes(brand)
@@ -324,6 +456,12 @@ const MedicinesPage = () => {
     );
     setPage(0);
   };
+
+  const handleToggleDraftBrand = useCallback((brand) => {
+    setDraftBrands((prev) =>
+      prev.includes(brand) ? prev.filter((x) => x !== brand) : [...prev, brand],
+    );
+  }, []);
 
   const handleToggleAudience = (label) => {
     setSelectedAudiences((prev) =>
@@ -334,7 +472,14 @@ const MedicinesPage = () => {
     setPage(0);
   };
 
+  const handleToggleDraftAudience = useCallback((label) => {
+    setDraftAudiences((prev) =>
+      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label],
+    );
+  }, []);
+
   const handleReset = () => {
+    setHasTouchedPriceRange(false);
     setQuery("");
     setSort("best");
     setSelectedCategoryIds([]);
@@ -345,11 +490,30 @@ const MedicinesPage = () => {
   };
 
   return (
-    <PageTransition className="bg-background-light dark:bg-background-dark min-h-screen font-display flex flex-col text-slate-900 dark:text-white antialiased">
+    <PageTransition className="storefront-shell min-h-screen font-display flex flex-col text-slate-900 antialiased">
       <Header />
-      <div className="max-w-[1280px] mx-auto px-4 lg:px-8 py-6 flex-grow w-full">
+
+      <div className="storefront-container mx-auto flex-grow w-full max-w-[1280px] px-3 py-4 sm:px-4 lg:px-6">
         <MedicinesBreadcrumbs />
-        <div className="flex flex-col lg:flex-row gap-8 items-start">
+
+        <section className="storefront-hero storefront-fade-up mb-5 rounded-[32px] border border-white/70 px-5 py-6 sm:px-8">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
+                Danh muc thuoc
+              </div>
+              <h1 className="mt-3 text-3xl font-black text-slate-900 sm:text-4xl">
+                Lựa chọn thuốc và sản phẩm chăm sóc sức khỏe
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-500 sm:text-base">
+                Tìm kiếm nhanh, lọc linh hoạt và theo dõi ưu đãi trong một giao
+                diện sạch sẽ, để nhìn và đồng nhất với toàn bộ website.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <div className="flex items-start gap-4 flex-col lg:flex-row">
           <MedicinesFilters
             priceRange={priceRange}
             minPrice={overallMinPrice}
@@ -366,63 +530,118 @@ const MedicinesPage = () => {
             onToggleAudience={handleToggleAudience}
             onReset={handleReset}
           />
-          <main className="flex-1 w-full">
-            <MedicinesHeaderBar
-              total={filteredProducts.length}
-              showing={pagedProducts.length}
-              query={query}
-              onQueryChange={(value) => {
-                setQuery(value);
-                setPage(0);
-              }}
-              sort={sort}
-              onSortChange={(value) => {
-                setSort(value);
-                setPage(0);
-              }}
-            />
+
+          <main className="w-full flex-1">
+            {campaignPresentation ? (
+              <section className="mb-4 overflow-hidden rounded-[30px] border border-sky-100 bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 p-5 text-white shadow-lg shadow-sky-500/10">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="mb-2 inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-white/90">
+                      Uu dai noi bat
+                    </div>
+                    <h2 className="text-2xl font-black tracking-tight">
+                      {campaignPresentation.headline}
+                    </h2>
+                    <p className="mt-2 max-w-3xl text-sm text-white/90 sm:text-base">
+                      {campaignPresentation.detail ||
+                        "Uu dai dang duoc ap dung trong thoi gian gioi han."}
+                    </p>
+                  </div>
+                  <div className="shrink-0 rounded-2xl bg-white/15 px-4 py-3 text-center backdrop-blur">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-white/75">
+                      Nhan uu dai
+                    </div>
+                    <div className="mt-1 text-xl font-black">
+                      {campaignPresentation.badge}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
+            <div className="storefront-panel rounded-[28px] p-3 sm:p-4">
+              <MedicinesHeaderBar
+                total={filteredProducts.length}
+                showing={pagedProducts.length}
+                query={query}
+                onQueryChange={(value) => {
+                  setQuery(value);
+                  setPage(0);
+                }}
+                sort={sort}
+                onSortChange={(value) => {
+                  setSort(value);
+                  setPage(0);
+                }}
+                onOpenFilters={openMobileFilters}
+                filtersCount={activeFiltersCount}
+              />
+            </div>
+
             {loading ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-40 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse"
-                  />
+              <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4 xl:grid-cols-5">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <MedicineSkeleton key={index} />
                 ))}
               </div>
             ) : error ? (
-              <EmptyState
-                title={"Không thể tải danh sách thuốc"}
-                subtitle={error}
-                actionLabel={"Tải lại"}
-                onAction={handleReload}
-              />
+              <div className="mt-4 storefront-card rounded-[28px] p-6">
+                <EmptyState
+                  title="Khong the tai danh sach thuoc"
+                  subtitle={error}
+                  actionLabel="Tai lai"
+                  onAction={handleReload}
+                />
+              </div>
             ) : pagedProducts.length === 0 ? (
-              <EmptyState
-                title={"Không có sản phẩm"}
-                subtitle={"Hiện chưa có thuốc nào để hiển thị."}
-                actionLabel={"Tải lại"}
-                onAction={handleReload}
-              />
+              <div className="mt-4 storefront-card rounded-[28px] p-6">
+                <EmptyState
+                  title="Khong co san pham"
+                  subtitle="Hien chua co thuoc nao de hien thi."
+                  actionLabel="Tai lai"
+                  onAction={handleReload}
+                />
+              </div>
             ) : (
-              <MedicinesGrid
-                products={pagedProducts}
-                onAddToCart={handleAddToCart}
-              />
+              <div className="mt-4">
+                <MedicinesGrid
+                  products={pagedProducts}
+                  onAddToCart={handleAddToCart}
+                />
+              </div>
             )}
+
             <MedicinesPagination
               page={page}
               totalPages={totalPages}
               pageSize={pageSize}
+              fixedPageSize={10}
               onPageChange={setPage}
-              onPageSizeChange={(value) => {
-                setPageSize(value);
-                setPage(0);
-              }}
             />
           </main>
         </div>
       </div>
+
+      <MedicinesFiltersDrawer
+        open={mobileFiltersOpen}
+        onClose={closeMobileFilters}
+        onApply={applyMobileFilters}
+        onReset={resetMobileDraftFilters}
+        priceRange={draftPriceRange}
+        minPrice={overallMinPrice}
+        maxPrice={overallMaxPrice}
+        onChangePriceRange={setDraftPriceRange}
+        categories={categories}
+        selectedCategoryIds={draftCategoryIds}
+        onToggleCategory={handleToggleDraftCategory}
+        brands={availableBrands}
+        selectedBrands={draftBrands}
+        onToggleBrand={handleToggleDraftBrand}
+        audiences={availableAudiences}
+        selectedAudiences={draftAudiences}
+        onToggleAudience={handleToggleDraftAudience}
+      />
+
       <Footer />
     </PageTransition>
   );

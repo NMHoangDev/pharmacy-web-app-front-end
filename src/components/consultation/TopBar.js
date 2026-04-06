@@ -1,5 +1,4 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
 
 const TopBar = ({
   role,
@@ -7,7 +6,6 @@ const TopBar = ({
   patientName,
   connectionQuality = "high",
 }) => {
-  const navigate = useNavigate();
   const isPharmacist = role === "PHARMACIST";
 
   return (

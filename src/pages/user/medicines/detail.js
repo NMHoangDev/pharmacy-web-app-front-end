@@ -12,6 +12,9 @@ import { PriceDisplay } from "../../../components/medicines/MedicineCard";
 import PageTransition from "../../../components/ui/PageTransition";
 import { getAccessToken } from "../../../utils/auth";
 import useNotificationAction from "../../../hooks/useNotificationAction";
+import { useCampaign } from "../../../hooks/useCampaign";
+import { getCampaignPresentation } from "../../../utils/discountUi";
+import "../../../styles/storefront-premium.css";
 
 const fallbackImage =
   "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=700&q=80";
@@ -66,6 +69,7 @@ const ProductDetailPage = () => {
   const [reviewImages, setReviewImages] = useState([]);
   const { upsertItem, refreshCart } = useCart();
   const { notifyAfterSuccess } = useNotificationAction();
+  const { activeCampaign } = useCampaign({ refreshIntervalMs: 180000 });
   const currentPath = `/medicines/${idOrSlug}`;
   const [existingQtyForPending, setExistingQtyForPending] = useState(0);
   const [actionMessage, setActionMessage] = useState("");
@@ -95,7 +99,7 @@ const ProductDetailPage = () => {
         },
         notificationPayload: {
           category: "CART",
-          title: "Thêm vào giỏ hàng thành công",
+          title: "Thêm ảnh công",
           message: `Bạn đã thêm ${product.name} vào giỏ hàng`,
           sourceType: "PRODUCT",
           sourceId: String(product.id),
@@ -126,7 +130,7 @@ const ProductDetailPage = () => {
         },
         notificationPayload: {
           category: "CART",
-          title: "Thêm vào giỏ hàng thành công",
+          title: "Thêm ảnh công",
           message: `Bạn đã thêm ${product.name} vào giỏ hàng`,
           sourceType: "PRODUCT",
           sourceId: String(product.id),
@@ -391,11 +395,34 @@ const ProductDetailPage = () => {
     return formatPrice(raw);
   }, [product, attributes.oldPrice]);
 
+  const campaignPresentation = useMemo(
+    () => getCampaignPresentation(activeCampaign),
+    [activeCampaign],
+  );
+
+  const dosageFormText =
+    product?.dosageForm || attributes.dosageForm || attributes.form;
+  const packagingText =
+    product?.packaging || attributes.packaging || attributes.packing;
+  const activeIngredientText =
+    product?.activeIngredient || attributes.activeIngredient || attributes.ingredient;
+  const indicationsText =
+    product?.indications || attributes.indications || attributes.usage;
+  const usageDosageText =
+    product?.usageDosage || attributes.usageDosage || attributes.dosage;
+  const contraindicationsWarningText =
+    product?.contraindicationsWarning ||
+    attributes.contraindicationsWarning ||
+    attributes.warning ||
+    attributes.contraindications;
+  const otherInformationText =
+    product?.otherInformation || attributes.otherInformation || attributes.extraInfo;
+
   return (
-    <PageTransition className="bg-background-light dark:bg-background-dark min-h-screen font-display flex flex-col text-slate-900 dark:text-slate-100 antialiased">
+    <PageTransition className="storefront-shell min-h-screen font-display flex flex-col text-slate-900 antialiased">
       <Header />
 
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="storefront-container flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-3 mb-4">
           <button
@@ -430,11 +457,11 @@ const ProductDetailPage = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-16">
+            <div className="storefront-hero storefront-fade-up grid grid-cols-1 gap-12 mb-16 rounded-[36px] border border-white/70 p-5 sm:p-8 lg:grid-cols-12 lg:p-10">
               <div className="lg:col-span-5 space-y-4">
-                <div className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 group relative">
+                <div className="storefront-card aspect-square rounded-[30px] overflow-hidden group relative p-3">
                   <div
-                    className="w-full h-full bg-center bg-no-repeat bg-contain"
+                    className="storefront-float w-full h-full bg-center bg-no-repeat bg-contain"
                     style={{
                       backgroundImage: `url(${gallery[activeImage] || fallbackImage})`,
                     }}
@@ -480,10 +507,10 @@ const ProductDetailPage = () => {
                 </h1>
 
                 <p className="text-slate-500 mb-6 text-lg">
-                  {product.description || attributes.shortDescription || ""}
+                  {product.description || indicationsText || attributes.shortDescription || ""}
                 </p>
 
-                <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl mb-8 border border-slate-100 dark:border-slate-800">
+                <div className="storefront-card rounded-[30px] mb-8 p-6">
                   <PriceDisplay
                     size="detail"
                     price={productPriceLabel}
@@ -491,6 +518,24 @@ const ProductDetailPage = () => {
                     unitLabel={attributes.unitLabel}
                     showSavings
                   />
+
+                  {campaignPresentation ? (
+                    <div className="mt-5 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 p-4 shadow-sm dark:border-amber-400/20 dark:from-amber-500/10 dark:via-orange-500/10 dark:to-rose-500/10">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-white dark:bg-white dark:text-slate-900">
+                          {campaignPresentation.badge}
+                        </span>
+                        <div>
+                          <div className="text-sm font-bold text-slate-900 dark:text-white">
+                            {campaignPresentation.headline}
+                          </div>
+                          <div className="text-xs text-slate-600 dark:text-slate-300">
+                            {campaignPresentation.detail}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <p className="text-xs text-slate-400 mb-6 font-medium italic">
                     *Giá có thể thay đổi tùy vào thời điểm và chương trình
@@ -507,9 +552,7 @@ const ProductDetailPage = () => {
                           Dạng bào chế
                         </p>
                         <p className="font-semibold text-sm">
-                          {attributes.dosageForm ||
-                            attributes.form ||
-                            "Chưa cập nhật"}
+                          {dosageFormText || "Chưa cập nhật"}
                         </p>
                       </div>
                     </div>
@@ -523,9 +566,7 @@ const ProductDetailPage = () => {
                           Quy cách
                         </p>
                         <p className="font-semibold text-sm">
-                          {attributes.packing ||
-                            attributes.packaging ||
-                            "Chưa cập nhật"}
+                          {packagingText || "Chưa cập nhật"}
                         </p>
                       </div>
                     </div>
@@ -536,12 +577,10 @@ const ProductDetailPage = () => {
                       </span>
                       <div>
                         <p className="text-xs text-slate-500 font-bold uppercase">
-                          Thành phần chính
+                          Thêm ảnh
                         </p>
                         <p className="font-semibold text-sm">
-                          {attributes.ingredient ||
-                            attributes.activeIngredient ||
-                            "Chưa cập nhật"}
+                          {activeIngredientText || "Chưa cập nhật"}
                         </p>
                       </div>
                     </div>
@@ -605,7 +644,7 @@ const ProductDetailPage = () => {
                   onCancel={() => setShowConfirm(false)}
                 />
 
-                <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-800/30">
+                <div className="storefront-soft-card rounded-[28px] p-6 flex flex-col md:flex-row items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="size-14 rounded-full bg-primary/20 flex items-center justify-center">
                       <span className="material-symbols-outlined text-primary text-3xl">
@@ -630,7 +669,8 @@ const ProductDetailPage = () => {
 
             {/* Tabs */}
             <div className="mt-12">
-              <div className="border-b border-slate-200 dark:border-slate-800 flex flex-wrap gap-8 mb-8 overflow-x-auto whitespace-nowrap">
+              <div className="storefront-card rounded-[30px] p-4 sm:p-6">
+              <div className="border-b border-slate-200 flex flex-wrap gap-8 mb-8 overflow-x-auto whitespace-nowrap">
                 <button
                   type="button"
                   onClick={() => setActiveTab("benefit")}
@@ -677,17 +717,15 @@ const ProductDetailPage = () => {
                 </button>
               </div>
 
-              <div className="prose prose-slate dark:prose-invert max-w-none space-y-6">
+              <div className="prose prose-slate max-w-none space-y-6">
                 {activeTab === "benefit" ? (
                   <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div className="md:col-span-2">
                       <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">
                         Công dụng &amp; Chỉ định
                       </h3>
-                      <p>
-                        {attributes.usage ||
-                          attributes.indications ||
-                          "Thông tin đang được cập nhật."}
+                      <p className="whitespace-pre-line leading-8 text-slate-700">
+                        {indicationsText || "Thêm ảnhật."}
                       </p>
                     </div>
                     <div className="bg-primary/5 rounded-2xl p-6 border border-primary/10 h-fit">
@@ -710,8 +748,8 @@ const ProductDetailPage = () => {
                     <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">
                       Cách dùng &amp; Liều dùng
                     </h3>
-                    <p>
-                      {attributes.dosage ||
+                    <p className="whitespace-pre-line leading-8 text-slate-700">
+                      {usageDosageText ||
                         "Vui lòng tham khảo hướng dẫn sử dụng trên bao bì hoặc hỏi dược sĩ."}
                     </p>
                   </section>
@@ -722,10 +760,8 @@ const ProductDetailPage = () => {
                     <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">
                       Chống chỉ định &amp; Cảnh báo
                     </h3>
-                    <p>
-                      {attributes.warning ||
-                        attributes.contraindications ||
-                        "Thông tin đang được cập nhật."}
+                    <p className="whitespace-pre-line leading-8 text-slate-700">
+                      {contraindicationsWarningText || "Thêm ảnhật."}
                     </p>
                   </section>
                 ) : null}
@@ -735,11 +771,12 @@ const ProductDetailPage = () => {
                     <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">
                       Thông tin khác
                     </h3>
-                    <p>
-                      {attributes.extraInfo || "Thông tin đang được cập nhật."}
+                    <p className="whitespace-pre-line leading-8 text-slate-700">
+                      {otherInformationText || "Thêm ảnhật."}
                     </p>
                   </section>
                 ) : null}
+              </div>
               </div>
             </div>
 

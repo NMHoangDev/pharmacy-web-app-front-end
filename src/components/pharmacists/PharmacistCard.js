@@ -1,19 +1,28 @@
 import React from "react";
 
 const PharmacistCard = ({ pharmacist, onNavigate }) => {
-  const { image, name, status, rating, badge, experience, reviews, tag } =
-    pharmacist;
+  const {
+    image,
+    name,
+    status,
+    rating,
+    badge,
+    experience,
+    reviews,
+    tag,
+    branchName,
+  } = pharmacist;
 
   const isOnline = String(status).toLowerCase() === "online";
   const open = () => onNavigate?.(pharmacist);
 
   return (
-    <article className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="storefront-card flex h-full flex-col rounded-[26px] p-4 transition-all hover:-translate-y-1 hover:border-sky-200">
       <div className="flex items-start gap-3">
         <img
           src={image}
           alt={name}
-          className="h-14 w-14 rounded-lg border border-slate-200 object-cover"
+          className="h-14 w-14 rounded-2xl border border-slate-200 object-cover"
           loading="lazy"
         />
 
@@ -28,7 +37,7 @@ const PharmacistCard = ({ pharmacist, onNavigate }) => {
               </p>
             </div>
 
-            <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
               <span className="material-symbols-outlined text-[14px] text-amber-500">
                 star
               </span>
@@ -46,14 +55,15 @@ const PharmacistCard = ({ pharmacist, onNavigate }) => {
               />
               {isOnline ? "Online" : "Offline"}
             </span>
-            {experience ? <span>• {experience}</span> : null}
+            {experience ? <span>{experience}</span> : null}
+            {branchName ? <span>{branchName}</span> : null}
             {typeof reviews === "number" && reviews > 0 ? (
-              <span>• {reviews} đánh giá</span>
+              <span>{reviews} đánh giá</span>
             ) : null}
           </div>
 
           {badge ? (
-            <span className="mt-2 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+            <span className="mt-2 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
               {badge}
             </span>
           ) : null}
@@ -64,14 +74,14 @@ const PharmacistCard = ({ pharmacist, onNavigate }) => {
         <button
           type="button"
           onClick={open}
-          className="h-9 rounded-md border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+          className="h-10 rounded-2xl border border-slate-300 bg-white text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
         >
           Xem hồ sơ
         </button>
         <button
           type="button"
           onClick={open}
-          className="h-9 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+          className="h-10 rounded-2xl bg-slate-900 text-sm font-semibold text-white transition-colors hover:bg-primary"
         >
           Tư vấn ngay
         </button>

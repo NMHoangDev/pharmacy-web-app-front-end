@@ -11,10 +11,16 @@ import {
   getAccessToken,
   setAccessToken,
   clearAccessToken,
+  getRefreshToken,
+  setRefreshToken,
+  clearRefreshToken,
+  clearAuthUser,
 } from "../auth/authStorage";
 
 export { decodeJwt, getRolesFromToken, hasAnyRole, isTokenExpired };
 export { getAccessToken, setAccessToken, clearAccessToken };
+export { getRefreshToken, setRefreshToken, clearRefreshToken };
+export { clearAuthUser };
 
 // Keep old names as aliases for now to avoid breaking too many files at once,
 // but point them to the new implementations.
@@ -33,8 +39,14 @@ export const getUserId = () => {
  */
 export const requireAuthOrRedirect = (navigate, fromLocation) => {
   const token = getAccessToken();
-  if (!token || isTokenExpired(token)) {
+  const refreshToken = getRefreshToken();
+  const hasRefreshToken = Boolean(String(refreshToken || "").trim());
+
+  // If access token is expired but refresh token still exists,
+  // let centralized interceptors refresh transparently.
+  if ((!token || isTokenExpired(token)) && !hasRefreshToken) {
     clearAccessToken();
+    clearRefreshToken();
     navigate("/login", { state: { from: fromLocation }, replace: true });
     return false;
   }

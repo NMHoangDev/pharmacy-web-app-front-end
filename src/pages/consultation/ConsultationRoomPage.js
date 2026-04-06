@@ -305,7 +305,7 @@ const ConsultationRoomPage = () => {
       stomp.disconnect();
       webrtc.closeConnection();
     };
-  }, [appointmentId, normalizeChatMessage, userId]);
+  }, [appointmentId, normalizeChatMessage, stomp, userId, webrtc]);
 
   useEffect(() => {
     if (session?.roomId) {
@@ -336,7 +336,7 @@ const ConsultationRoomPage = () => {
         }
       });
     }
-  }, [session, webrtc.localStream, effectiveType]);
+  }, [session, webrtc, webrtc.localStream, effectiveType]);
 
   // Reset offer/join flags when session changes (new session = new call)
   useEffect(() => {
@@ -376,7 +376,7 @@ const ConsultationRoomPage = () => {
       joinSentRef.current = true;
       stomp.sendSignal("JOIN", {});
     }
-  }, [isPharmacistRole, stomp.isConnected]);
+  }, [isPharmacistRole, stomp, stomp.isConnected]);
 
   const handleSendMessage = async (text, note = null) => {
     const content = String(text || "").trim();

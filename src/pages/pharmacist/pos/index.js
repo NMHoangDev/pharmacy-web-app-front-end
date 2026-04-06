@@ -6,8 +6,8 @@ import PosSearchBar from "../../../components/phamacist_POS/PosSearchBar";
 import PosProductTable from "../../../components/phamacist_POS/PosProductTable";
 import PosOrderPanel from "../../../components/phamacist_POS/PosOrderPanel";
 import {
-  searchPosProducts,
   listOfflinePosOrders,
+  searchPosProducts,
 } from "../../../api/pharmacistPosApi";
 import { useAppContext } from "../../../context/AppContext";
 import { useBranches } from "../../../hooks/useBranches";
@@ -76,7 +76,7 @@ const PharmacistPosPage = () => {
       });
       setProducts(Array.isArray(res?.content) ? res.content : []);
     } catch (err) {
-      setError(err.message || "Không thể tải danh sách sản phẩm");
+      setError(err.message || "Không thể tải danh sách sản phẩm.");
     } finally {
       setLoadingProducts(false);
     }
@@ -156,6 +156,7 @@ const PharmacistPosPage = () => {
             : item,
         );
       }
+
       return [
         ...prev,
         {
@@ -188,6 +189,7 @@ const PharmacistPosPage = () => {
   const handleContinue = () => {
     setMessage("");
     setError("");
+
     if (!normalizedBranchId) {
       setError("Vui lòng chọn chi nhánh.");
       return;
@@ -232,15 +234,15 @@ const PharmacistPosPage = () => {
   };
 
   return (
-    <div className="bg-background-light text-slate-900 dark:bg-background-dark dark:text-slate-100 font-display antialiased h-screen flex flex-col overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden bg-background-light font-display antialiased text-slate-900 dark:bg-background-dark dark:text-slate-100">
       <PharmacistSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
 
       <PosTopBar
-        userName={authUser?.fullName || authUser?.email || "Pharmacist"}
-        roleName="Pharmacist"
+        userName={authUser?.fullName || authUser?.email || "Dược sĩ"}
+        roleName="Dược sĩ"
         onToggleSidebar={() => setSidebarOpen(true)}
         onClearCart={() => {
           setCart([]);
@@ -249,8 +251,8 @@ const PharmacistPosPage = () => {
         }}
       />
 
-      <main className="flex flex-1 overflow-hidden min-h-0 flex-col xl:flex-row gap-3 xl:gap-0 p-3 md:p-4">
-        <section className="flex flex-col flex-1 bg-slate-50 dark:bg-background-dark min-w-0 min-h-0 rounded-xl border border-slate-200 dark:border-slate-700">
+      <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 md:p-4 xl:flex-row xl:gap-0">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-background-dark">
           <PosSearchBar
             query={query}
             onQueryChange={setQuery}
@@ -262,46 +264,43 @@ const PharmacistPosPage = () => {
             loading={loadingProducts}
           />
 
-          <div className="px-4 md:px-6 pb-2">
-            {error && (
+          <div className="px-4 pb-2 md:px-6">
+            {error ? (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">
                 {error}
               </div>
-            )}
-            {branchError && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700 mt-2">
-                {branchError}
-              </div>
-            )}
-            {message && (
+            ) : null}
+
+            {message ? (
               <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
                 {message}
               </div>
-            )}
+            ) : null}
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-4 md:pb-6 min-h-0">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6">
             <PosProductTable
               products={products}
               onAddToCart={handleAddToCart}
             />
 
-            <div className="mt-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-              <h3 className="text-sm font-semibold mb-2">
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+              <h3 className="mb-2 text-sm font-semibold">
                 Đơn gần đây (hôm nay)
               </h3>
+
               <div className="space-y-2 text-sm">
                 {recentOrders.length > 0 ? (
                   recentOrders.map((order) => (
                     <div
                       key={order.id}
-                      className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2"
+                      className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-700"
                     >
                       <div className="min-w-0">
-                        <p className="font-medium truncate">
+                        <p className="truncate font-medium">
                           {order.orderCode}
                         </p>
-                        <p className="text-xs text-slate-500 truncate">
+                        <p className="truncate text-xs text-slate-500">
                           {order.status} •{" "}
                           {Number(order.totalAmount || 0).toLocaleString(
                             "vi-VN",

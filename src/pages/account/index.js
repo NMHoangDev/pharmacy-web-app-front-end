@@ -19,6 +19,33 @@ import {
 } from "../../components/ui/dialog";
 import AppointmentList from "../../components/account/AppointmentList";
 
+const orderStatusLabelMap = {
+  DRAFT: "Chờ xác nhận",
+  PENDING_PAYMENT: "Chờ xác nhận",
+  PLACED: "Chờ xác nhận",
+  CONFIRMED: "Đang xử lý",
+  SHIPPING: "Đang giao",
+  COMPLETED: "Đã hoàn thành",
+  CANCELED: "Đã hủy",
+};
+
+const paymentStatusLabelMap = {
+  INIT: "Chưa thanh toán",
+  PENDING: "Chưa thanh toán",
+  UNPAID: "Chưa thanh toán",
+  FAILED: "Chưa thanh toán",
+  PAID: "Đã thanh toán",
+  REFUNDED: "Đã thanh toán",
+};
+
+const toOrderStatusLabel = (status) =>
+  orderStatusLabelMap[String(status || "").toUpperCase()] ||
+  String(status || "Đang cập nhật");
+
+const toPaymentStatusLabel = (status) =>
+  paymentStatusLabelMap[String(status || "").toUpperCase()] ||
+  String(status || "Đang cập nhật");
+
 const defaultProfile = {
   name: "Nguyễn Văn A",
   membership: "Thành viên Bạc",
@@ -83,6 +110,26 @@ const AccountPage = () => {
       setActiveKey(nextTab);
     }
   }, [location.state, queryTab]);
+
+  useEffect(() => {
+    if (location.state?.paymentResult !== "success") return;
+    setSuccessDialog({
+      open: true,
+      message:
+        location.state?.paymentMessage ||
+        "Thanh toán thành công. Đơn hàng đã được cập nhật trong lịch sử mua hàng.",
+    });
+    navigate(location.pathname + location.search, {
+      replace: true,
+      state: { activeTab: location.state?.activeTab || queryTab || "orders" },
+    });
+  }, [
+    location.pathname,
+    location.search,
+    location.state,
+    navigate,
+    queryTab,
+  ]);
 
   const avatarPreview = useMemo(() => {
     const value =
@@ -448,7 +495,10 @@ const AccountPage = () => {
                           <div>
                             <p className="text-sm text-slate-500">Trạng thái</p>
                             <p className="font-semibold text-primary">
-                              {order.status}
+                              {toOrderStatusLabel(order.status)}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Thanh toán: {toPaymentStatusLabel(order.paymentStatus)}
                             </p>
                           </div>
                           <div>
@@ -677,8 +727,7 @@ const AccountPage = () => {
       >
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Lưu thành công</DialogTitle>
-            <DialogDescription>{successDialog.message}</DialogDescription>
+            <DialogTitle>Thành công</DialogTitle><DialogDescription>{successDialog.message}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <button
@@ -700,10 +749,7 @@ const AccountPage = () => {
       >
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {answerDialog.question?.title || "Câu trả lời"}
-            </DialogTitle>
-            <DialogDescription>
+            <DialogTitle>Thành công</DialogTitle><DialogDescription>
               {answerDialog.question?.createdAt
                 ? new Date(answerDialog.question.createdAt).toLocaleString(
                     "vi-VN",
@@ -765,3 +811,4 @@ const AccountPage = () => {
 };
 
 export default AccountPage;
+

@@ -1,9 +1,48 @@
-// Auth domain: sessionStorage access for auth data.
-// Centralizing storage keeps UI components free of direct storage calls.
+import { decodeJwt } from "./jwt";
 
 const ACCESS_TOKEN_KEY = "accessToken";
 const LEGACY_AUTH_TOKEN_KEY = "authToken";
 const AUTH_USER_KEY = "authUser";
+const REFRESH_TOKEN_KEY = "refreshToken";
+
+const INVALID_TOKEN_VALUES = new Set([
+  "",
+  "null",
+  "undefined",
+  "none",
+  "token",
+  "access_token",
+  "your_token",
+  "placeholder",
+  "bearer",
+  "bearer token",
+  "jwt",
+]);
+
+const normalizeTokenValue = (token) => {
+  const raw = String(token || "").trim();
+  if (!raw) return "";
+
+  const noBearer = raw.toLowerCase().startsWith("bearer ")
+    ? raw.slice(7).trim()
+    : raw;
+
+  const lowered = noBearer.toLowerCase();
+  if (!noBearer || INVALID_TOKEN_VALUES.has(lowered)) return "";
+  if (lowered.includes("placeholder")) return "";
+
+  return noBearer;
+};
+
+export const normalizeAccessToken = (token) => {
+  const candidate = normalizeTokenValue(token);
+  if (!candidate) return "";
+
+  const decoded = decodeJwt(candidate);
+  return decoded ? candidate : "";
+};
+
+const normalizeRefreshToken = (token) => normalizeTokenValue(token);
 
 const safeSessionStorage = () => {
   try {
@@ -24,18 +63,25 @@ const dispatchAuthChanged = () => {
 export const getAccessToken = () => {
   const storage = safeSessionStorage();
   if (!storage) return "";
-  return (
+  const raw =
     storage.getItem(ACCESS_TOKEN_KEY) ||
     storage.getItem(LEGACY_AUTH_TOKEN_KEY) ||
-    ""
-  );
+    "";
+
+  const normalized = normalizeAccessToken(raw);
+  if (!normalized && raw) {
+    storage.removeItem(ACCESS_TOKEN_KEY);
+    storage.removeItem(LEGACY_AUTH_TOKEN_KEY);
+  }
+
+  return normalized;
 };
 
 export const setAccessToken = (token) => {
   const storage = safeSessionStorage();
   if (!storage) return;
 
-  const value = String(token || "");
+  const value = normalizeAccessToken(token);
   if (value) {
     storage.setItem(ACCESS_TOKEN_KEY, value);
     storage.removeItem(LEGACY_AUTH_TOKEN_KEY);
@@ -51,6 +97,37 @@ export const clearAccessToken = () => {
   if (!storage) return;
   storage.removeItem(ACCESS_TOKEN_KEY);
   storage.removeItem(LEGACY_AUTH_TOKEN_KEY);
+  dispatchAuthChanged();
+};
+
+export const getRefreshToken = () => {
+  const storage = safeSessionStorage();
+  if (!storage) return "";
+  const raw = storage.getItem(REFRESH_TOKEN_KEY) || "";
+  const normalized = normalizeRefreshToken(raw);
+  if (!normalized && raw) {
+    storage.removeItem(REFRESH_TOKEN_KEY);
+  }
+  return normalized;
+};
+
+export const setRefreshToken = (token) => {
+  const storage = safeSessionStorage();
+  if (!storage) return;
+
+  const value = normalizeRefreshToken(token);
+  if (value) {
+    storage.setItem(REFRESH_TOKEN_KEY, value);
+  } else {
+    storage.removeItem(REFRESH_TOKEN_KEY);
+  }
+  dispatchAuthChanged();
+};
+
+export const clearRefreshToken = () => {
+  const storage = safeSessionStorage();
+  if (!storage) return;
+  storage.removeItem(REFRESH_TOKEN_KEY);
   dispatchAuthChanged();
 };
 

@@ -7,9 +7,15 @@ import React, {
   useCallback,
 } from "react";
 import * as cartApi from "../api/cartApi";
-import { getUserId, getAuthToken } from "../utils/auth";
+import { getUserId, getAuthToken, getRolesFromToken } from "../utils/auth";
 
 const CartContext = createContext(null);
+
+const isAdminSession = () => {
+  const token = getAuthToken();
+  const roles = getRolesFromToken(token);
+  return Array.isArray(roles) && roles.includes("ADMIN");
+};
 
 export const CartProvider = ({ children }) => {
   const [cartItems, setCartItems] = useState([]);
@@ -35,11 +41,11 @@ export const CartProvider = ({ children }) => {
   const refreshCart = useCallback(async () => {
     const token = getAuthToken();
     const userId = getUserId();
-    if (!token || !userId) {
+    if (!token || !userId || isAdminSession()) {
       // eslint-disable-next-line no-console
       console.log(
-        "CartContext.refreshCart -> no token or userId, clearing cart",
-        { token, userId },
+        "CartContext.refreshCart -> skip and clear cart",
+        { hasToken: Boolean(token), userId, isAdmin: isAdminSession() },
       );
       setCartItems([]);
       return;

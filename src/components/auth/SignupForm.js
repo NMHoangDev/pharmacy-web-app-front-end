@@ -2,7 +2,16 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 
-const SignupForm = ({ onSubmit, loading }) => {
+const GoogleIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+    <path
+      fill="#EA4335"
+      d="M12 10.2v3.9h5.5c-.2 1.3-1.5 3.9-5.5 3.9-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.2.8 3.9 1.5l2.7-2.6C17 3.3 14.7 2.3 12 2.3a9.7 9.7 0 0 0 0 19.4c5.6 0 9.3-3.9 9.3-9.4 0-.6-.1-1.1-.2-1.6H12z"
+    />
+  </svg>
+);
+
+const SignupForm = ({ onSubmit, onGoogleLogin, loading, oauthLoading }) => {
   const [form, setForm] = useState({
     fullName: "",
     phone: "",
@@ -61,19 +70,40 @@ const SignupForm = ({ onSubmit, loading }) => {
   };
 
   const inputClassName =
-    "w-full h-11 rounded-[10px] border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827] placeholder:text-[#9CA3AF] outline-none transition-all duration-200 focus:border-[#2563EB] focus:shadow-[0_0_0_3px_rgba(37,99,235,0.10)]";
+    "w-full h-12 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-sky-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(14,165,233,0.10)]";
   const errorClassName = "mt-1 text-[12px] text-red-600";
   const successClassName = "mt-1 text-[12px] text-emerald-600";
 
   return (
     <motion.form
-      className="rounded-2xl bg-white/85 p-7 shadow-[0_10px_30px_rgba(0,0,0,0.06)] backdrop-blur-[8px] space-y-6"
+      className="space-y-6"
       onSubmit={handleSubmit}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.24, ease: "easeOut" }}
       noValidate
     >
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => onGoogleLogin?.()}
+          disabled={loading || oauthLoading}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition-all duration-200 hover:border-sky-200 hover:bg-sky-50/60 hover:shadow-[0_10px_20px_rgba(15,23,42,0.05)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <GoogleIcon />
+          <span>
+            {oauthLoading ? "Đang chuyển sang Google..." : "Tiếp tục với Google"}
+          </span>
+        </button>
+        <div className="relative flex items-center">
+          <div className="flex-grow border-t border-slate-200" />
+          <span className="mx-3 text-[11px] uppercase tracking-wide text-slate-400">
+            hoặc tạo tài khoản bằng email
+          </span>
+          <div className="flex-grow border-t border-slate-200" />
+        </div>
+      </div>
+
       <div className="space-y-5">
         <label className="block">
           <span className="mb-1.5 block text-[13px] font-medium text-[#374151]">
@@ -243,11 +273,11 @@ const SignupForm = ({ onSubmit, loading }) => {
       </div>
 
       <details
-        className="group rounded-xl bg-white/60 border border-[#E5E7EB] open:bg-white transition-all duration-300"
+        className="group rounded-[24px] border border-slate-200 bg-slate-50/65 open:bg-white transition-all duration-300"
         open={showOptional}
         onToggle={(e) => setShowOptional(e.target.open)}
       >
-        <summary className="flex cursor-pointer items-center justify-between gap-4 p-4 text-[#111827] font-medium select-none">
+        <summary className="flex cursor-pointer items-center justify-between gap-4 p-4 text-slate-900 font-medium select-none">
           <span className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#9CA3AF]">
               tune
@@ -258,7 +288,7 @@ const SignupForm = ({ onSubmit, loading }) => {
             expand_more
           </span>
         </summary>
-        <div className="p-4 pt-0 space-y-4 border-t border-[#E5E7EB] mt-2">
+        <div className="mt-2 space-y-4 border-t border-slate-200 p-4 pt-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
             <label className="block">
               <span className="mb-1.5 block text-[13px] font-medium text-[#374151]">
@@ -344,10 +374,7 @@ const SignupForm = ({ onSubmit, loading }) => {
 
       <div className="pt-1">
         <button
-          className="flex h-11 w-full justify-center items-center rounded-[10px] px-3 text-sm font-semibold leading-6 text-white shadow-[0_8px_18px_rgba(37,99,235,0.24)] transition-all duration-200 hover:-translate-y-[1px] hover:shadow-[0_6px_16px_rgba(37,99,235,0.2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{
-            backgroundImage: "linear-gradient(135deg, #3b82f6, #2563eb)",
-          }}
+          className="flex h-12 w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#1d4ed8,#38bdf8)] px-3 text-sm font-semibold leading-6 text-white shadow-[0_16px_30px_rgba(37,99,235,0.24)] transition-all duration-200 hover:-translate-y-[1px] hover:shadow-[0_20px_36px_rgba(37,99,235,0.28)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
           type="submit"
           disabled={loading}
         >

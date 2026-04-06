@@ -4,26 +4,17 @@ import "./index.css";
 import "leaflet/dist/leaflet.css";
 import App from "./App";
 import { CartProvider } from "./contexts/CartContext";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryProvider } from "./providers/QueryProvider";
 import reportWebVitals from "./reportWebVitals";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-});
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <QueryProvider>
       <CartProvider>
         <App />
       </CartProvider>
-    </QueryClientProvider>
+    </QueryProvider>
   </React.StrictMode>,
 );
 

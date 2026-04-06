@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -13,12 +13,21 @@ import {
   resolveJsonImagesToDataUrls,
 } from "../../../utils/media";
 
-const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
+const ContentQuickDraft = ({
+  onSave,
+  onOpenFullEditor,
+  products = [],
+  onGenerateAiDraft,
+  draftSeed,
+}) => {
   const [title, setTitle] = useState("");
+  const [excerpt, setExcerpt] = useState("");
+  const [caption, setCaption] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [suggestedTags, setSuggestedTags] = useState([]);
+  const [disclaimer, setDisclaimer] = useState("");
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
-  const [draftContentHtml, setDraftContentHtml] = useState("");
-  const [draftContentJson, setDraftContentJson] = useState(null);
   const [draftImages, setDraftImages] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -27,6 +36,8 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
   const [coverUploading, setCoverUploading] = useState(false);
   const [coverError, setCoverError] = useState("");
   const [mediaAlbumId, setMediaAlbumId] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
   const fileInputRef = useRef(null);
   const coverInputRef = useRef(null);
 
@@ -47,13 +58,34 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
       }),
     ],
     content: "",
-    onUpdate: ({ editor: current }) => {
-      setDraftContentHtml(current.getHTML());
-      setDraftContentJson(current.getJSON());
-    },
   });
 
   const canSubmit = useMemo(() => title.trim().length > 0, [title]);
+
+  const applyDraft = (draft) => {
+    if (!draft) return;
+    setTitle(draft.title || "");
+    setExcerpt(draft.excerpt || "");
+    setCaption(draft.caption || "");
+    setSuggestedTags(Array.isArray(draft.tags) ? draft.tags : []);
+    setDisclaimer(draft.disclaimer || "");
+    setSelectedProductId(draft.selectedProductId || "");
+    setCoverImageUrl(draft.coverImageUrl || "");
+    setCoverPreviewUrl(draft.coverImageUrl || "");
+    if (editor) {
+      editor.commands.setContent(draft.contentHtml || "");
+    }
+    setStatus(
+      draft.sourceProductName
+        ? `Đã nạp bản nháp AI cho ${draft.sourceProductName}. Bạn có thể rà soát và chỉnh sửa trước khi lưu.`
+        : "Đã nạp bản nháp AI để bạn rà soát.",
+    );
+  };
+
+  useEffect(() => {
+    if (!draftSeed || !editor) return;
+    applyDraft(draftSeed);
+  }, [draftSeed, editor]);
 
   const resolveImagesToBase64 = async (images) => {
     if (!images?.length) return [];
@@ -64,7 +96,7 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
       let base64Url = item.url;
       try {
         base64Url = await fetchMediaImageAsDataUrl(item.url);
-      } catch (err) {
+      } catch {
         base64Url = item.url;
       }
       results.push({
@@ -76,27 +108,29 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
     return results;
   };
 
+  const buildPayload = async () => ({
+    title,
+    excerpt,
+    caption,
+    disclaimer,
+    tags: suggestedTags,
+    selectedProductId,
+    contentHtml: await resolveHtmlImagesToDataUrls(editor?.getHTML() || ""),
+    contentJson: await resolveJsonImagesToDataUrls(editor?.getJSON() || null),
+    images: await resolveImagesToBase64(draftImages),
+    coverImageUrl: coverImageUrl || null,
+  });
+
   const handleSave = async () => {
     if (!canSubmit) {
       setStatus("Vui lòng nhập tiêu đề trước khi lưu.");
       return;
     }
-    const bodyHtml = editor?.getHTML() || "";
-    const bodyJson = editor?.getJSON() || null;
     setSaving(true);
     setStatus("");
     try {
       if (onSave) {
-        const resolvedHtml = await resolveHtmlImagesToDataUrls(bodyHtml);
-        const resolvedJson = await resolveJsonImagesToDataUrls(bodyJson);
-        const resolvedImages = await resolveImagesToBase64(draftImages);
-        await onSave({
-          title,
-          contentHtml: resolvedHtml,
-          contentJson: resolvedJson,
-          images: resolvedImages,
-          coverImageUrl: coverImageUrl || null,
-        });
+        await onSave(await buildPayload());
       }
       setStatus("Đã lưu nháp thành công.");
     } catch (err) {
@@ -107,42 +141,31 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
   };
 
   const handleContinue = async () => {
-    if (!onOpenFullEditor) {
-      alert("Mở trình soạn thảo đầy đủ (mock)");
+    if (!onOpenFullEditor) return;
+    try {
+      onOpenFullEditor(await buildPayload());
+    } catch (err) {
+      setStatus(err?.message || "Không thể mở trình soạn thảo đầy đủ.");
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!selectedProductId) {
+      setAiError("Vui lòng chọn sản phẩm trước khi dùng AI generate.");
       return;
     }
-    const bodyHtml = editor?.getHTML() || "";
-    const bodyJson = editor?.getJSON() || null;
-    const resolvedHtml = await resolveHtmlImagesToDataUrls(bodyHtml);
-    const resolvedJson = await resolveJsonImagesToDataUrls(bodyJson);
-    const resolvedImages = await resolveImagesToBase64(draftImages);
-    onOpenFullEditor({
-      title,
-      contentHtml: resolvedHtml,
-      contentJson: resolvedJson,
-      images: resolvedImages,
-      coverImageUrl: coverImageUrl || null,
-    });
-  };
-
-  const currentHeading = () => {
-    if (editor?.isActive("heading", { level: 1 })) return "h1";
-    if (editor?.isActive("heading", { level: 2 })) return "h2";
-    return "paragraph";
-  };
-
-  const setHeading = (value) => {
-    if (!editor) return;
-    if (value === "paragraph") {
-      editor.chain().focus().setParagraph().run();
-      return;
+    if (!onGenerateAiDraft) return;
+    setAiLoading(true);
+    setAiError("");
+    setStatus("");
+    try {
+      applyDraft(await onGenerateAiDraft(selectedProductId));
+    } catch (err) {
+      setAiError(err?.message || "Không thể tạo bản nháp AI lúc này.");
+    } finally {
+      setAiLoading(false);
     }
-    const level = Number(value.replace("h", ""));
-    editor.chain().focus().toggleHeading({ level }).run();
   };
-
-  const canToggleHeading = (level) =>
-    !!editor?.can().chain().focus().toggleHeading({ level }).run();
 
   const handleLink = () => {
     if (!editor) return;
@@ -156,15 +179,6 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   };
 
-  const handleInsertImage = () => {
-    if (!editor) return;
-    fileInputRef.current?.click();
-  };
-
-  const handleCoverPick = () => {
-    coverInputRef.current?.click();
-  };
-
   const handleCoverSelected = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -175,14 +189,8 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
       const localPreview = await fileToDataUrl(file);
       const { url } = await uploadMediaImage(file, mediaAlbumId);
       if (!url) throw new Error("Không thể tải ảnh bìa.");
-      let displayUrl = localPreview || url;
-      if (!localPreview) {
-        try {
-          displayUrl = await fetchMediaImageAsDataUrl(url);
-        } catch (err) {
-          displayUrl = url;
-        }
-      }
+      const displayUrl =
+        localPreview || (await fetchMediaImageAsDataUrl(url).catch(() => url));
       setCoverImageUrl(displayUrl);
       setCoverPreviewUrl(displayUrl);
     } catch (err) {
@@ -204,22 +212,15 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
       if (!url) throw new Error("Không thể tải ảnh lên.");
       if (albumId) setMediaAlbumId(albumId);
       const altText = window.prompt("Mô tả hình ảnh", "") || "";
-      let displayUrl = localPreview || url;
-      if (!localPreview) {
-        try {
-          displayUrl = await fetchMediaImageAsDataUrl(url);
-        } catch (err) {
-          displayUrl = url;
-        }
-      }
-      const captionText = altText.trim();
+      const displayUrl =
+        localPreview || (await fetchMediaImageAsDataUrl(url).catch(() => url));
       editor
         .chain()
         .focus()
         .insertFigureImage({
           src: displayUrl,
           alt: altText,
-          caption: captionText,
+          caption: altText.trim(),
         })
         .run();
       setDraftImages((prev) => [
@@ -233,46 +234,148 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
     }
   };
 
+  const toolbarBtn = (active) =>
+    `rounded-xl p-1 ${
+      active
+        ? "bg-primary/10 text-primary"
+        : "text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
+    }`;
+
   return (
-    <div className="lg:col-span-2 bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-[#e7edf3] dark:border-gray-800 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-text-main dark:text-white flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">
-            edit_note
-          </span>
-          Soạn thảo nhanh
-        </h3>
+    <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+            <span className="material-symbols-outlined text-primary">
+              edit_note
+            </span>
+            Soạn thảo nhanh
+          </h3>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Tạo nháp bài viết và dùng AI để lên tiêu đề, caption dẫn bài cùng
+            khung nội dung.
+          </p>
+        </div>
         <button
           type="button"
-          className="text-sm text-primary font-medium hover:underline"
+          className="rounded-2xl px-4 py-2 text-sm font-semibold text-primary transition hover:bg-blue-50 dark:hover:bg-slate-800"
           onClick={handleContinue}
         >
           Mở trình soạn thảo đầy đủ
         </button>
       </div>
+
       <div className="space-y-4">
+        <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-4 shadow-sm dark:border-amber-900/40 dark:from-amber-950/30 dark:via-slate-900 dark:to-slate-900">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="flex-1 space-y-2">
+              <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Chọn sản phẩm để AI viết bài PR mềm
+              </label>
+              <select
+                value={selectedProductId}
+                onChange={(e) => setSelectedProductId(e.target.value)}
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 shadow-sm outline-none transition focus:border-amber-300 focus:ring-2 focus:ring-amber-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              >
+                <option value="">Chọn sản phẩm</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.name}
+                    {product.categoryName ? ` • ${product.categoryName}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={aiLoading}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-lg shadow-amber-200/60 transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-amber-400 dark:text-slate-950 dark:hover:bg-amber-300"
+            >
+              <span className="material-symbols-outlined animate-pulse text-[18px]">
+                auto_awesome
+              </span>
+              {aiLoading ? "AI đang lên bài..." : "Generate bằng AI"}
+            </button>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
+            AI sẽ gợi ý tiêu đề đầy đủ, excerpt, caption dẫn bài và nội dung theo
+            hướng tinh tế, bớt cảm giác quảng cáo trực diện.
+          </p>
+          {aiError ? (
+            <p className="mt-2 text-xs font-medium text-rose-600">{aiError}</p>
+          ) : null}
+        </div>
+
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
+          className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
           placeholder="Tiêu đề bài viết..."
           type="text"
         />
-        <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 p-3 bg-gray-50/60 dark:bg-gray-900/40">
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Tóm tắt mở bài
+            </span>
+            <textarea
+              rows={3}
+              value={excerpt}
+              onChange={(e) => setExcerpt(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              placeholder="1-2 câu giới thiệu nhanh cho bài viết..."
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Caption dẫn bài
+            </span>
+            <textarea
+              rows={3}
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              placeholder="Caption nhẹ nhàng, khơi gợi đọc tiếp nhưng không quá quảng cáo..."
+            />
+          </label>
+        </div>
+
+        {suggestedTags.length ? (
+          <div className="flex flex-wrap gap-2">
+            {suggestedTags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {disclaimer ? (
+          <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-200">
+            <strong>Lưu ý AI:</strong> {disclaimer}
+          </div>
+        ) : null}
+
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-950/40">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-text-main dark:text-white">
+              <p className="text-sm font-semibold text-slate-800 dark:text-white">
                 Ảnh bìa bài viết
               </p>
-              <p className="text-xs text-text-secondary dark:text-gray-400">
-                Ảnh đại diện cho bài viết khi hiển thị danh sách.
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Ảnh đại diện cho bài viết khi hiển thị trong danh sách nội dung.
               </p>
             </div>
             <div className="flex items-center gap-2">
               {coverImageUrl ? (
                 <button
                   type="button"
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 dark:border-gray-700 text-text-secondary dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="rounded-2xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   onClick={() => {
                     setCoverImageUrl("");
                     setCoverPreviewUrl("");
@@ -284,8 +387,8 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
               ) : null}
               <button
                 type="button"
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-white hover:bg-primary/90"
-                onClick={handleCoverPick}
+                className="rounded-2xl bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-blue-600"
+                onClick={() => coverInputRef.current?.click()}
                 disabled={coverUploading}
               >
                 {coverUploading ? "Đang tải..." : "Chọn ảnh"}
@@ -293,57 +396,52 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
             </div>
           </div>
           {coverPreviewUrl ? (
-            <div className="mt-3 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
               <img
                 src={coverPreviewUrl}
                 alt="Ảnh bìa"
-                className="w-full h-40 object-cover"
+                className="h-44 w-full object-cover"
               />
             </div>
           ) : null}
           {coverError ? (
-            <p className="text-xs text-rose-500 mt-2">{coverError}</p>
+            <p className="mt-2 text-xs text-rose-500">{coverError}</p>
           ) : null}
         </div>
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-          <div className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 py-2 flex gap-1 items-center flex-wrap">
-            <div className="flex items-center gap-1 mr-2">
+
+        <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
+          <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+            <div className="mr-2 flex items-center gap-1">
               {[1, 2].map((level) => (
                 <button
                   key={level}
                   type="button"
-                  className={`px-2 py-1 text-xs font-semibold rounded-md ${
-                    editor?.isActive("heading", { level })
-                      ? "bg-primary/10 text-primary"
-                      : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-                  }`}
+                  className={`${toolbarBtn(editor?.isActive("heading", { level }))} rounded-xl px-2 py-1 text-xs font-semibold`}
                   onClick={() =>
                     editor?.chain().focus().toggleHeading({ level }).run()
                   }
-                  disabled={!canToggleHeading(level)}
+                  disabled={
+                    !editor?.can().chain().focus().toggleHeading({ level }).run()
+                  }
                 >
                   H{level}
                 </button>
               ))}
               <button
                 type="button"
-                className={`px-2 py-1 text-xs font-semibold rounded-md ${
-                  currentHeading() === "paragraph"
+                className={`${
+                  editor?.isActive("paragraph")
                     ? "bg-primary/10 text-primary"
-                    : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-                }`}
-                onClick={() => setHeading("paragraph")}
+                    : "text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
+                } rounded-xl px-2 py-1 text-xs font-semibold`}
+                onClick={() => editor?.chain().focus().setParagraph().run()}
                 disabled={!editor}
               >
                 Normal
               </button>
             </div>
             <button
-              className={`p-1 rounded ${
-                editor?.isActive("bold")
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-              }`}
+              className={toolbarBtn(editor?.isActive("bold"))}
               type="button"
               onClick={() => editor?.chain().focus().toggleBold().run()}
               disabled={!editor?.can().chain().focus().toggleBold().run()}
@@ -353,11 +451,7 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
               </span>
             </button>
             <button
-              className={`p-1 rounded ${
-                editor?.isActive("italic")
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-              }`}
+              className={toolbarBtn(editor?.isActive("italic"))}
               type="button"
               onClick={() => editor?.chain().focus().toggleItalic().run()}
               disabled={!editor?.can().chain().focus().toggleItalic().run()}
@@ -367,11 +461,7 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
               </span>
             </button>
             <button
-              className={`p-1 rounded ${
-                editor?.isActive("underline")
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-              }`}
+              className={toolbarBtn(editor?.isActive("underline"))}
               type="button"
               onClick={() => editor?.chain().focus().toggleUnderline().run()}
               disabled={!editor?.can().chain().focus().toggleUnderline().run()}
@@ -380,13 +470,8 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
                 format_underlined
               </span>
             </button>
-            <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
             <button
-              className={`p-1 rounded ${
-                editor?.isActive("bulletList")
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-              }`}
+              className={toolbarBtn(editor?.isActive("bulletList"))}
               type="button"
               onClick={() => editor?.chain().focus().toggleBulletList().run()}
               disabled={!editor?.can().chain().focus().toggleBulletList().run()}
@@ -396,27 +481,17 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
               </span>
             </button>
             <button
-              className={`p-1 rounded ${
-                editor?.isActive("orderedList")
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-              }`}
+              className={toolbarBtn(editor?.isActive("orderedList"))}
               type="button"
               onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-              disabled={
-                !editor?.can().chain().focus().toggleOrderedList().run()
-              }
+              disabled={!editor?.can().chain().focus().toggleOrderedList().run()}
             >
               <span className="material-symbols-outlined text-[18px]">
                 format_list_numbered
               </span>
             </button>
             <button
-              className={`p-1 rounded ${
-                editor?.isActive("blockquote")
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-              }`}
+              className={toolbarBtn(editor?.isActive("blockquote"))}
               type="button"
               onClick={() => editor?.chain().focus().toggleBlockquote().run()}
               disabled={!editor?.can().chain().focus().toggleBlockquote().run()}
@@ -426,25 +501,7 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
               </span>
             </button>
             <button
-              className={`p-1 rounded ${
-                editor?.isActive("codeBlock")
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-              }`}
-              type="button"
-              onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
-              disabled={!editor?.can().chain().focus().toggleCodeBlock().run()}
-            >
-              <span className="material-symbols-outlined text-[18px]">
-                code
-              </span>
-            </button>
-            <button
-              className={`p-1 rounded ${
-                editor?.isActive("link")
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-              }`}
+              className={toolbarBtn(editor?.isActive("link"))}
               type="button"
               onClick={handleLink}
               disabled={!editor}
@@ -454,9 +511,9 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
               </span>
             </button>
             <button
-              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300"
+              className="rounded-xl p-1 text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
               type="button"
-              onClick={handleInsertImage}
+              onClick={() => fileInputRef.current?.click()}
               disabled={!editor || uploading}
             >
               <span className="material-symbols-outlined text-[18px]">
@@ -464,27 +521,7 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
               </span>
             </button>
             <button
-              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300"
-              type="button"
-              onClick={() =>
-                editor?.chain().focus().unsetAllMarks().clearNodes().run()
-              }
-              disabled={
-                !editor
-                  ?.can()
-                  .chain()
-                  .focus()
-                  .unsetAllMarks()
-                  .clearNodes()
-                  .run()
-              }
-            >
-              <span className="material-symbols-outlined text-[18px]">
-                format_clear
-              </span>
-            </button>
-            <button
-              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300"
+              className="rounded-xl p-1 text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
               type="button"
               onClick={() => editor?.chain().focus().undo().run()}
               disabled={!editor?.can().chain().focus().undo().run()}
@@ -494,7 +531,7 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
               </span>
             </button>
             <button
-              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300"
+              className="rounded-xl p-1 text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
               type="button"
               onClick={() => editor?.chain().focus().redo().run()}
               disabled={!editor?.can().chain().focus().redo().run()}
@@ -506,9 +543,10 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
           </div>
           <EditorContent
             editor={editor}
-            className="tiptap content-editor w-full px-4 py-3 bg-white dark:bg-gray-900 text-sm border-none focus:ring-0 resize-none text-text-main dark:text-white min-h-[140px]"
+            className="tiptap content-editor min-h-[180px] w-full bg-white px-4 py-3 text-sm text-slate-800 dark:bg-slate-950 dark:text-white"
           />
         </div>
+
         <input
           ref={coverInputRef}
           type="file"
@@ -523,14 +561,17 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
           className="hidden"
           onChange={handleImageSelected}
         />
-        <div className="flex justify-between items-center">
-          <p className="text-xs text-text-secondary dark:text-gray-500 italic">
-            {uploadError || status || "Tự động lưu 2 phút trước"}
+
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs italic text-slate-500 dark:text-slate-400">
+            {uploadError ||
+              status ||
+              "AI gợi ý bản nháp, admin quyết định phiên bản cuối cùng."}
           </p>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              className="px-4 py-2 text-sm font-medium text-text-secondary dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+              className="rounded-2xl px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
               onClick={handleSave}
               disabled={saving || uploading}
             >
@@ -542,7 +583,7 @@ const ContentQuickDraft = ({ onSave, onOpenFullEditor }) => {
             </button>
             <button
               type="button"
-              className="px-4 py-2 text-sm font-bold text-white bg-primary hover:bg-blue-600 rounded-lg shadow-sm"
+              className="rounded-2xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-blue-600"
               onClick={handleContinue}
               disabled={uploading}
             >

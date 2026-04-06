@@ -6,7 +6,13 @@ import BookingBreadcrumbs from "../../components/booking/BookingBreadcrumbs";
 import BookingHeading from "../../components/booking/BookingHeading";
 import PharmacistProfileCard from "../../components/booking/PharmacistProfileCard";
 import BookingForm from "../../components/booking/BookingForm";
+import { normalizeMediaUrl } from "../../utils/media";
 import "../../components/booking/scrollbar.css";
+
+const normalizeListValue = (value, fallback) => {
+  if (Array.isArray(value)) return value.join(", ");
+  return value || fallback;
+};
 
 const BookingPage = () => {
   const navigate = useNavigate();
@@ -26,7 +32,9 @@ const BookingPage = () => {
         pharmacistFromState.name ??
         pharmacistFromState.displayName ??
         "Dược sĩ",
-      image: pharmacistFromState.avatarUrl ?? pharmacistFromState.image ?? "",
+      image: normalizeMediaUrl(
+        pharmacistFromState.avatarUrl ?? pharmacistFromState.image ?? "",
+      ),
       online: pharmacistFromState.status
         ? pharmacistFromState.status === "online"
         : Boolean(pharmacistFromState.online),
@@ -45,16 +53,26 @@ const BookingPage = () => {
           ? "Đã xác thực chuyên môn"
           : "Chưa xác thực"),
       workingHours: pharmacistFromState.workingHours ?? "08:00 - 17:00",
-      workingDays: pharmacistFromState.workingDays ?? "Thứ 2 - Thứ 7",
-      languages: pharmacistFromState.languages ?? "Tiếng Việt",
+      workingDays: normalizeListValue(
+        pharmacistFromState.workingDays,
+        "Thứ 2 - Thứ 7",
+      ),
+      languages: normalizeListValue(
+        pharmacistFromState.languages,
+        "Tiếng Việt",
+      ),
       education: pharmacistFromState.education ?? "Đang cập nhật",
+      branchId: pharmacistFromState.branchId ?? "",
+      branchName:
+        pharmacistFromState.branchName ??
+        pharmacistFromState.branch?.name ??
+        "Chưa gắn chi nhánh",
     };
   }, [pharmacistFromState]);
 
   const pharmacistId = pharmacist?.id;
 
   if (!pharmacistId) {
-    // eslint-disable-next-line no-console
     console.warn(
       "BookingPage: pharmacist id not found in location.state.pharmacist",
     );
@@ -92,6 +110,7 @@ const BookingPage = () => {
                 <BookingForm
                   onBackToPharmacists={() => navigate("/pharmacists")}
                   pharmacistId={pharmacistId}
+                  branchId={undefined}
                 />
               </div>
             </div>

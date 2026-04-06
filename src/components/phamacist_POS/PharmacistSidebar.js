@@ -1,5 +1,7 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAppContext } from "../../context/AppContext";
+import { getRoleLabel } from "../../auth/roleRedirect";
 
 const NAV_ITEMS = [
   {
@@ -20,14 +22,36 @@ const NAV_ITEMS = [
     icon: "calendar_month",
     path: "/pharmacist/appointments",
   },
+  {
+    key: "profile",
+    label: "Hồ sơ",
+    icon: "badge",
+    path: "/pharmacist/profile",
+  },
 ];
 
 const PharmacistSidebar = ({ open, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { authUser, profile, roles, logout } = useAppContext();
+
+  const displayName =
+    profile?.fullName ||
+    profile?.name ||
+    authUser?.fullName ||
+    authUser?.email ||
+    "Dược sĩ";
+  const email = profile?.email || authUser?.email || "Chưa có email";
+  const roleLabel = getRoleLabel(roles);
 
   const goTo = (path) => {
     navigate(path);
+    onClose?.();
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
     onClose?.();
   };
 
@@ -88,6 +112,40 @@ const PharmacistSidebar = ({ open, onClose }) => {
             );
           })}
         </nav>
+
+        <div className="border-t border-slate-200 p-4 dark:border-slate-700">
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <span className="material-symbols-outlined text-[20px]">
+                  account_circle
+                </span>
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                  {displayName}
+                </p>
+                <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                  {email}
+                </p>
+                <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+                  {roleLabel}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                logout
+              </span>
+              <span>Đăng xuất</span>
+            </button>
+          </div>
+        </div>
       </aside>
 
       {open && (

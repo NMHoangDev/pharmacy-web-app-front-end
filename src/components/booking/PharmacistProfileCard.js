@@ -27,6 +27,7 @@ const PharmacistProfileCard = ({ pharmacist }) => {
     workingDays: "Thứ 2 - Thứ 7",
     languages: "Tiếng Việt",
     education: "Đang cập nhật",
+    branchName: "Chưa gắn chi nhánh",
     online: false,
   };
 
@@ -82,6 +83,11 @@ const PharmacistProfileCard = ({ pharmacist }) => {
       </div>
 
       <div className="mt-5 space-y-4 border-t border-slate-200 pt-4">
+        <InfoRow
+          icon="storefront"
+          label="Chi nhánh"
+          value={safePharmacist.branchName || "Chưa gắn chi nhánh"}
+        />
         <InfoRow
           icon="schedule"
           label="Giờ làm việc"

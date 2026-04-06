@@ -1,164 +1,112 @@
 import React from "react";
+import { NavLink } from "react-router-dom";
+import "../styles/storefront-premium.css";
+
+const primaryLinks = [
+  { to: "/medicines", label: "Thuốc và sản phẩm" },
+  { to: "/posts", label: "Kiến thức thuốc" },
+  { to: "/forum", label: "Diễn đàn" },
+  { to: "/pharmacists", label: "Dược sĩ tư vấn" },
+];
+
+const supportLinks = [
+  { to: "/introduction", label: "Về chúng tôi" },
+  { to: "/account/orders", label: "Theo dõi đơn hàng" },
+  { to: "/cart", label: "Giỏ hàng" },
+  { to: "/checkout", label: "Thanh toán" },
+];
 
 const Footer = () => {
   return (
-    <footer className="bg-surface-light dark:bg-surface-dark border-t border-slate-200 dark:border-slate-800 pt-16 pb-8">
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="size-8 bg-primary rounded flex items-center justify-center text-white">
-                <span className="material-symbols-outlined text-xl">
-                  local_pharmacy
-                </span>
+    <footer className="border-t border-white/80 bg-[linear-gradient(180deg,rgba(244,249,255,0.92),rgba(237,246,255,0.98))]">
+      <div className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6 lg:px-8">
+        <div className="storefront-card rounded-[32px] p-6 sm:p-8">
+          <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr_0.8fr]">
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-[0_20px_32px_-20px_rgba(37,99,235,0.85)]">
+                  <span className="material-symbols-outlined text-[26px]">
+                    local_pharmacy
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-black tracking-tight text-slate-900">
+                    PharmaCare
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    Nhà thuốc trực tuyến, tư vấn dược sĩ và chăm sóc sức khỏe
+                    tại nhà
+                  </p>
+                </div>
               </div>
-              <span className="text-xl font-bold text-slate-900 dark:text-white">
-                PharmaCare
+
+              <p className="max-w-xl text-sm leading-7 text-slate-600">
+                Tập trung vào trải nghiệm mua thuốc minh bạch, dễ hiểu và an
+                tâm. Người dùng có thể tìm sản phẩm, nhận tư vấn, theo dõi đơn
+                hàng và quản lý sức khỏe trong cùng một hành trình gọn gàng.
+              </p>
+            </div>
+
+            <div className="storefront-soft-card rounded-[28px] p-5">
+              <div className="text-sm font-black text-slate-900">
+                Khám phá nhanh
+              </div>
+              <div className="mt-4 space-y-2">
+                {primaryLinks.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className="storefront-interactive flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                  >
+                    <span>{item.label}</span>
+                    <span className="material-symbols-outlined text-[18px] text-slate-400">
+                      arrow_outward
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+
+            <div className="storefront-soft-card rounded-[28px] p-5">
+              <div className="text-sm font-black text-slate-900">
+                Hỗ trợ mua sắm
+              </div>
+              <div className="mt-4 space-y-2">
+                {supportLinks.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className="storefront-interactive flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                  >
+                    <span>{item.label}</span>
+                    <span className="material-symbols-outlined text-[18px] text-slate-400">
+                      chevron_right
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-col gap-3 border-t border-slate-200/80 pt-5 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              © {new Date().getFullYear()} PharmaCare. Trải nghiệm mua thuốc an
+              tâm và rõ ràng.
+            </p>
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                <span className="material-symbols-outlined text-[16px]">
+                  verified
+                </span>
+                Chính hãng
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                <span className="material-symbols-outlined text-[16px]">
+                  local_shipping
+                </span>
+                Giao nhanh
               </span>
             </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-              Hệ thống nhà thuốc uy tín hàng đầu, chuyên cung cấp các sản phẩm
-              chăm sóc sức khỏe chất lượng cao.
-            </p>
-            <div className="flex gap-4 pt-2">
-              <a
-                href="#"
-                className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 hover:bg-primary hover:text-white transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">
-                  public
-                </span>
-              </a>
-              <a
-                href="#"
-                className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 hover:bg-primary hover:text-white transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">mail</span>
-              </a>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="font-bold text-slate-900 dark:text-white mb-6">
-              Về chúng tôi
-            </h4>
-            <ul className="space-y-3">
-              <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors"
-                >
-                  Giới thiệu
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors"
-                >
-                  Hệ thống nhà thuốc
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors"
-                >
-                  Giấy phép kinh doanh
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors"
-                >
-                  Tuyển dụng
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-bold text-slate-900 dark:text-white mb-6">
-              Chính sách
-            </h4>
-            <ul className="space-y-3">
-              <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors"
-                >
-                  Chính sách bảo mật
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors"
-                >
-                  Chính sách giao hàng
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors"
-                >
-                  Chính sách đổi trả
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors"
-                >
-                  Phương thức thanh toán
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-bold text-slate-900 dark:text-white mb-6">
-              Liên hệ
-            </h4>
-            <ul className="space-y-4">
-              <li className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-primary text-xl shrink-0">
-                  location_on
-                </span>
-                <span className="text-sm text-slate-500 dark:text-slate-400">
-                  123 Đường Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh
-                </span>
-              </li>
-              <li className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-primary text-xl shrink-0">
-                  call
-                </span>
-                <span className="text-sm text-slate-500 dark:text-slate-400">
-                  1900 123 456
-                </span>
-              </li>
-              <li className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-primary text-xl shrink-0">
-                  mail
-                </span>
-                <span className="text-sm text-slate-500 dark:text-slate-400">
-                  cskh@pharmacare.vn
-                </span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="border-t border-slate-100 dark:border-slate-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-slate-400">
-            © 2023 PharmaCare. All rights reserved.
-          </p>
-          <div className="flex items-center gap-4">
-            <div className="h-6 w-10 bg-slate-200 dark:bg-slate-700 rounded" />
-            <div className="h-6 w-10 bg-slate-200 dark:bg-slate-700 rounded" />
-            <div className="h-6 w-10 bg-slate-200 dark:bg-slate-700 rounded" />
           </div>
         </div>
       </div>

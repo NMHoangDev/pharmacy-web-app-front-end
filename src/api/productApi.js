@@ -23,4 +23,6 @@ export async function getProducts(params = {}) {
 
 export const getProductBySlug = getProductById;
 
-export default { getProductById, getProducts, getProductBySlug };
+const productApi = { getProductById, getProducts, getProductBySlug };
+
+export default productApi;

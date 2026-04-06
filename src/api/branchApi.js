@@ -23,6 +23,8 @@ export const listActiveBranches = async (options = {}) => {
   return [];
 };
 
-export default {
+const branchApi = {
   listActiveBranches,
 };
+
+export default branchApi;

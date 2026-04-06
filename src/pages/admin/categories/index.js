@@ -33,20 +33,6 @@ const AdminCategoriesPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const readErrorMessage = async (response, fallback) => {
-    try {
-      const contentType = response.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        const data = await response.json();
-        return data.message || data.error || fallback;
-      }
-      const text = await response.text();
-      return text || fallback;
-    } catch {
-      return fallback;
-    }
-  };
-
   const selectedCategory = useMemo(
     () => categories.find((c) => c.id === selectedId) || null,
     [categories, selectedId],
@@ -239,11 +225,7 @@ const AdminCategoriesPage = () => {
             onRefresh={loadCategories}
             totalCount={filteredCategories.length}
           />
-          {error && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {error}
-            </div>
-          )}
+
           {loading && (
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900">
               Đang tải danh mục...

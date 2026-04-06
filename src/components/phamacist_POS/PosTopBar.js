@@ -2,44 +2,47 @@ import React from "react";
 
 const PosTopBar = ({ userName, roleName, onClearCart, onToggleSidebar }) => {
   return (
-    <header className="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 md:px-6 shrink-0 z-20">
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="z-20 flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 dark:border-slate-700 dark:bg-slate-800 md:px-6">
+      <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
-          className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
           onClick={onToggleSidebar}
           title="Mở điều hướng"
           aria-label="Mở điều hướng"
         >
           <span className="material-symbols-outlined">menu</span>
         </button>
-        <div className="p-2 bg-primary/10 rounded-lg text-primary shrink-0">
+
+        <div className="shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
           <span className="material-symbols-outlined text-2xl">
             local_pharmacy
           </span>
         </div>
-        <h1 className="text-lg md:text-xl font-bold tracking-tight text-slate-900 dark:text-white truncate">
-          Pharmacy POS
+
+        <h1 className="truncate text-lg font-bold tracking-tight text-slate-900 dark:text-white md:text-xl">
+          Bán hàng tại quầy
         </h1>
       </div>
 
       <div className="flex items-center gap-3 md:gap-6">
-        <div className="hidden lg:flex items-center gap-2 text-xs md:text-sm text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-3 py-1.5 rounded-full">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          <span>System Online</span>
+        <div className="hidden items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-500 dark:bg-slate-700 dark:text-slate-400 lg:flex md:text-sm">
+          <span className="h-2 w-2 rounded-full bg-green-500" />
+          <span>Hệ thống đang hoạt động</span>
         </div>
 
         <button
           type="button"
-          className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
           onClick={onClearCart}
-          title="Clear cart"
+          title="Xóa giỏ hàng"
+          aria-label="Xóa giỏ hàng"
         >
           <span className="material-symbols-outlined">delete</span>
         </button>
 
-        <div className="hidden sm:block text-right">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white truncate max-w-[180px]">
+        <div className="hidden text-right sm:block">
+          <p className="max-w-[180px] truncate text-sm font-semibold text-slate-900 dark:text-white">
             {userName}
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400">

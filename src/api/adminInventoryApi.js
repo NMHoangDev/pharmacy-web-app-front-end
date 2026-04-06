@@ -58,6 +58,23 @@ export const getInventoryAvailability = async (productIds = [], branchId) => {
   );
 };
 
+export const getInventoryAvailabilityBatch = async (
+  productIds = [],
+  branchIds = [],
+) => {
+  if (!productIds.length) return { items: [] };
+  const validBranchIds = (branchIds || []).filter((id) => isUuid(id));
+  return handleFetch(
+    authApi.post("/api/inventory/internal/inventory/availability/batch", {
+      branchIds: validBranchIds,
+      items: productIds.map((productId) => ({
+        productId,
+        qty: 1,
+      })),
+    }),
+  );
+};
+
 export const adjustInventory = async (productId, delta, reason, branchId) =>
   handleFetch(
     authApi.post("/api/inventory/internal/inventory/adjust", {
@@ -123,6 +140,7 @@ const adminInventoryApi = {
   deleteCatalogBranchSetting,
   deleteCatalogProduct,
   getInventoryAvailability,
+  getInventoryAvailabilityBatch,
   adjustInventory,
   deleteInventoryItem,
   listInventoryActivities,

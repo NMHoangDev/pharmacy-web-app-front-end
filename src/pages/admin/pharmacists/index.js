@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { authApi as api } from "../../../api/httpClients";
 import AdminLayout from "../../../components/admin/AdminLayout";
 import FilterBar from "../../../components/admin/pharmacists/FilterBar";
@@ -38,14 +39,24 @@ const normalizeRows = (items = []) =>
     availability: item.availability || item.workingHours || "-",
     avatarUrl: item.avatarUrl || "",
     createdAt: item.createdAt || item.createdDate || null,
+    updatedAt: item.updatedAt || null,
     licenseNumber: item.licenseNumber || "",
     education: item.education || "",
     languages: item.languages || [],
+    workingDays: item.workingDays || [],
+    workingHours: item.workingHours || "",
+    consultationModes: item.consultationModes || [],
+    branchId: item.branchId || item.branch?.id || "",
     certifications: item.certifications || "",
     lastActivity: item.lastActivity || "",
+    bio: item.bio || "",
+    code: item.code || "",
+    rating: item.rating ?? 0,
+    reviewCount: item.reviewCount ?? 0,
   }));
 
 const AdminPharmacistsPage = () => {
+  const navigate = useNavigate();
   const { branches } = useBranches();
   const { branchId, setBranchId } = useAdminBranchSelection({
     storageKey: "admin.branchId",
@@ -384,7 +395,7 @@ const AdminPharmacistsPage = () => {
             onSelectRow={onSelectRow}
             onSelectAll={onSelectAll}
             onOpenDrawer={openDrawer}
-            onEdit={openDrawer}
+            onEdit={(row) => navigate(`/admin/pharmacists/${row.id}`)}
             onDelete={onDelete}
             onToggleStatus={onToggleStatus}
           />

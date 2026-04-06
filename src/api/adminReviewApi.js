@@ -34,7 +34,7 @@ export const exportReviews = async (params = {}) =>
     responseType: "blob",
   });
 
-export default {
+const adminReviewApi = {
   listAdminReviews,
   getAdminReviewStats,
   updateReviewStatus,
@@ -42,3 +42,5 @@ export default {
   deleteReview,
   exportReviews,
 };
+
+export default adminReviewApi;

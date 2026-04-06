@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import AdminLayout from "../../../components/admin/AdminLayout";
 import ContentToolbar from "../../../components/admin/content/ContentToolbar";
 import ContentTable from "../../../components/admin/content/ContentTable";
@@ -22,15 +23,18 @@ import {
   approveModeration,
   createPost,
   deletePost,
-  getPostBySlug,
+  getAdminPostBySlug,
   getAdminPosts,
   getAdminQuestions,
+  getTags,
   hideModeration,
   publishPost,
   rejectModeration,
   updatePost,
   unpublishPost,
   uploadMediaImage,
+  generateProductPrDraft,
+  createTag,
 } from "../../../api/contentApi";
 import {
   fetchMediaImageAsDataUrl,
@@ -38,6 +42,10 @@ import {
   resolveHtmlImagesToDataUrls,
   resolveJsonImagesToDataUrls,
 } from "../../../utils/media";
+import {
+  listCatalogCategories,
+  listCatalogProducts,
+} from "../../../api/adminInventoryApi";
 
 const resolveImagesToBase64 = async (images = []) => {
   if (!images.length) return [];
@@ -59,6 +67,70 @@ const resolveImagesToBase64 = async (images = []) => {
   }
   return results;
 };
+
+const parseProductAttributes = (value) => {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+};
+
+const normalizeCatalogProduct = (product, categoryMap) => {
+  const attrs = parseProductAttributes(product?.attributes);
+  return {
+    id: product?.id,
+    name: product?.name || "",
+    categoryName:
+      product?.categoryName || categoryMap.get(product?.categoryId) || "",
+    shortDescription:
+      product?.shortDescription || product?.description || attrs.shortDescription || "",
+    dosageForm: product?.dosageForm || attrs.dosageForm || attrs.form || "",
+    packaging: product?.packaging || attrs.packaging || attrs.packing || "",
+    activeIngredient:
+      product?.activeIngredient || attrs.activeIngredient || attrs.ingredient || "",
+    indications: product?.indications || attrs.indications || attrs.usage || "",
+    usageDosage: product?.usageDosage || attrs.usageDosage || attrs.dosage || "",
+    contraindicationsWarning:
+      product?.contraindicationsWarning ||
+      attrs.contraindicationsWarning ||
+      attrs.warning ||
+      attrs.contraindications ||
+      "",
+    otherInformation:
+      product?.otherInformation || attrs.otherInformation || attrs.extraInfo || "",
+    prescriptionRequired: !!product?.prescriptionRequired,
+    salePrice:
+      product?.effectivePrice ?? product?.baseSalePrice ?? product?.salePrice ?? 0,
+    coverImageUrl:
+      product?.imageUrl || attrs.imageUrl || attrs.image || attrs.images?.[0] || "",
+  };
+};
+
+const slugifyTag = (value) =>
+  (value || "")
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+
+const mapAiDraftToSeed = (draft, product) => ({
+  seedId: `content-${product?.id || "manual"}-${Date.now()}`,
+  selectedProductId: product?.id || "",
+  sourceProductName: product?.name || "",
+  title: draft?.title || "",
+  excerpt: draft?.excerpt || "",
+  caption: draft?.caption || "",
+  contentHtml: draft?.contentHtml || "",
+  tags: draft?.suggestedTags || [],
+  disclaimer: draft?.disclaimer || "",
+  coverImageUrl: product?.coverImageUrl || "",
+});
 
 const AdminContentPage = () => {
   const [activeTab, setActiveTab] = useState("posts");
@@ -98,6 +170,19 @@ const AdminContentPage = () => {
   const [fullCoverPreviewUrl, setFullCoverPreviewUrl] = useState("");
   const [fullCoverUploading, setFullCoverUploading] = useState(false);
   const [fullCoverError, setFullCoverError] = useState("");
+  const [fullExcerpt, setFullExcerpt] = useState("");
+  const [fullCaption, setFullCaption] = useState("");
+  const [fullTags, setFullTags] = useState([]);
+  const [fullDisclaimer, setFullDisclaimer] = useState("");
+  const [catalogProducts, setCatalogProducts] = useState([]);
+  const [quickDraftSeed, setQuickDraftSeed] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+  const [previewPost, setPreviewPost] = useState(null);
+  const [previewHtml, setPreviewHtml] = useState("");
+  const location = useLocation();
+  const navigate = useNavigate();
   const fullFileInputRef = useRef(null);
   const fullCoverInputRef = useRef(null);
 
@@ -263,6 +348,51 @@ const AdminContentPage = () => {
   };
 
   useEffect(() => {
+    let active = true;
+
+    const loadCatalogProducts = async () => {
+      try {
+        const [productData, categoryData] = await Promise.all([
+          listCatalogProducts({ page: 0, pageSize: 100 }),
+          listCatalogCategories(),
+        ]);
+        if (!active) return;
+        const categoryMap = new Map(
+          (Array.isArray(categoryData) ? categoryData : []).map((item) => [
+            item.id,
+            item.name,
+          ]),
+        );
+        const items = productData?.items || productData?.content || [];
+        setCatalogProducts(
+          items.map((product) => normalizeCatalogProduct(product, categoryMap)),
+        );
+      } catch (err) {
+        console.warn("Không thể tải danh sách sản phẩm cho AI content", err);
+      }
+    };
+
+    loadCatalogProducts();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const draft = location.state?.contentDraft;
+    if (!draft) return;
+    setActiveTab("posts");
+    setQuickDraftSeed({
+      ...draft,
+      seedId: draft.seedId || `route-${Date.now()}`,
+    });
+    navigate(location.pathname + location.search, {
+      replace: true,
+      state: null,
+    });
+  }, [location.pathname, location.search, location.state, navigate]);
+
+  useEffect(() => {
     if (activeTab !== "posts") return;
     const loadPosts = async () => {
       setPostsLoading(true);
@@ -282,7 +412,7 @@ const AdminContentPage = () => {
           data.pagination || { page: 1, pageSize: 10, total: 0 },
         );
       } catch (err) {
-        setPostsError(err.message || "Không thể tải bài viết");
+        setPostsError(err.message || "KhÃ´ng thá»ƒ táº£i bÃ i viáº¿t");
       } finally {
         setPostsLoading(false);
       }
@@ -372,12 +502,31 @@ const AdminContentPage = () => {
     return { published, pending, draft };
   }, [posts]);
 
-  const handlePreview = (item) => {
-    if (item.slug) {
-      window.open(`/posts/${item.slug}`, "_blank", "noopener,noreferrer");
+  const handlePreview = async (item) => {
+    if (!item?.slug) {
+      alert(`Xem trước: ${item?.title || "Bài viết"}`);
       return;
     }
-    alert(`Xem trước: ${item.title}`);
+
+    try {
+      setPreviewOpen(true);
+      setPreviewLoading(true);
+      setPreviewError("");
+      setPreviewPost(null);
+      setPreviewHtml("");
+
+      const data = await getAdminPostBySlug(item.slug);
+      const resolvedHtml = await resolveHtmlImagesToDataUrls(
+        data?.contentHtml || "",
+      ).catch(() => data?.contentHtml || "");
+
+      setPreviewPost(data || null);
+      setPreviewHtml(resolvedHtml || data?.contentHtml || "");
+    } catch (err) {
+      setPreviewError(err.message || "Không thể tải preview bài viết.");
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   const handleEdit = async (item) => {
@@ -386,13 +535,17 @@ const AdminContentPage = () => {
       return;
     }
     try {
-      const data = await getPostBySlug(item.slug);
+      const data = await getAdminPostBySlug(item.slug);
       setFullEditorOpen(true);
       setFullError("");
       setFullPostId(data?.id || null);
       setFullTitle(data?.title || "");
       setFullInitialHtml(data?.contentHtml || "");
       setFullInitialJson(data?.contentJson || null);
+      setFullExcerpt(data?.excerpt || "");
+      setFullCaption(data?.excerpt || "");
+      setFullDisclaimer(data?.disclaimer || "");
+      setFullTags((data?.tags || []).map((tag) => tag?.name).filter(Boolean));
       setFullImages(data?.images || []);
       setFullCoverImageUrl(data?.coverImageUrl || "");
       setFullCoverPreviewUrl(data?.coverImageUrl || "");
@@ -428,8 +581,76 @@ const AdminContentPage = () => {
     }
   };
 
+  const ensurePostTags = async (tags = []) => {
+    const candidates = (Array.isArray(tags) ? tags : [])
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean);
+
+    if (!candidates.length) {
+      return [];
+    }
+
+    const existing = await getTags({ type: "POST" });
+    const bySlug = new Map(
+      (Array.isArray(existing) ? existing : []).map((tag) => [
+        (tag.slug || "").trim().toLowerCase(),
+        tag,
+      ]),
+    );
+    const byName = new Map(
+      (Array.isArray(existing) ? existing : []).map((tag) => [
+        (tag.name || "").trim().toLowerCase(),
+        tag,
+      ]),
+    );
+
+    const resolved = [];
+    for (const rawTag of candidates) {
+      const name = rawTag.trim();
+      const slug = slugifyTag(name);
+      if (!slug) {
+        continue;
+      }
+
+      const reused = bySlug.get(slug) || byName.get(name.toLowerCase());
+      if (reused?.slug) {
+        resolved.push(reused.slug);
+        continue;
+      }
+
+      try {
+        const created = await createTag({
+          name,
+          slug,
+          type: "POST",
+        });
+        if (created?.slug) {
+          bySlug.set(created.slug.trim().toLowerCase(), created);
+          byName.set((created.name || name).trim().toLowerCase(), created);
+          resolved.push(created.slug);
+        }
+      } catch (error) {
+        const refreshed = await getTags({ type: "POST", q: name });
+        const fallback = (Array.isArray(refreshed) ? refreshed : []).find(
+          (tag) =>
+            (tag.slug || "").trim().toLowerCase() === slug ||
+            (tag.name || "").trim().toLowerCase() === name.toLowerCase(),
+        );
+        if (fallback?.slug) {
+          resolved.push(fallback.slug);
+        }
+      }
+    }
+
+    return [...new Set(resolved)];
+  };
+
   const handleSaveDraft = async ({
     title,
+    excerpt,
+    caption,
+    disclaimer,
+    tags,
     contentHtml,
     contentJson,
     images,
@@ -445,13 +666,16 @@ const AdminContentPage = () => {
         contentJson || null,
       );
       const resolvedImages = await resolveImagesToBase64(images || []);
+      const resolvedTags = await ensurePostTags(tags);
       await createPost({
         title: title.trim(),
+        excerpt: (caption || excerpt || "").trim() || null,
+        disclaimer: disclaimer?.trim() || null,
         contentHtml: resolvedHtml,
         contentJson: resolvedJson,
         images: resolvedImages,
         coverImageUrl: coverImageUrl || null,
-        tags: [],
+        tags: resolvedTags,
       });
       setPostsPagination((p) => ({ ...p, page: 1 }));
       setActiveTab("posts");
@@ -463,6 +687,10 @@ const AdminContentPage = () => {
 
   const openFullEditor = ({
     title,
+    excerpt,
+    caption,
+    disclaimer,
+    tags,
     contentHtml,
     contentJson,
     images,
@@ -472,6 +700,10 @@ const AdminContentPage = () => {
     setFullError("");
     setFullPostId(null);
     setFullTitle(title || "");
+    setFullExcerpt(excerpt || "");
+    setFullCaption(caption || "");
+    setFullDisclaimer(disclaimer || "");
+    setFullTags(Array.isArray(tags) ? tags : []);
     setFullInitialHtml(contentHtml || "");
     setFullInitialJson(contentJson || null);
     setFullImages(images || []);
@@ -518,25 +750,22 @@ const AdminContentPage = () => {
       const resolvedHtml = await resolveHtmlImagesToDataUrls(contentHtml);
       const resolvedJson = await resolveJsonImagesToDataUrls(contentJson);
       const resolvedImages = await resolveImagesToBase64(fullImages || []);
-      if (fullPostId) {
-        await updatePost(fullPostId, {
-          title: fullTitle.trim(),
-          contentHtml: resolvedHtml,
-          contentJson: resolvedJson,
-          images: resolvedImages,
-          coverImageUrl: fullCoverImageUrl || null,
-          tags: [],
-        });
-        return fullPostId;
-      }
-      const created = await createPost({
+      const resolvedTags = await ensurePostTags(fullTags);
+      const payload = {
         title: fullTitle.trim(),
+        excerpt: (fullCaption || fullExcerpt || "").trim() || null,
+        disclaimer: fullDisclaimer?.trim() || null,
         contentHtml: resolvedHtml,
         contentJson: resolvedJson,
         images: resolvedImages,
         coverImageUrl: fullCoverImageUrl || null,
-        tags: [],
-      });
+        tags: resolvedTags,
+      };
+      if (fullPostId) {
+        await updatePost(fullPostId, payload);
+        return fullPostId;
+      }
+      const created = await createPost(payload);
       const createdId = created?.id || null;
       setFullPostId(createdId);
       setPostsRefresh((v) => v + 1);
@@ -560,6 +789,36 @@ const AdminContentPage = () => {
     } catch (err) {
       setFullError(err.message || "Không thể xuất bản.");
     }
+  };
+
+  const handleGenerateAiDraft = async (productId) => {
+    const product = catalogProducts.find(
+      (item) => String(item.id) === String(productId),
+    );
+    if (!product) {
+      throw new Error("Không tìm thấy sản phẩm để AI viết bài.");
+    }
+
+    const draft = await generateProductPrDraft({
+      name: product.name,
+      categoryName: product.categoryName,
+      shortDescription: product.shortDescription,
+      dosageForm: product.dosageForm,
+      packaging: product.packaging,
+      activeIngredient: product.activeIngredient,
+      indications: product.indications,
+      usageDosage: product.usageDosage,
+      contraindicationsWarning: product.contraindicationsWarning,
+      otherInformation: product.otherInformation,
+      prescriptionRequired: product.prescriptionRequired,
+      salePrice: product.salePrice,
+      toneHint: "tinh tế, đáng tin cậy, không lộ quảng cáo",
+      campaignGoal: "tạo bản nháp bài PR để admin review trước khi xuất bản",
+    });
+
+    const nextSeed = mapAiDraftToSeed(draft, product);
+    setQuickDraftSeed(nextSeed);
+    return nextSeed;
   };
 
   const handleModerateQuestion = async (action, question) => {
@@ -845,6 +1104,9 @@ const AdminContentPage = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <ContentQuickDraft
+                products={catalogProducts}
+                onGenerateAiDraft={handleGenerateAiDraft}
+                draftSeed={quickDraftSeed}
                 onSave={handleSaveDraft}
                 onOpenFullEditor={openFullEditor}
               />
@@ -864,6 +1126,73 @@ const AdminContentPage = () => {
         </div>
       </div>
 
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {previewPost?.title || "Xem trước bài viết"}
+            </DialogTitle>
+            <DialogDescription>
+              Preview nội bộ cho admin. Nội dung này có thể vẫn là draft hoặc pending.
+            </DialogDescription>
+          </DialogHeader>
+
+          {previewLoading ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-600">
+              Đang tải preview bài viết...
+            </div>
+          ) : previewError ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
+              {previewError}
+            </div>
+          ) : previewPost ? (
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center gap-2">
+                {(previewPost.tags || []).map((tag) => (
+                  <span
+                    key={tag.id || tag.slug || tag.name}
+                    className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+                  >
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
+
+              {previewPost.excerpt ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+                  {previewPost.excerpt}
+                </div>
+              ) : null}
+
+              {previewPost.coverImageUrl ? (
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                  <img
+                    src={previewPost.coverImageUrl}
+                    alt={previewPost.title || "Cover"}
+                    className="h-auto max-h-[320px] w-full object-cover"
+                  />
+                </div>
+              ) : null}
+
+              <article
+                className="prose max-w-none prose-slate"
+                dangerouslySetInnerHTML={{ __html: previewHtml || "" }}
+              />
+
+              {previewPost.disclaimer ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+                  {previewPost.disclaimer}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-600">
+              Chưa có dữ liệu preview.
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={fullEditorOpen} onOpenChange={setFullEditorOpen}>
         <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -880,6 +1209,43 @@ const AdminContentPage = () => {
               className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
               placeholder="Tiêu đề bài viết..."
               type="text"
+            />
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <textarea
+                value={fullExcerpt}
+                onChange={(e) => setFullExcerpt(e.target.value)}
+                className="min-h-[110px] w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:border-primary focus:ring-primary dark:border-gray-700 dark:bg-gray-900"
+                placeholder="Tóm tắt ngắn để hiển thị danh sách bài viết..."
+              />
+              <textarea
+                value={fullCaption}
+                onChange={(e) => setFullCaption(e.target.value)}
+                className="min-h-[110px] w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:border-primary focus:ring-primary dark:border-gray-700 dark:bg-gray-900"
+                placeholder="Caption dẫn bài tự nhiên, tinh tế, không quá quảng cáo..."
+              />
+            </div>
+
+            <input
+              value={fullTags.join(", ")}
+              onChange={(e) =>
+                setFullTags(
+                  e.target.value
+                    .split(",")
+                    .map((item) => item.trim())
+                    .filter(Boolean),
+                )
+              }
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm focus:border-primary focus:ring-primary dark:border-gray-700 dark:bg-gray-900"
+              placeholder="Tags gợi ý, cách nhau bằng dấu phẩy"
+              type="text"
+            />
+
+            <textarea
+              value={fullDisclaimer}
+              onChange={(e) => setFullDisclaimer(e.target.value)}
+              className="min-h-[90px] w-full rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm focus:border-amber-400 focus:ring-amber-300 dark:border-amber-700/60 dark:bg-amber-950/20"
+              placeholder="Lưu ý y tế hoặc disclaimer nếu cần..."
             />
 
             <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 p-3 bg-gray-50/60 dark:bg-gray-900/40">

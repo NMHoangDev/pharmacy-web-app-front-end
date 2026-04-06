@@ -43,9 +43,15 @@ const RadioField = ({ checked, onChange, label, name, value }) => (
   </label>
 );
 
-const PharmacistsFilters = ({ filters, onChange, onReset, onApply }) => {
+const PharmacistsFilters = ({
+  filters,
+  branches = [],
+  onChange,
+  onReset,
+  onApply,
+}) => {
   return (
-    <aside className="hidden lg:flex lg:flex-col gap-4 sticky top-24 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <aside className="storefront-card hidden lg:sticky lg:top-24 lg:flex lg:flex-col gap-4 rounded-[28px] p-5">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold text-slate-900">Bộ lọc</h3>
         <button
@@ -56,6 +62,23 @@ const PharmacistsFilters = ({ filters, onChange, onReset, onApply }) => {
           Xóa tất cả
         </button>
       </div>
+
+      <Section title="Chi nhánh">
+        <label className="flex flex-col gap-2 text-sm text-slate-600">
+          <select
+            value={filters.branchId || ""}
+            onChange={(e) => onChange({ ...filters, branchId: e.target.value })}
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+          >
+            <option value="">Tất cả chi nhánh</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </Section>
 
       <Section title="Chuyên môn">
         {specialties.map((item) => (

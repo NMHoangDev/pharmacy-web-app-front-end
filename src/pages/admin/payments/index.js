@@ -68,7 +68,7 @@ const seedTransactions = [
 ];
 
 const AdminPaymentsPage = () => {
-  const [transactions, setTransactions] = useState(seedTransactions);
+  const [transactions] = useState(seedTransactions);
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -78,13 +78,13 @@ const AdminPaymentsPage = () => {
         !q ||
         t.id.toLowerCase().includes(q) ||
         t.orderId.toLowerCase().includes(q) ||
-        t.method.toLowerCase().includes(q)
+        t.method.toLowerCase().includes(q),
     );
   }, [transactions, search]);
 
   const stats = useMemo(
     () => ({ revenue: "24.500.000 ₫", failed: 3, pending: 12 }),
-    []
+    [],
   );
 
   return (

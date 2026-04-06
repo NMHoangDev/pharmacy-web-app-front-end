@@ -7,25 +7,25 @@ import MissionSection from "../../../components/introduction/MissionSection";
 import CommitmentSection from "../../../components/introduction/CommitmentSection";
 import TeamSection from "../../../components/introduction/TeamSection";
 import CallToActionSection from "../../../components/introduction/CallToActionSection";
+import PageTransition from "../../../components/ui/PageTransition";
+import "../../../styles/storefront-premium.css";
 
 const IntroductionPage = () => {
   return (
-    <div className="bg-background-light dark:bg-background-dark min-h-screen font-display flex flex-col text-[#101922] dark:text-white antialiased">
+    <PageTransition className="storefront-shell min-h-screen text-slate-900">
       <Header />
-      <div className="flex flex-1 justify-center py-5">
-        <div className="flex flex-col max-w-[960px] flex-1 px-0 lg:px-0">
-          <div className="px-4 lg:px-0 mb-2">
-            <Breadcrumbs items={[{ label: "Về chúng tôi" }]} />
-          </div>
-          <IntroductionHeroSection />
-          <MissionSection />
-          <CommitmentSection />
-          <TeamSection />
-          <CallToActionSection />
+      <main className="storefront-container mx-auto flex w-full max-w-[1120px] flex-1 flex-col px-0 pb-10 pt-5">
+        <div className="px-4 lg:px-0">
+          <Breadcrumbs items={[{ label: "Về chúng tôi" }]} />
         </div>
-      </div>
+        <IntroductionHeroSection />
+        <MissionSection />
+        <CommitmentSection />
+        <TeamSection />
+        <CallToActionSection />
+      </main>
       <Footer />
-    </div>
+    </PageTransition>
   );
 };
 

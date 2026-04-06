@@ -2,13 +2,32 @@ import React, { useEffect, useMemo, useState } from "react";
 
 const statusLabel = {
   active: { text: "Hoạt động", color: "bg-emerald-100 text-emerald-700" },
-  pending: { text: "Đang xét duyệt", color: "bg-amber-100 text-amber-700" },
+  pending: {
+    text: "Đang xét duyệt",
+    color: "bg-amber-100 text-amber-700",
+  },
   suspended: { text: "Tạm khóa", color: "bg-rose-100 text-rose-700" },
 };
 
+const DrawerAvatar = ({ avatar, name }) =>
+  avatar ? (
+    <div
+      className="size-16 rounded-full bg-slate-100 dark:bg-slate-800 bg-center bg-cover"
+      style={{ backgroundImage: `url(${avatar})` }}
+      aria-label={name}
+    />
+  ) : (
+    <div
+      className="size-16 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 flex items-center justify-center"
+      aria-label={name}
+    >
+      <span className="material-symbols-outlined text-[28px]">person</span>
+    </div>
+  );
+
 const UserDrawer = ({
   user,
-  mode = "view", // view | create | edit
+  mode = "view",
   saving = false,
   deleting = false,
   error = "",
@@ -17,14 +36,13 @@ const UserDrawer = ({
   onSave,
   onDelete,
 }) => {
-  // Hooks must run on every render — use optional chaining so they are safe
   const initialForm = useMemo(
     () => ({
       email: user?.email || "",
       phone: user?.phone || "",
       fullName: user?.fullName || user?.name || "",
     }),
-    [user?.email, user?.phone, user?.fullName, user?.name]
+    [user?.email, user?.phone, user?.fullName, user?.name],
   );
 
   const [form, setForm] = useState(initialForm);
@@ -36,10 +54,6 @@ const UserDrawer = ({
   const isCreate = mode === "create" || !user?.id;
 
   if (!user) return null;
-
-  const handleStatus = (status) => {
-    onChangeStatus(status);
-  };
 
   const handleSubmit = () => {
     if (!onSave) return;
@@ -75,11 +89,7 @@ const UserDrawer = ({
         </div>
 
         <div className="p-4 flex items-center gap-3">
-          <div
-            className="size-16 rounded-full bg-slate-100 dark:bg-slate-800 bg-center bg-cover"
-            style={{ backgroundImage: `url(${user.avatar})` }}
-            aria-label={user.name}
-          />
+          <DrawerAvatar avatar={user.avatar} name={user.name} />
           <div className="flex-1">
             <p className="text-sm font-semibold text-slate-900 dark:text-white">
               {form.fullName || user.name}
@@ -95,8 +105,8 @@ const UserDrawer = ({
                   {user.status === "active"
                     ? "verified"
                     : user.status === "pending"
-                    ? "schedule"
-                    : "block"}
+                      ? "schedule"
+                      : "block"}
                 </span>
                 {statusLabel[user.status].text}
               </span>
@@ -104,8 +114,8 @@ const UserDrawer = ({
                 {user.role === "admin"
                   ? "Quản trị"
                   : user.role === "pharmacist"
-                  ? "Dược sĩ"
-                  : "Khách hàng"}
+                    ? "Dược sĩ"
+                    : "Khách hàng"}
               </span>
             </div>
           </div>
@@ -191,7 +201,7 @@ const UserDrawer = ({
             <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
               <p>
                 {user.notes ||
-                  "Không có ghi chú thêm. Hãy thêm ghi chú để đội CSKH có thể nắm được bối cảnh hỗ trợ."}
+                  "Không có ghi chú thêm. Hãy thêm ghi chú để đội CSKH nắm được bối cảnh hỗ trợ."}
               </p>
             </div>
           </section>
@@ -220,14 +230,14 @@ const UserDrawer = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => handleStatus("active")}
+              onClick={() => onChangeStatus?.("active")}
               className="px-3 py-2 rounded-lg bg-emerald-100 text-emerald-700 text-sm font-semibold hover:bg-emerald-200"
             >
               Kích hoạt
             </button>
             <button
               type="button"
-              onClick={() => handleStatus("suspended")}
+              onClick={() => onChangeStatus?.("suspended")}
               className="px-3 py-2 rounded-lg bg-rose-100 text-rose-700 text-sm font-semibold hover:bg-rose-200"
             >
               Khóa

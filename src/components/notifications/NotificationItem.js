@@ -8,6 +8,9 @@ const NotificationItem = ({
   onDelete,
   compact = false,
 }) => {
+  const isDiscount = String(item?.category || "").toUpperCase() === "DISCOUNT";
+  const isSynthetic = Boolean(item?.synthetic);
+
   const createdLabel = useMemo(
     () => formatNotificationTime(item?.createdAt),
     [item?.createdAt],
@@ -18,42 +21,48 @@ const NotificationItem = ({
       <div
         className={[
           "relative rounded-xl border transition",
-          item?.read
-            ? "border-slate-200 bg-white hover:bg-slate-50"
-            : "border-primary/25 bg-primary/5 hover:bg-primary/10",
+          isDiscount
+            ? item?.read
+              ? "border-amber-200 bg-amber-50/60 hover:bg-amber-50"
+              : "border-amber-300 bg-amber-50 hover:bg-amber-100"
+            : item?.read
+              ? "border-slate-200 bg-white hover:bg-slate-50"
+              : "border-primary/25 bg-primary/5 hover:bg-primary/10",
         ].join(" ")}
       >
-        <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
-          {!item?.read ? (
+        {!isSynthetic ? (
+          <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+            {!item?.read ? (
+              <button
+                type="button"
+                className="h-7 w-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-600 hover:border-emerald-300 transition grid place-items-center"
+                aria-label="Đánh dấu đã đọc"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onMarkRead?.(item);
+                }}
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  done
+                </span>
+              </button>
+            ) : null}
+
             <button
               type="button"
-              className="h-7 w-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-600 hover:border-emerald-300 transition grid place-items-center"
-              aria-label="Đánh dấu đã đọc"
+              className="h-7 w-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-rose-600 hover:border-rose-300 transition grid place-items-center"
+              aria-label="Xóa thông báo"
               onClick={(event) => {
                 event.stopPropagation();
-                onMarkRead?.(item);
+                onDelete?.(item);
               }}
             >
               <span className="material-symbols-outlined text-[16px]">
-                done
+                delete
               </span>
             </button>
-          ) : null}
-
-          <button
-            type="button"
-            className="h-7 w-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-rose-600 hover:border-rose-300 transition grid place-items-center"
-            aria-label="Xóa thông báo"
-            onClick={(event) => {
-              event.stopPropagation();
-              onDelete?.(item);
-            }}
-          >
-            <span className="material-symbols-outlined text-[16px]">
-              delete
-            </span>
-          </button>
-        </div>
+          </div>
+        ) : null}
 
         <button
           type="button"
@@ -73,7 +82,12 @@ const NotificationItem = ({
               {item?.title || "Thông báo"}
             </p>
             {!item?.read ? (
-              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
+              <span
+                className={[
+                  "mt-1 h-2 w-2 shrink-0 rounded-full",
+                  isDiscount ? "bg-amber-500" : "bg-primary",
+                ].join(" ")}
+              />
             ) : null}
           </div>
 
@@ -82,7 +96,14 @@ const NotificationItem = ({
           </p>
 
           <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="inline-flex items-center rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            <span
+              className={[
+                "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                isDiscount
+                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                  : "border-slate-200 text-slate-500",
+              ].join(" ")}
+            >
               {item?.category || "SYSTEM"}
             </span>
             <span className="text-[11px] text-slate-500">{createdLabel}</span>

@@ -3,6 +3,7 @@ import ActionButtons from "../../common/ActionButtons";
 import AdminTableWrapper from "../../common/AdminTableWrapper";
 import TableCellText from "../../common/TableCellText";
 import { Skeleton } from "../../ui/Skeleton";
+import { normalizeMediaUrl } from "../../../utils/media";
 
 const ROLE_COLORS = {
   ADMIN: "red",
@@ -151,7 +152,7 @@ const PharmacistTable = React.memo(function PharmacistTable({
                       <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-100">
                         {row.avatarUrl ? (
                           <img
-                            src={row.avatarUrl}
+                            src={normalizeMediaUrl(row.avatarUrl)}
                             alt={row.name}
                             className="h-full w-full object-cover"
                           />

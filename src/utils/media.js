@@ -5,7 +5,7 @@ const MEDIA_BASE_URL = "http://localhost:8087";
 const isMediaUrl = (src) =>
   typeof src === "string" && src.includes("/api/media/");
 
-const normalizeMediaUrl = (src) => {
+export const normalizeMediaUrl = (src) => {
   if (!src) return "";
   if (src.startsWith("http://") || src.startsWith("https://")) return src;
   if (src.startsWith("/api/media/")) return `${MEDIA_BASE_URL}${src}`;

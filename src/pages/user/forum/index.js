@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
+import "../../../styles/storefront-premium.css";
 
 const ForumPage = () => {
   const [filter, setFilter] = useState("all");
@@ -85,7 +86,7 @@ const ForumPage = () => {
         setQuestions(data.items || []);
         setPagination(data.pagination || { page: 1, pageSize: 10, total: 0 });
       } catch (err) {
-        setError(err.message || "Không thể tải câu hỏi");
+        setError(err.message || "Không thể tải câu hỏi.");
       } finally {
         setLoading(false);
       }
@@ -129,8 +130,8 @@ const ForumPage = () => {
       setSelectedTags([]);
       setIsAnonymous(false);
       setUrgency("NORMAL");
-      setPagination((p) => ({ ...p, page: 1 }));
-      setRefreshTick((v) => v + 1);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+      setRefreshTick((value) => value + 1);
       setSubmitSuccess("Đã gửi câu hỏi. Câu hỏi sẽ hiển thị sau khi duyệt.");
       setShowForm(false);
     } catch (err) {
@@ -141,7 +142,6 @@ const ForumPage = () => {
   };
 
   const visible = useMemo(() => questions, [questions]);
-
   const formatTime = (value) =>
     value ? new Date(value).toLocaleString("vi-VN") : "";
 
@@ -247,25 +247,38 @@ const ForumPage = () => {
   };
 
   return (
-    <PageTransition className="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200 font-display min-h-screen flex flex-col">
+    <PageTransition className="storefront-shell min-h-screen flex flex-col font-display text-slate-900">
       <Header />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-grow">
-        <div className="flex flex-col lg:flex-row gap-8">
-          <aside className="w-full lg:w-64 space-y-6 flex-shrink-0">
+      <main className="storefront-container mx-auto w-full max-w-7xl flex-grow px-4 py-6 sm:px-6 lg:px-8">
+        <section className="storefront-hero storefront-fade-up rounded-[34px] border border-white/70 px-5 py-8 sm:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <button
-                type="button"
-                onClick={() => setShowForm((v) => !v)}
-                className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
-              >
-                <span className="material-symbols-outlined">add_circle</span>
-                Đặt câu hỏi mới
-              </button>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
+                Diễn đàn hỏi đáp
+              </div>
+              <h1 className="mt-3 text-4xl font-extrabold leading-tight text-slate-900">
+                Cộng đồng hỏi đáp về thuốc và sức khỏe
+              </h1>
+              <p className="mt-3 max-w-3xl text-base text-slate-600">
+                Đặt câu hỏi, tham khảo chia sẻ từ cộng đồng và nhận ý kiến tư
+                vấn từ đội ngũ dược sĩ.
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowForm((value) => !value)}
+              className="rounded-2xl bg-slate-900 px-5 py-3 font-semibold text-white transition-colors hover:bg-primary"
+            >
+              Đặt câu hỏi mới
+            </button>
+          </div>
+        </section>
 
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 px-2">
+        <div className="mt-8 flex flex-col gap-8 lg:flex-row">
+          <aside className="w-full flex-shrink-0 space-y-6 lg:w-72">
+            <div className="storefront-card rounded-[28px] p-5">
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
                 Phân loại
               </h3>
               <nav className="space-y-1">
@@ -273,7 +286,7 @@ const ForumPage = () => {
                   { key: "all", label: "Tất cả câu hỏi", icon: "forum" },
                   {
                     key: "answered",
-                    label: "Dược sĩ đã trả lời",
+                    label: "Đã có câu trả lời",
                     icon: "verified",
                   },
                   {
@@ -286,40 +299,40 @@ const ForumPage = () => {
                     label: "Chưa có câu trả lời",
                     icon: "pending_actions",
                   },
-                ].map((x) => {
-                  const active = filter === x.key;
+                ].map((item) => {
+                  const active = filter === item.key;
                   return (
                     <button
-                      key={x.key}
+                      key={item.key}
                       type="button"
-                      onClick={() => setFilter(x.key)}
+                      onClick={() => setFilter(item.key)}
                       className={
                         active
-                          ? "w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary font-medium"
-                          : "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
+                          ? "flex w-full items-center gap-3 rounded-xl bg-primary/10 px-3 py-2 font-medium text-primary"
+                          : "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-slate-600 transition-colors hover:bg-slate-100"
                       }
                     >
                       <span className="material-symbols-outlined text-[20px]">
-                        {x.icon}
+                        {item.icon}
                       </span>
-                      {x.label}
+                      {item.label}
                     </button>
                   );
                 })}
               </nav>
             </div>
 
-            <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 px-2 mb-4">
+            <div className="storefront-soft-card rounded-[28px] p-5">
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
                 Nhóm thuốc phổ biến
               </h3>
-              <div className="flex flex-wrap gap-2 px-2">
-                {tags.map((t) => (
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tagItem) => (
                   <span
-                    key={t.id}
-                    className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-xs font-medium rounded-full cursor-pointer hover:bg-primary/20 hover:text-primary transition-colors"
+                    key={tagItem.id}
+                    className="storefront-pill rounded-full px-3 py-1 text-xs font-medium"
                   >
-                    {t.name}
+                    {tagItem.name}
                   </span>
                 ))}
               </div>
@@ -328,9 +341,9 @@ const ForumPage = () => {
 
           <div className="flex-1 space-y-6">
             {showForm ? (
-              <section className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4">
+              <section className="storefront-card rounded-[28px] p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  <h2 className="text-lg font-bold text-slate-900">
                     Đặt câu hỏi mới
                   </h2>
                   <button
@@ -346,34 +359,34 @@ const ForumPage = () => {
                   <input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="storefront-input w-full px-4 py-3 text-sm"
                     placeholder="Tiêu đề câu hỏi"
                   />
                   <textarea
                     rows={5}
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="storefront-input w-full px-4 py-3 text-sm"
                     placeholder="Mô tả chi tiết câu hỏi của bạn..."
                   />
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex flex-wrap gap-2">
-                    {tags.map((t) => {
-                      const active = selectedTags.includes(t.slug);
+                    {tags.map((tagItem) => {
+                      const active = selectedTags.includes(tagItem.slug);
                       return (
                         <button
-                          key={t.id}
+                          key={tagItem.id}
                           type="button"
-                          onClick={() => toggleTag(t.slug)}
+                          onClick={() => toggleTag(tagItem.slug)}
                           className={
                             active
-                              ? "px-3 py-1 rounded-full text-xs font-semibold bg-primary text-white"
-                              : "px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500"
+                              ? "rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white"
+                              : "storefront-pill rounded-full px-3 py-1 text-xs font-semibold"
                           }
                         >
-                          {t.name}
+                          {tagItem.name}
                         </button>
                       );
                     })}
@@ -386,12 +399,12 @@ const ForumPage = () => {
                         onChange={(e) => setIsAnonymous(e.target.checked)}
                         className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
                       />
-                      Ẩn danh
+                      An danh
                     </label>
                     <select
                       value={urgency}
                       onChange={(e) => setUrgency(e.target.value)}
-                      className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm"
+                      className="storefront-input h-11 px-3 text-sm"
                     >
                       <option value="NORMAL">Bình thường</option>
                       <option value="URGENT">Khẩn cấp</option>
@@ -404,7 +417,7 @@ const ForumPage = () => {
                   <p className="text-sm text-rose-500">{submitError}</p>
                 ) : null}
                 {submitSuccess ? (
-                  <p className="text-sm text-emerald-500">{submitSuccess}</p>
+                  <p className="text-sm text-emerald-600">{submitSuccess}</p>
                 ) : null}
 
                 <div className="flex justify-end">
@@ -412,25 +425,24 @@ const ForumPage = () => {
                     type="button"
                     onClick={handleSubmitQuestion}
                     disabled={submitting}
-                    className="bg-primary text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-primary/90 disabled:opacity-60"
+                    className="rounded-xl bg-primary px-5 py-2.5 font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
                   >
                     {submitting ? "Đang gửi..." : "Gửi câu hỏi"}
                   </button>
                 </div>
               </section>
             ) : null}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+
+            <div className="storefront-panel flex flex-col gap-4 rounded-[28px] p-4 sm:flex-row sm:items-center sm:justify-between">
+              <h1 className="text-2xl font-bold text-slate-900">
                 Diễn đàn hỏi đáp
               </h1>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-500 dark:text-slate-400">
-                  Sắp xếp:
-                </span>
+                <span className="text-sm text-slate-500">Sắp xếp:</span>
                 <select
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
-                  className="bg-transparent border-none text-sm font-medium focus:ring-0 text-primary cursor-pointer"
+                  className="storefront-input h-11 px-3 text-sm font-medium"
                 >
                   <option value="newest">Mới nhất</option>
                   <option value="popular">Quan tâm nhất</option>
@@ -441,83 +453,66 @@ const ForumPage = () => {
 
             <div className="space-y-4">
               {loading ? (
-                <div className="text-center text-slate-500 py-10">
+                <div className="py-10 text-center text-slate-500">
                   Đang tải câu hỏi...
                 </div>
               ) : error ? (
-                <div className="text-center text-rose-500 py-10">{error}</div>
+                <div className="py-10 text-center text-rose-500">{error}</div>
               ) : (
-                visible.map((q) => (
+                visible.map((question) => (
                   <button
-                    key={q.id}
+                    key={question.id}
                     type="button"
-                    onClick={() => openDetailDialog(q)}
-                    className="group block text-left bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-primary/50 dark:hover:border-primary/50 rounded-xl p-5 transition-all shadow-sm hover:shadow-md w-full"
+                    onClick={() => openDetailDialog(question)}
+                    className="storefront-card block w-full rounded-[26px] p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40"
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        {q.hasPharmacistAnswer ? (
-                          <span className="bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1">
+                    <div className="mb-3 flex items-start justify-between">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {question.hasPharmacistAnswer ? (
+                          <span className="storefront-pill flex items-center gap-1 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider">
                             <span className="material-symbols-outlined text-[14px]">
                               verified
                             </span>
                             Dược sĩ đã trả lời
                           </span>
                         ) : null}
-
                         <span className="text-xs text-slate-400">
-                          Đăng bởi{" "}
-                          <span className="font-medium text-slate-600 dark:text-slate-300">
-                            {q.asker?.displayName || "Ẩn danh"}
-                          </span>{" "}
-                          • {formatTime(q.createdAt)}
+                          Đang bởi {question.asker?.displayName || "Ẩn danh"} •{" "}
+                          {formatTime(question.createdAt)}
                         </span>
                       </div>
-
-                      <button
-                        type="button"
-                        className="text-slate-400 hover:text-primary"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                        aria-label="Bookmark"
-                      >
-                        <span className="material-symbols-outlined text-[20px]">
-                          bookmark_border
-                        </span>
-                      </button>
                     </div>
 
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2 group-hover:text-primary transition-colors">
-                      {q.title}
+                    <h2 className="mb-2 text-lg font-bold text-slate-900 transition-colors hover:text-primary">
+                      {question.title}
                     </h2>
-                    <p className="text-slate-600 dark:text-slate-400 text-sm line-clamp-2 mb-4 leading-relaxed">
-                      {q.excerpt}
+                    <p className="mb-4 line-clamp-2 text-sm leading-relaxed text-slate-600">
+                      {question.excerpt}
                     </p>
 
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <div className="flex flex-wrap gap-2">
-                        {(q.tags || []).map((t) => (
+                        {(question.tags || []).map((tagItem) => (
                           <span
-                            key={t.id}
-                            className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 text-[11px] font-medium rounded uppercase"
+                            key={tagItem.id}
+                            className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium uppercase text-slate-500"
                           >
-                            {t.name}
+                            {tagItem.name}
                           </span>
                         ))}
                       </div>
-                      <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-1.5 text-slate-500 text-sm">
+                      <div className="flex items-center gap-6 text-sm text-slate-500">
+                        <div className="flex items-center gap-1.5">
                           <span className="material-symbols-outlined text-[18px]">
                             forum
                           </span>
-                          {`${q.answerCount} câu trả lời`}
+                          {`${question.answerCount} cau tra loi`}
                         </div>
-                        <div className="flex items-center gap-1.5 text-slate-500 text-sm">
+                        <div className="flex items-center gap-1.5">
                           <span className="material-symbols-outlined text-[18px]">
                             schedule
                           </span>
-                          {formatTime(q.lastActivityAt)}
+                          {formatTime(question.lastActivityAt)}
                         </div>
                       </div>
                     </div>
@@ -530,11 +525,11 @@ const ForumPage = () => {
               <nav className="flex items-center gap-1">
                 <button
                   type="button"
-                  className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                  className="rounded-lg p-2 text-slate-400 transition-all hover:bg-primary/10 hover:text-primary"
                   onClick={() =>
-                    setPagination((p) => ({
-                      ...p,
-                      page: Math.max(1, p.page - 1),
+                    setPagination((prev) => ({
+                      ...prev,
+                      page: Math.max(1, prev.page - 1),
                     }))
                   }
                 >
@@ -544,17 +539,17 @@ const ForumPage = () => {
                 </button>
                 <button
                   type="button"
-                  className="w-10 h-10 bg-primary text-white font-bold rounded-lg shadow-md shadow-primary/20"
+                  className="h-10 w-10 rounded-lg bg-primary font-bold text-white shadow-md shadow-primary/20"
                 >
                   {pagination.page}
                 </button>
                 <button
                   type="button"
-                  className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                  className="rounded-lg p-2 text-slate-400 transition-all hover:bg-primary/10 hover:text-primary"
                   onClick={() =>
-                    setPagination((p) => ({
-                      ...p,
-                      page: p.page + 1,
+                    setPagination((prev) => ({
+                      ...prev,
+                      page: prev.page + 1,
                     }))
                   }
                 >
@@ -566,65 +561,61 @@ const ForumPage = () => {
             </div>
           </div>
 
-          <aside className="hidden xl:block w-72 space-y-6 flex-shrink-0">
-            <div className="bg-gradient-to-br from-primary to-blue-700 rounded-2xl p-6 text-white shadow-xl shadow-primary/20">
-              <h3 className="font-bold text-lg mb-4">Thống kê cộng đồng</h3>
+          <aside className="hidden w-72 flex-shrink-0 space-y-6 xl:block">
+            <div className="storefront-hero rounded-[28px] p-6 shadow-xl shadow-sky-500/10">
+              <h3 className="mb-4 text-lg font-bold text-slate-900">
+                Thống kê cộng đồng
+              </h3>
               <div className="space-y-4">
                 {[
                   { label: "Dược sĩ trực tuyến", value: 24 },
                   { label: "Câu hỏi hôm nay", value: 142 },
                   { label: "Tỷ lệ trả lời", value: "98%" },
-                ].map((x) => (
+                ].map((item) => (
                   <div
-                    key={x.label}
+                    key={item.label}
                     className="flex items-center justify-between"
                   >
-                    <span className="text-blue-100 text-sm">{x.label}</span>
-                    <span className="font-bold">{x.value}</span>
+                    <span className="text-sm text-slate-600">{item.label}</span>
+                    <span className="font-bold text-slate-900">
+                      {item.value}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-              <h3 className="font-bold text-slate-900 dark:text-white mb-4">
-                Dược sĩ nổi bật
-              </h3>
+            <div className="storefront-card rounded-[28px] p-5">
+              <h3 className="mb-4 font-bold text-slate-900">Dược sĩ nổi bật</h3>
               <div className="space-y-4">
                 {[
                   {
-                    name: "DS. Nguyễn Thị Minh",
+                    name: "DS. Nguyen Thi Minh",
                     count: "2.4k câu trả lời",
                   },
                   {
-                    name: "DS. Trần Văn Nam",
+                    name: "DS. Tran Van Nam",
                     count: "1.8k câu trả lời",
                   },
-                ].map((x) => (
-                  <div key={x.name} className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden" />
+                ].map((item) => (
+                  <div key={item.name} className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-slate-200" />
                     <div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">
-                        {x.name}
+                      <p className="text-sm font-bold text-slate-900">
+                        {item.name}
                       </p>
-                      <p className="text-[11px] text-slate-500">{x.count}</p>
+                      <p className="text-[11px] text-slate-500">{item.count}</p>
                     </div>
-                    <span className="ml-auto material-symbols-outlined text-primary text-[18px]">
+                    <span className="material-symbols-outlined ml-auto text-[18px] text-primary">
                       verified
                     </span>
                   </div>
                 ))}
               </div>
-              <button
-                type="button"
-                className="w-full mt-4 py-2 text-xs font-semibold text-primary hover:bg-primary/10 rounded-lg transition-colors"
-              >
-                Xem tất cả chuyên gia
-              </button>
             </div>
 
-            <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-              <div className="flex gap-2 text-yellow-600 dark:text-yellow-400 mb-2">
+            <div className="storefront-soft-card rounded-[28px] border border-yellow-500/20 p-4">
+              <div className="mb-2 flex gap-2 text-yellow-600">
                 <span className="material-symbols-outlined text-[18px]">
                   warning
                 </span>
@@ -632,10 +623,9 @@ const ForumPage = () => {
                   Lưu ý quan trọng
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-normal">
+              <p className="text-[11px] leading-normal text-slate-600">
                 Mọi thông tin trên diễn đàn chỉ mang tính chất tham khảo. Trong
-                trường hợp khẩn cấp, vui lòng liên hệ ngay cơ sở y tế gần nhất
-                hoặc gọi 115.
+                trường hợp khẩn cấp, vui lòng liên hệ cơ sở y tế gần nhất.
               </p>
             </div>
           </aside>
@@ -650,10 +640,10 @@ const ForumPage = () => {
           setDetailDialog((prev) => ({ ...prev, open, error: "" }))
         }
       >
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {detailDialog.question?.title || "Chi tiết câu hỏi"}
+              {detailDialog.question?.title || "Chi tiet cau hoi"}
             </DialogTitle>
             <DialogDescription>
               {detailDialog.question?.createdAt
@@ -664,7 +654,7 @@ const ForumPage = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="text-sm text-slate-600 dark:text-slate-300">
+            <div className="text-sm text-slate-600">
               {detailDialog.question?.content}
             </div>
             {detailDialog.error ? (
@@ -672,39 +662,44 @@ const ForumPage = () => {
             ) : null}
             <div className="space-y-3">
               {detailDialog.answers.length ? (
-                detailDialog.answers.map((a) => (
+                detailDialog.answers.map((answer) => (
                   <div
-                    key={a.id}
-                    className="flex gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3"
+                    key={answer.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-3"
                   >
-                    <div className="h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-700" />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                          {a.author?.displayName || "Ẩn danh"}
+                    <div className="flex gap-3">
+                      <div className="h-9 w-9 rounded-full bg-slate-200" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {answer.author?.displayName || "An danh"}
+                          </p>
+                          <span className="text-xs text-slate-400">
+                            {answer.createdAt
+                              ? new Date(answer.createdAt).toLocaleString(
+                                  "vi-VN",
+                                )
+                              : ""}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-slate-700">
+                          {answer.content}
                         </p>
-                        <span className="text-xs text-slate-400">
-                          {a.createdAt
-                            ? new Date(a.createdAt).toLocaleString("vi-VN")
-                            : ""}
-                        </span>
                       </div>
-                      <p className="text-sm text-slate-700 dark:text-slate-300 mt-1">
-                        {a.content}
-                      </p>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-slate-500">Chưa có câu trả lời.</p>
+                <p className="text-sm text-slate-500">Chua co cau tra loi.</p>
               )}
             </div>
+
             {detailDialog.pagination?.total > detailDialog.answers.length ? (
               <button
                 type="button"
                 onClick={loadMoreAnswers}
                 disabled={detailDialog.loading}
-                className="w-full py-2 text-sm font-semibold text-primary hover:bg-primary/10 rounded-lg"
+                className="w-full rounded-lg py-2 text-sm font-semibold text-primary hover:bg-primary/10"
               >
                 {detailDialog.loading ? "Đang tải..." : "Xem thêm"}
               </button>
@@ -715,7 +710,7 @@ const ForumPage = () => {
                 rows={3}
                 value={detailAnswerText}
                 onChange={(e) => setDetailAnswerText(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="storefront-input w-full p-3 text-sm"
                 placeholder="Viết bình luận của bạn..."
               />
               {detailSubmitError ? (
@@ -728,7 +723,7 @@ const ForumPage = () => {
                   type="button"
                   onClick={handleSubmitDetailAnswer}
                   disabled={detailSubmitting}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
                 >
                   <span className="material-symbols-outlined text-[18px]">
                     send

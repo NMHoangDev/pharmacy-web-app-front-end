@@ -9,76 +9,80 @@ const CartItemRow = ({
   formatCurrency,
 }) => {
   return (
-    <tr className="group hover:bg-slate-50 dark:hover:bg-gray-800/50 transition-colors">
-      <td className="px-4 py-4 align-middle">
+    <tr className="group transition-colors hover:bg-sky-50/70">
+      <td className="px-4 py-5 align-middle">
         <input
           type="checkbox"
           checked={isSelected}
           onChange={(e) => onSelect(item.id, e.target.checked)}
-          className="h-5 w-5 rounded border-[#cfdbe7] border-2 bg-transparent text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer"
+          className="h-5 w-5 cursor-pointer rounded border-slate-300 text-primary focus:ring-primary/30"
         />
       </td>
-      <td className="px-4 py-4 align-middle">
-        <div className="flex items-center gap-3">
+      <td className="px-4 py-5 align-middle">
+        <div className="flex items-center gap-4">
           <div
-            className="bg-center bg-no-repeat bg-cover rounded-lg w-16 h-16 shrink-0 border border-gray-100 dark:border-gray-700"
+            className="h-20 w-20 shrink-0 rounded-2xl border border-slate-100 bg-white bg-center bg-cover shadow-sm"
             style={{ backgroundImage: `url(${item.image})` }}
             aria-label={item.alt}
           />
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="text-[#0d141b] dark:text-white text-sm font-semibold leading-normal">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="line-clamp-2 text-sm font-semibold leading-6 text-slate-900">
                 {item.name}
               </span>
-              {item.badge && (
-                <span className="hidden lg:inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300 ring-1 ring-inset ring-blue-700/10">
+              {item.badge ? (
+                <span className="storefront-pill inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold">
                   {item.badge}
                 </span>
-              )}
+              ) : null}
             </div>
-            <span className="text-[#4c739a] text-xs leading-normal">
-              {item.subtitle}
-            </span>
+            {item.subtitle ? (
+              <span className="mt-1 block text-xs leading-5 text-slate-500">
+                {item.subtitle}
+              </span>
+            ) : null}
           </div>
         </div>
       </td>
-      <td className="hidden sm:table-cell px-4 py-4 align-middle text-[#0d141b] dark:text-gray-300 text-sm font-medium">
+      <td className="hidden px-4 py-5 align-middle text-sm font-medium text-slate-700 sm:table-cell">
         {formatCurrency(item.price)}
       </td>
-      <td className="px-4 py-4 align-middle">
-        <div className="flex items-center border border-[#cfdbe7] dark:border-gray-600 rounded-lg w-fit">
+      <td className="px-4 py-5 align-middle">
+        <div className="inline-flex items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
           <button
             type="button"
-            className="px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
+            className="grid h-9 w-9 place-items-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
             onClick={() =>
               onChangeQuantity(item.id, Math.max(1, item.quantity - 1))
             }
             aria-label="Giảm số lượng"
           >
-            -
+            <span className="material-symbols-outlined text-[18px]">
+              remove
+            </span>
           </button>
-          <span className="px-2 text-sm font-medium w-8 text-center text-[#0d141b] dark:text-white">
+          <span className="w-10 text-center text-sm font-semibold text-slate-900">
             {item.quantity}
           </span>
           <button
             type="button"
-            className="px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
+            className="grid h-9 w-9 place-items-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
             onClick={() => onChangeQuantity(item.id, item.quantity + 1)}
             aria-label="Tăng số lượng"
           >
-            +
+            <span className="material-symbols-outlined text-[18px]">add</span>
           </button>
         </div>
       </td>
-      <td className="hidden md:table-cell px-4 py-4 align-middle text-primary text-sm font-bold">
+      <td className="hidden px-4 py-5 align-middle text-sm font-bold text-primary md:table-cell">
         {formatCurrency(item.price * item.quantity)}
       </td>
-      <td className="px-4 py-4 align-middle text-right">
+      <td className="px-4 py-5 align-middle text-right">
         <button
           type="button"
-          className="text-[#4c739a] hover:text-red-500 transition-colors p-2"
+          className="grid h-10 w-10 place-items-center rounded-xl text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
           onClick={() => onRemove(item.id)}
-          aria-label="Xóa sản phẩm"
+          aria-label="Xoa san pham"
         >
           <span className="material-symbols-outlined text-[20px]">delete</span>
         </button>

@@ -1,59 +1,31 @@
 import React from "react";
 import AdminTableWrapper from "../../common/AdminTableWrapper";
+import {
+  getOrderStatusBadgeClasses,
+  getPaymentStatusBadgeClasses,
+  toOrderStatusLabel,
+  toPaymentStatusLabel,
+} from "../../../utils/orderStatus";
 
-const statusBadge = (status) => {
-  const map = {
-    pending: { bg: "bg-yellow-100", text: "text-yellow-800", label: "Pending" },
-    processing: {
-      bg: "bg-blue-100",
-      text: "text-blue-800",
-      label: "Đang xử lý",
-    },
-    shipped: { bg: "bg-blue-100", text: "text-blue-800", label: "Processing" },
-    completed: {
-      bg: "bg-green-100",
-      text: "text-green-800",
-      label: "Hoàn thành",
-    },
-    cancelled: { bg: "bg-red-100", text: "text-red-800", label: "Cancelled" },
-  };
-  const cfg = map[status] || map.pending;
-  return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text}`}
-    >
-      {cfg.label}
-    </span>
-  );
-};
+const statusBadge = (status) => (
+  <span
+    className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getOrderStatusBadgeClasses(
+      status,
+    )}`}
+  >
+    {toOrderStatusLabel(status)}
+  </span>
+);
 
-const paymentBadge = (payment) => {
-  const map = {
-    paid: {
-      bg: "bg-green-100",
-      text: "text-green-800",
-      label: "Đã thanh toán",
-    },
-    unpaid: {
-      bg: "bg-yellow-100",
-      text: "text-yellow-800",
-      label: "Chưa thanh toán",
-    },
-    refunded: {
-      bg: "bg-slate-100",
-      text: "text-slate-800",
-      label: "Đã hoàn tiền",
-    },
-  };
-  const cfg = map[payment] || map.unpaid;
-  return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text}`}
-    >
-      {cfg.label}
-    </span>
-  );
-};
+const paymentBadge = (payment) => (
+  <span
+    className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getPaymentStatusBadgeClasses(
+      payment,
+    )}`}
+  >
+    {toPaymentStatusLabel(payment)}
+  </span>
+);
 
 const clampStyle = (lines) => ({
   display: "-webkit-box",
@@ -68,7 +40,7 @@ const OrdersTable = ({ orders, onView, onComplete, onCancel }) => {
   return (
     <AdminTableWrapper className="overflow-hidden" padded={false}>
       <div className="overflow-hidden">
-        <table className="w-full text-left border-collapse table-fixed">
+        <table className="w-full table-fixed border-collapse text-left">
           <colgroup>
             <col style={{ width: "160px" }} />
             <col style={{ width: "200px" }} />
@@ -107,15 +79,16 @@ const OrdersTable = ({ orders, onView, onComplete, onCancel }) => {
             {orders.map((order) => {
               const dateObj =
                 order.dateObj || new Date(order.createdAt || Date.now());
-              const datePart = dateObj.toLocaleDateString("en-GB", {
+              const datePart = dateObj.toLocaleDateString("vi-VN", {
                 day: "2-digit",
-                month: "short",
+                month: "2-digit",
                 year: "numeric",
               });
-              const timePart = dateObj.toLocaleTimeString("en-GB", {
+              const timePart = dateObj.toLocaleTimeString("vi-VN", {
                 hour: "2-digit",
                 minute: "2-digit",
               });
+
               return (
                 <tr
                   key={order.id}
@@ -126,9 +99,9 @@ const OrdersTable = ({ orders, onView, onComplete, onCancel }) => {
                       <span
                         className="text-[12px] font-semibold leading-5 text-slate-900 sm:text-sm"
                         style={clampStyle(2)}
-                        title={String(order.id || "")}
+                        title={String(order.orderCode || order.id || "")}
                       >
-                        {String(order.id || "")}
+                        {String(order.orderCode || order.id || "")}
                       </span>
                     </div>
                   </td>
